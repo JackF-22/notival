@@ -1,0 +1,25 @@
+const {readFileSync}=require('node:fs');
+const {runInNewContext}=require('node:vm');
+const assert=require('node:assert/strict');
+
+const notes=runInNewContext(readFileSync('web/pdf-notes.js','utf8')+'\nPDFNotes');
+const bounds={x:12,y:30,width:140,height:22};
+const quote=notes.blockFromCapture({kind:'quote',text:'First line\nSecond line',path:'/tmp/reading.pdf',name:'reading.pdf',page:7,bounds},'quote-1');
+assert.equal(quote.text,'> First line\n> Second line');
+assert.equal(quote.pdfRef.page,7);
+assert.equal(quote.pdfRef.path,'/tmp/reading.pdf');
+assert.deepEqual({...quote.pdfRef.bounds},bounds);
+const comment=notes.blockFromCapture({kind:'comment',text:'Selected claim',comment:'Check this against the source.',path:'/tmp/reading.pdf',name:'reading.pdf',page:7,bounds},'comment-1');
+assert.equal(comment.text,'Check this against the source.');
+assert.equal(comment.pdfRef.quote,'Selected claim');
+assert.deepEqual({...comment.pdfRef.bounds},bounds);
+const highlight=notes.blockFromCapture({kind:'highlight',text:'Important result',path:'/tmp/reading.pdf',name:'reading.pdf',page:7,bounds},'highlight-1');
+assert.equal(highlight.text,'> Important result');
+assert.equal(highlight.pdfRef.kind,'highlight');
+const thought=notes.blockFromCapture({kind:'thought',path:'/tmp/reading.pdf',name:'reading.pdf',page:8},'thought-1');
+assert.equal(thought.text,'');
+assert.equal(thought.pdfRef.quote,null);
+assert.equal(notes.blockFromCapture({kind:'quote',text:'',path:'/tmp/reading.pdf',page:1},'bad'),null);
+assert.equal(notes.blockFromCapture({kind:'comment',text:'Selected',comment:'',path:'/tmp/reading.pdf',page:1},'bad'),null);
+assert.equal(notes.blockFromCapture({kind:'thought',path:'relative.pdf',page:1},'bad'),null);
+console.log('PASS: PDF quotes and page thoughts retain safe local references and selection bounds.');

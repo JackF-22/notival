@@ -1,0 +1,8 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const model=vm.runInNewContext(fs.readFileSync('web/synthesis-model.js','utf8')+'\nSynthesisModel');let count=0;
+const draft={blocks:[],synthesis:{question:'What explains this?',conclusion:'An explanation.',evidence:[{title:'Source',quote:'First line\nSecond line',relation:'Challenges',reason:'A counterexample.',noteId:'n1',blockId:'b1'}]}};
+draft.blocks=model.blocks(draft,()=>String(++count));assert.equal(draft.blocks.length,2);assert.equal(draft.blocks[1].sourceBlockId,'b1');assert.match(draft.blocks[1].text,/> First line\n> Second line/);assert.match(draft.blocks[1].text,/Challenges/);
+const originalSourceID=draft.blocks[1].id;const editedID=draft.blocks[0].id;draft.blocks[0].text='My manual revision';draft.blocks.push({id:'manual',type:'text',text:'Additional research'});draft.synthesis.conclusion='A newer explanation.';
+draft.blocks=model.blocks(draft,()=>String(++count));assert.equal(draft.blocks.length,4);assert.equal(draft.blocks[1].id,originalSourceID);assert.equal(draft.blocks[2].id,editedID);assert.equal(draft.blocks[2].text,'My manual revision');assert.equal(draft.blocks[3].id,'manual');assert.equal(draft.blocks[2].synthesisGenerated,false);
+draft.blocks=model.blocks(draft,()=>String(++count));assert.equal(draft.blocks.length,4);assert.equal(draft.blocks.filter(b=>b.text==='My manual revision').length,1);assert.equal(draft.synthesis.evidence[0].quote,'First line\nSecond line');
+console.log('PASS: synthesis retains provenance and multiline quotes; regeneration preserves manual edits and additional blocks without duplication.');

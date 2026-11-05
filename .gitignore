@@ -1,0 +1,10 @@
+.build/
+dist/
+.DS_Store
+
+# Local previews and credentials
+preview.png
+.env
+.env.*
+*.pem
+*.key
