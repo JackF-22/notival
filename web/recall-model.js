@@ -4,7 +4,14 @@ const RecallModel=(()=>{
  const DAY=86400000,MINUTE=60000,GRADES=['Again','Hard','Good','Easy'];
  const hash=text=>{let h=5381;for(const c of String(text))h=((h<<5)+h+c.charCodeAt(0))>>>0;return h.toString(36)};
  const squash=text=>String(text).replace(/\s+/g,' ').trim();
- const normalize=text=>squash(String(text).toLowerCase().replace(/[‘’]/g,"'").replace(/[^\p{L}\p{N}' ]+/gu,' ').replace(/\b(?:the|a|an)\b/g,' '));
+ // Signs, decimal points, fractions and percents inside numbers survive (parked in private-use characters while the rest is stripped).
+ const NUMBER_MARKS={'':'.','':'/','':'-','':'%'};
+ const normalize=text=>squash(String(text).toLowerCase().replace(/[‘’]/g,"'").replace(/[−–—]/g,'-')
+  .replace(/(\d),(?=\d{3}(?!\d))/g,'$1').replace(/(\d)\.(?=\d)/g,'$1').replace(/(\d)\/(?=\d)/g,'$1').replace(/(^|[\s(=])-(?=\d)/g,'$1').replace(/(\d)%/g,'$1')
+  .replace(/[^\p{L}\p{N}' -]+/gu,' ').replace(/\b(?:the|a|an)\b/g,' ').replace(/[-]/g,c=>NUMBER_MARKS[c]));
+ // Answers with no letters or digits (∫, →, +) are compared symbol for symbol.
+ const symbols=text=>String(text).toLowerCase().replace(/[−–—]/g,'-').replace(/\s+/g,'');
+ const DEFAULT_NEW_PER_DAY=10;
  const sentences=text=>String(text).split(/\n+/).flatMap(line=>squash(line).match(/[^.!?]+(?:[.!?]+(?=\s|$)|$)/g)||[]).map(s=>s.trim()).filter(Boolean);
 
  // ── Markup written straight into a note ─────────────────────────────────────
@@ -161,9 +168,10 @@ const RecallModel=(()=>{
   const seen=new Set(),unique=picked.filter(i=>!seen.has(i.id)&&seen.add(i.id)).slice(0,limit);
   return interleave(unique);
  }
- function stats(items,reviews={},now=Date.now()){
-  const s={total:items.length,due:0,new:0,weak:0,learning:0,mature:0,ready:0};
-  for(const item of items){const st=status(reviews[item.id],now);if(st==='new'){s.new++;s.ready++}else if(st==='due'){s.due++;s.ready++}else if(st==='weak'){s.weak++;s.ready++}else if(st==='learning'){s.learning++;if(reviews[item.id].due<=now)s.ready++}else if(st==='mature')s.mature++}
+ // `allowance` caps how many new items count as ready (today's remaining new-item budget).
+ function stats(items,reviews={},now=Date.now(),allowance=Infinity){
+  const s={total:items.length,due:0,new:0,weak:0,learning:0,mature:0,ready:0};let fresh=0;
+  for(const item of items){const st=status(reviews[item.id],now);if(st==='new'){s.new++;if(fresh<allowance){fresh++;s.ready++}}else if(st==='due'){s.due++;s.ready++}else if(st==='weak'){s.weak++;s.ready++}else if(st==='learning'){s.learning++;if(reviews[item.id].due<=now)s.ready++}else if(st==='mature')s.mature++}
   return s;
  }
  function weakTopics(items,reviews={},now=Date.now(),limit=5){
@@ -171,11 +179,25 @@ const RecallModel=(()=>{
   for(const item of items){const rev=reviews[item.id];if(!rev||!item.noteId)continue;const t=by.get(item.noteId)||{noteId:item.noteId,count:0,sum:0};t.count++;t.sum+=retrievability(rev,now);by.set(item.noteId,t)}
   return [...by.values()].map(t=>({noteId:t.noteId,count:t.count,strength:t.sum/t.count})).filter(t=>t.strength<.85).sort((a,b)=>a.strength-b.strength).slice(0,limit);
  }
- function logReview(state,id,rating,mode,now=Date.now()){
-  state.reviewLog??=[];state.reviewLog.push({id,t:now,rating,mode});if(state.reviewLog.length>5000)state.reviewLog.splice(0,state.reviewLog.length-5000);
+ // `first` marks the review that introduced a new item, which is what the daily new-item limit counts.
+ function logReview(state,id,rating,mode,now=Date.now(),first=false){
+  state.reviewLog??=[];state.reviewLog.push({id,t:now,rating,mode,first});if(state.reviewLog.length>5000)state.reviewLog.splice(0,state.reviewLog.length-5000);
  }
  function reviewedToday(state,now=Date.now()){
   const start=new Date(now).setHours(0,0,0,0);return (state.reviewLog||[]).filter(e=>e.t>=start).length;
+ }
+ function newToday(state,now=Date.now()){
+  const start=new Date(now).setHours(0,0,0,0);return (state.reviewLog||[]).filter(e=>e.t>=start&&e.first).length;
+ }
+ // New items still allowed today: the daily limit (default 10, `state.recallNewPerDay`) minus those already started.
+ function allowance(state,now=Date.now()){
+  return Math.max(0,(Number(state.recallNewPerDay)||DEFAULT_NEW_PER_DAY)-newToday(state,now));
+ }
+ // What is waiting right now: scheduled reviews that are due, plus new items up to today's allowance.
+ function workload(items,reviews={},now=Date.now(),newAllowance=Infinity){
+  let due=0,fresh=0;
+  for(const item of items){const r=reviews[item.id];if(!r)fresh++;else if(r.due<=now)due++}
+  return {due,new:Math.min(fresh,newAllowance),ready:due+Math.min(fresh,newAllowance)};
  }
 
  // ── Answering ───────────────────────────────────────────────────────────────
@@ -189,8 +211,10 @@ const RecallModel=(()=>{
  const checkable=item=>item.type==='cloze'||(item.type==='qa'&&normalize(item.answer).length<=40&&normalize(item.answer).split(' ').length<=6);
  function check(item,typed){
   if(!checkable(item))return null;
-  const want=normalize(item.type==='cloze'?item.blank:item.answer),got=normalize(typed);
+  const answer=item.type==='cloze'?item.blank:item.answer,want=normalize(answer),got=normalize(typed);
+  if(!want)return symbols(typed)&&symbols(typed)===symbols(answer)?'correct':'wrong';
   if(!got)return 'wrong';if(got===want)return 'correct';
+  if(/\d/.test(want))return 'wrong'; // a wrong number, date or formula is not a spelling slip
   const forgiving=Math.max(1,Math.floor(want.length/6));
   return distance(got,want)<=forgiving&&want.length>3?'close':'wrong';
  }
@@ -219,5 +243,5 @@ const RecallModel=(()=>{
   return {total:results.length,correct,pct:results.length?Math.round(correct/results.length*100):0,missed:results.filter(r=>r.rating==='Again').map(r=>r.item),restudy:[...byNote].map(([noteId,count])=>({noteId,count})).sort((a,b)=>b.count-a.count)};
  }
 
- return {parseMarkup,noteItems,collect,collectAll,clozeParts,promptText,newItem,validItem,suggest,schedule,preview,retrievability,status,isDue,queue,stats,weakTopics,logReview,reviewedToday,check,checkable,suggestedGrade,coverage,distractors,format,summarize,normalize,sentences,GRADES};
+ return {parseMarkup,noteItems,collect,collectAll,clozeParts,promptText,newItem,validItem,suggest,schedule,preview,retrievability,status,isDue,queue,stats,weakTopics,logReview,reviewedToday,newToday,allowance,workload,DEFAULT_NEW_PER_DAY,check,checkable,suggestedGrade,coverage,distractors,format,summarize,normalize,sentences,GRADES};
 })();

@@ -12,6 +12,8 @@
  const scope=()=>ctx.notes?{notes:ctx.notes}:{projectId:ctx.project?.id||null,unitId:ctx.unitId||null,exclude:ctx.exclude||null};
  const noteOf=id=>state.notes.find(n=>n.id===id);
  const reviews=()=>state.reviews??={};
+ const allowance=()=>M.allowance(state);
+ const sessionFor=list=>M.queue(list,reviews(),{mode:'due',limit:15,newLimit:allowance()});
  const isMade=item=>item.origin==='made'&&(state.items||[]).some(i=>i.id===item.id);
  function setScope(o={}){ctx={project:o.project||null,notes:o.notes||null,title:o.title||o.project?.name||'All notes',unitId:o.unitId||'',exclude:o.exclude?new Set(o.exclude):null}}
  function unitLabel(item){const p=state.projects.find(p=>p.id===item.projectId);return p?.units?.find(u=>u.id===item.unitId)?.name||''}
@@ -41,7 +43,7 @@
  // ── Hub ─────────────────────────────────────────────────────────────────────
  function hub(options){
   if(options)setScope(options);
-  const list=M.collect(state,scope()),stats=M.stats(list,reviews()),made=list.length;
+  const list=M.collect(state,scope()),stats=M.stats(list,reviews(),Date.now(),allowance()),made=list.length;
   frame('Recall');
   const subject=ctx.project&&state.projects.find(p=>p.id===ctx.project.id);
   if(subject?.units?.length&&!ctx.notes){
@@ -54,19 +56,23 @@
    dialog.append(el('p','Tip: in a note, select a phrase and press ⌘⇧K. You can also type Q: and A: on two lines, or put {{double braces}} around words to hide.','recall-note'));
    return;
   }
-  const session=M.queue(list,reviews(),{mode:'due',limit:15,newLimit:6}).length;
+  const session=sessionFor(list).length,work=M.workload(list,reviews(),Date.now(),allowance()),ready=session?work.ready:0;
   const lead=el('div',undefined,'recall-lead');
-  lead.append(el('strong',String(session),'recall-count'),el('span',session?(session===1?'question ready':'questions ready'):'All caught up'));dialog.append(lead);
-  const when=nextDue(list);
-  dialog.append(el('p',session?(stats.new?stats.new+' new · ':'')+made+' in total':(when?'Next review '+when+'.':'Nothing is due yet.'),'recall-note'));
+  lead.append(el('strong',String(ready),'recall-count'),el('span',ready?(ready===1?'question ready':'questions ready'):'All caught up'));dialog.append(lead);
+  const when=nextDue(list),limitHit=stats.new>0&&!allowance();
+  dialog.append(el('p',session?(session<ready?session+' in this session · ':'')+(work.new?work.new+' new · ':'')+made+' in total':[when?'Next review '+when+'.':'Nothing is due yet.',limitHit?'Today’s new-question limit is reached.':''].filter(Boolean).join(' '),'recall-note'));
   const row=el('div',undefined,'recall-actions');
   row.append(session?btn('Start',()=>start('due',15),'primary'):btn('Practice anyway',()=>start('quiz',10),'primary'));dialog.append(row);
   const links=el('div',undefined,'recall-links');
   links.append(btn('Make a question',()=>compose({note:ctx.notes?.[0]||null,after:hub})),btn('Import from AI',()=>importFromAI()),btn('Browse all '+made,()=>bank()));
   dialog.append(links);
+  const limit=el('label','New per day ',undefined),limitSelect=el('select');limitSelect.setAttribute('aria-label','New questions per day');
+  for(const n of new Set([5,10,20,40,Number(state.recallNewPerDay)||M.DEFAULT_NEW_PER_DAY].sort((a,b)=>a-b))){const o=el('option',String(n));o.value=String(n);limitSelect.append(o)}
+  limitSelect.value=String(Number(state.recallNewPerDay)||M.DEFAULT_NEW_PER_DAY);limitSelect.onchange=()=>{state.recallNewPerDay=Number(limitSelect.value);persist();hub()};
+  limit.className='recall-limit';limit.append(limitSelect);dialog.append(limit);
  }
  function start(modeName,limit){
-  const list=M.collect(state,scope()),picked=M.queue(list,reviews(),{mode:modeName,limit,newLimit:modeName==='due'?6:limit});
+  const list=M.collect(state,scope()),picked=M.queue(list,reviews(),{mode:modeName,limit,newLimit:modeName==='due'?allowance():limit});
   if(!picked.length){toast('Nothing to ask yet');return}
   run({mode:modeName,list:picked,pool:list});
  }
@@ -161,7 +167,8 @@
   }
   function rate(grade){
    onKey=null;
-   reviews()[item.id]=M.schedule(reviews()[item.id],grade);M.logReview(state,item.id,grade,sess.mode);persist();
+   const first=!reviews()[item.id];
+   reviews()[item.id]=M.schedule(reviews()[item.id],grade);M.logReview(state,item.id,grade,sess.mode,Date.now(),first);persist();
    if(!sess.asked.has(item.id)){sess.asked.add(item.id);sess.results.push({item,rating:grade})}
    sess.queue.shift();
    if(grade==='Again'&&!sess.queue.some(q=>q.id===item.id)&&(sess.mode==='due'||sess.mode==='weak'))sess.queue.push(item);
@@ -352,7 +359,7 @@
   head.append(el('h2','Recall'),btn(list.length?'Open':'Set up',()=>hub({project})));box.append(head);
   if(!list.length)box.append(el('p','Turn what you’re learning into questions you answer from memory.','recall-note'));
   else{
-   const ready=M.queue(list,reviews(),{mode:'due',limit:15,newLimit:6}).length;
+   const ready=sessionFor(list).length?M.workload(list,reviews(),Date.now(),allowance()).ready:0;
    box.append(el('p',ready?ready+(ready===1?' question ready':' questions ready'):'All caught up'+(nextDue(list)?' · next '+nextDue(list):''),'recall-line'));
    if(ready){const go=btn('Start',()=>{setScope({project});start('due',15)},'primary');box.append(go)}
   }

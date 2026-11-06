@@ -90,4 +90,31 @@ assert(!M.suggest(study,{items:[{...cris}]}).some(x=>x.id===cris.id));
 // Summary
 const summary=M.summarize([{item:bank[0],rating:'Good'},{item:{...bank[1],noteId:'N'},rating:'Again'},{item:{...bank[2],noteId:'N'},rating:'Again'},{item:bank[3],rating:'Easy'}]);
 assert.equal(summary.pct,50);assert.equal(summary.missed.length,2);assert.equal(JSON.stringify(summary.restudy),'[{"noteId":"N","count":2}]');
-console.log('PASS: markup items, stable ids, scoping, scheduler, queues, answer checking, multiple choice, suggestions, summary.');
+// Answers that are symbols, signs, decimals or other numbers are checked exactly, never by spelling
+const ans=a=>M.newItem({type:'qa',prompt:'q',answer:a});
+for(const symbol of ['∫','→','+','≤'])assert.equal(M.check(ans(symbol),symbol),'correct',symbol+' typed as itself');
+assert.equal(M.check(ans('∫'),'→'),'wrong');assert.equal(M.check(ans('∫'),''),'wrong');assert.equal(M.check(ans('−'),'-'),'correct');
+assert.equal(M.check(ans('−3'),'3'),'wrong');assert.equal(M.check(ans('−3'),'-3'),'correct');assert.equal(M.check(ans('−3'),'−3'),'correct');
+assert.equal(M.check(ans('3.5'),'35'),'wrong');assert.equal(M.check(ans('3.5'),'3.5'),'correct');assert.equal(M.check(ans('0.5'),'05'),'wrong');
+assert.equal(M.check(ans('1/2'),'12'),'wrong');assert.equal(M.check(ans('1/2'),'1/2'),'correct');assert.equal(M.check(ans('25%'),'25'),'wrong');
+assert.equal(M.check(ans('1,000'),'1000'),'correct');
+assert.equal(M.check(ans('1947'),'1948'),'wrong');assert.equal(M.check(ans('1947'),'1947'),'correct');assert.equal(M.check(ans('x^2+y^2'),'x^2+y^3'),'wrong');
+assert.equal(M.check(ans('Paris'),'Pariss'),'close');assert.equal(M.check(c,'mitochondrian'),'close');
+
+// Daily new-item limit: new items stop counting as ready once today's budget is used
+const day=new Date(2026,10,6,15).getTime(),fresh=Array.from({length:30},(_,i)=>({id:'f'+i,noteId:'a',type:'qa',prompt:'p',answer:'x'}));
+assert.equal(M.allowance({},day),10);assert.equal(M.allowance({recallNewPerDay:20},day),20);
+const used={};for(let i=0;i<4;i++)M.logReview(used,'f'+i,'Good','due',day-i*1000,true);M.logReview(used,'old','Good','due',day,false);
+assert.equal(M.newToday(used,day),4);assert.equal(M.reviewedToday(used,day),5);assert.equal(M.allowance(used,day),6);
+assert.equal(M.newToday(used,day+DAY),0,'a new day starts with a full allowance');
+used.recallNewPerDay=4;assert.equal(M.allowance(used,day),0);
+assert.equal(M.queue(fresh,{},{now:day,limit:15,newLimit:M.allowance({},day)}).length,10);
+assert.equal(M.queue(fresh,{},{now:day,limit:15,newLimit:0}).length,0);
+// The ready count tells the whole workload, not just one session
+const backlog=Array.from({length:40},(_,i)=>({id:'b'+i,noteId:'a',type:'qa',prompt:'p',answer:'x'})),late={};backlog.slice(0,30).forEach(i=>late[i.id]={due:day-1,interval:3,ease:2.5,reps:2,lapses:0,reviewedAt:day-3*DAY,rating:'Good'});
+const work=M.workload(backlog,late,day,M.allowance({},day));assert.equal(work.due,30);assert.equal(work.new,10);assert.equal(work.ready,40);
+assert.equal(M.queue(backlog,late,{now:day,limit:15,newLimit:10}).length,15,'a session is still capped at 15');
+assert.equal(M.stats(backlog,late,day,3).ready,33);assert.equal(M.stats(backlog,late,day).ready,40);
+assert.equal(M.workload(backlog,late,day,0).ready,30);
+
+console.log('PASS: markup items, stable ids, scoping, scheduler, queues, answer checking, symbol/number answers, daily new limit, multiple choice, suggestions, summary.');
