@@ -1,0 +1,224 @@
+/* A quiet writing column; the context rail opens on request. */
+body[data-view=note] article{display:block;width:100%;max-width:1020px;margin:0 auto;padding:28px clamp(24px,5vw,72px) 60px}
+body[data-view=note] article>#note-column{width:100%;min-width:0}
+body[data-view=note].context-open:not(.pdf-workspace) article{display:grid;max-width:1380px;grid-template-columns:minmax(0,820px) 230px;gap:36px}
+body[data-view=note] article>#note-rail[hidden]{display:none}
+body[data-view=note].context-open article>#note-rail:not([hidden]){display:block;min-width:0;padding-left:20px}
+#note-column>.eyebrow{display:none}
+body #format-bar{border:0;background:transparent;box-shadow:none;padding:5px 0 12px;margin-bottom:8px;border-radius:0;gap:5px;flex-wrap:wrap;overflow:visible}
+#format-bar>button,#format-bar>select{height:30px}
+#format-bar .editor-menu{margin-left:auto}
+.editor-menu{position:relative;flex:0 0 auto}
+.editor-menu-panel{position:absolute;right:0;top:calc(100% + 6px);z-index:110;display:flex;flex-direction:column;gap:3px;width:220px;max-width:calc(100vw - 32px);max-height:65vh;overflow:auto;padding:7px;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink);box-shadow:0 12px 36px #0003}
+.editor-menu-panel[hidden]{display:none!important}
+#format-bar .editor-menu-panel button,.toolbar-actions .editor-menu-panel button{display:block;width:100%;min-height:32px;height:auto;white-space:normal;text-align:left;padding:8px 10px;font-size:12px;font-weight:400;letter-spacing:normal;border:0;border-radius:6px}
+.editor-menu-panel button:hover,.editor-menu-panel button:focus-visible{background:var(--soft)}
+#editor-insert,#note-tools{border:1px solid var(--line);padding:6px 10px;border-radius:8px;font-size:12px;white-space:nowrap}
+body .toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+body .toolbar-actions{flex:1 1 auto;width:auto;margin-left:auto;justify-content:flex-end;align-items:center;gap:8px;flex-wrap:wrap}
+body .toolbar-actions #capture{display:block}
+body .toolbar{margin-top:8px;margin-bottom:0;padding-bottom:8px}
+#selection-tools{position:fixed;z-index:120;display:flex;align-items:center;gap:4px;max-width:calc(100vw - 16px);flex-wrap:wrap;padding:6px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);box-shadow:0 8px 28px #0003}
+#selection-tools[hidden]{display:none}
+#selection-tools button{padding:7px 9px;font-size:12px;white-space:nowrap}
+#focus-writing-toggle{font-size:12px;color:var(--muted);white-space:nowrap}
+#focus-writing-toggle[aria-pressed=true]{color:var(--green)}
+body #add-bar{border:0;margin-top:10px;padding-top:6px;justify-content:flex-start}
+body #add-bar>span{display:none}
+body #add-bar button{color:var(--muted);font-size:12px}
+body #editor>.block:only-child .rich-text{min-height:160px}
+@media(max-width:900px){body[data-view=note].context-open:not(.pdf-workspace) article{display:flex;flex-direction:column}body[data-view=note].context-open article>#note-rail:not([hidden]){position:static;width:100%;order:-1;max-height:220px;overflow:auto;border-left:0;border-bottom:1px solid var(--line);padding:0 0 12px}}
+
+body[data-view=home] #focus-writing-toggle{display:none}
+@media(max-width:1000px){body header{height:auto;min-height:72px;flex-shrink:0;flex-wrap:wrap;gap:6px;padding:10px 16px}.header-actions{margin-left:auto;gap:6px;flex-wrap:wrap}body header .student-nav{margin-right:0}}
+/* Equal gutters and a centered reading measure keep prose off the sidebar edge. */
+body[data-view=note] article{max-width:1120px;padding:34px clamp(28px,5vw,80px) 64px}
+body[data-view=note] article>#note-column{max-width:800px;margin-inline:auto}
+body[data-view=note].context-open article>#note-column{max-width:none}
+body #note-column>#title{padding-inline:16px}
+body #note-column>.meta{padding-inline:16px;margin-bottom:24px}
+body #format-bar{padding:8px 16px 16px;gap:6px}
+body #format-bar .editor-menu{margin-left:0}
+body #format-bar .editor-menu:has(#editor-alignment){margin-left:auto}
+#editor-alignment{border:1px solid var(--line);padding:6px 10px;border-radius:8px;font-size:12px;white-space:nowrap}
+body #editor>.block:not(.code){padding:16px;margin:0 0 16px}
+body #editor .rich-text{padding:0;line-height:1.85}
+body #editor .rich-text p{margin-bottom:16px}
+body #editor .rich-text>p:last-child{margin-bottom:0}
+body #editor>.block:not(.code) .block-tools{top:-15px;right:3px}
+body #editor>.block:not(.code) .remove{width:28px;height:28px;min-height:28px}
+body #add-bar{padding-inline:16px}
+@media(max-width:780px){body[data-view=note] article{padding:24px 16px 48px}body #format-bar{padding-inline:12px;gap:3px}body #editor>.block:not(.code){padding:14px 12px}body #note-column>#title,body #note-column>.meta{padding-inline:12px}}
+#format-bar .editor-menu-panel button{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.shortcut-hint{float:none;flex:0 0 auto;margin-left:auto;font:10px -apple-system,BlinkMacSystemFont,sans-serif;letter-spacing:.02em;opacity:.65;white-space:nowrap}
+.table-picker{width:min(330px,calc(100vw - 32px));max-height:90vh;overflow:auto;padding:20px}
+.table-picker[open]{animation:table-picker-open .16s ease-out}
+.table-picker-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.table-picker-heading h2{font-size:17px;margin:0}.table-picker-heading output{font-variant-numeric:tabular-nums;color:var(--muted);font-size:13px}
+.table-size-grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:4px;touch-action:none;user-select:none}
+.table-size-grid button{aspect-ratio:1;min-width:0;padding:0;border:1px solid var(--line);border-radius:4px;background:var(--soft);transition:background .09s,border-color .09s,transform .09s}
+.table-size-grid button.is-selected{background:color-mix(in srgb,var(--green) 24%,var(--bg));border-color:var(--green)}
+.table-size-grid button:focus-visible{outline:2px solid var(--green);outline-offset:1px}
+.table-picker>p{font-size:11px;color:var(--muted);line-height:1.5;margin:14px 0}
+.table-size-fields{display:flex;gap:12px;border-top:1px solid var(--line);padding-top:14px}.table-size-fields label{display:grid;gap:6px;flex:1;font-size:12px;color:var(--muted)}
+.table-size-fields input{width:100%;padding:7px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink)}
+.table-picker-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;font-size:12px}
+@keyframes table-picker-open{from{opacity:0;transform:translateY(5px) scale(.98)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.table-picker[open]{animation:none}.table-size-grid button{transition:none}}
+body #format-bar{position:sticky;top:0;z-index:120;background:var(--bg);padding-top:12px;border-bottom:1px solid var(--line);box-shadow:0 6px 12px color-mix(in srgb,var(--bg) 85%,transparent)}
+/* Sticky offsets are relative to the padded article scrollport. Cover that inset. */
+body #format-bar{top:-34px;padding-top:34px}
+@media(max-width:780px){body #format-bar{top:-24px;padding-top:24px}}
+body[data-view=note].note-outline-visible:not(.pdf-workspace) article{display:grid;max-width:1380px;grid-template-columns:minmax(0,820px) 210px;gap:36px}
+body[data-view=note].note-outline-visible article>#note-column{max-width:none}
+body[data-view=note].note-outline-visible article>#note-rail:not([hidden]){display:block;min-width:0;padding-left:20px}
+@media(max-width:900px){body[data-view=note].note-outline-visible:not(.pdf-workspace) article{display:flex;flex-direction:column}body[data-view=note].note-outline-visible article>#note-rail:not([hidden]){position:static;width:100%;order:-1;max-height:220px;overflow:auto;border-left:0;border-bottom:1px solid var(--line);padding:0 0 12px}}
+body #format-bar>#connect-passages{font-weight:500;padding:6px 10px;border:1px solid var(--line);border-radius:8px;height:auto}
+#note-map-space{border:1px solid var(--line);font-size:11px;padding:6px 10px;white-space:nowrap}
+#note-map-heading{font-size:18px;font-weight:600;margin:12px 0 16px}
+
+/* Lists nest without limit; the marker cycles with depth. */
+.rich-text > ul{list-style-type:disc}
+.rich-text > ol{list-style-type:decimal}
+.rich-text > :is(ul,ol) > li > ul{list-style-type:circle}
+.rich-text > :is(ul,ol) > li > ol{list-style-type:lower-alpha}
+.rich-text > :is(ul,ol) > li > :is(ul,ol) > li > ul{list-style-type:square}
+.rich-text > :is(ul,ol) > li > :is(ul,ol) > li > ol{list-style-type:lower-roman}
+.rich-text > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > ul{list-style-type:disc}
+.rich-text > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > ol{list-style-type:decimal}
+.rich-text > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > ul{list-style-type:circle}
+.rich-text > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > ol{list-style-type:lower-alpha}
+.rich-text > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > ul{list-style-type:square}
+.rich-text > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > ol{list-style-type:lower-roman}
+.rich-text > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > ul{list-style-type:disc}
+.rich-text > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > ol{list-style-type:decimal}
+.rich-text > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > ul{list-style-type:circle}
+.rich-text > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > ol{list-style-type:lower-alpha}
+.rich-text > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > ul{list-style-type:square}
+.rich-text > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > ol{list-style-type:lower-roman}
+.rich-text > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > ul{list-style-type:disc}
+.rich-text > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > ol{list-style-type:decimal}
+.rich-text > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > ul{list-style-type:circle}
+.rich-text > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > ol{list-style-type:lower-alpha}
+.rich-text > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > ul{list-style-type:square}
+.rich-text > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > :is(ul,ol) > li > ol{list-style-type:lower-roman}
+body #editor .rich-text :is(ul,ol){margin:0 0 12px;padding-left:26px}
+body #editor .rich-text li{margin:1px 0;padding-left:4px}
+body #editor .rich-text li>:is(ul,ol){margin:1px 0 0}
+body #editor .rich-text :is(p,h1,h2,h3,blockquote):has(+ :is(ul,ol)){margin-bottom:3px}
+/* Tables: fill the note, share space by content, and let columns be dragged. */
+body #editor .rich-text table{width:100%;table-layout:fixed;border-collapse:collapse;margin:12px 0 18px;font:13px/1.55 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;letter-spacing:normal;color:inherit;font-weight:400}
+body #editor .rich-text table.sized{table-layout:fixed}
+body #editor .rich-text td,body #editor .rich-text th{min-width:0;overflow-wrap:anywhere;vertical-align:top;font:inherit;text-align:left}
+body #editor .rich-text th{font-weight:600}
+body #editor .rich-text :is(h1,h2,h3,blockquote,p)>table{font:13px/1.55 -apple-system,BlinkMacSystemFont,sans-serif}
+.rich-text.col-resize,.rich-text.col-resize *,body.resizing-table,body.resizing-table *{cursor:col-resize!important}
+body.resizing-table{user-select:none;-webkit-user-select:none}
+/* Equations edit in place and preview as you type. */
+.rich-text .equation.editing{caret-color:var(--ink);cursor:text;color:var(--ink);background:color-mix(in srgb,var(--green) 11%,var(--bg));border:1px solid color-mix(in srgb,var(--green) 38%,var(--line));border-radius:8px}
+.rich-text .inline-equation.editing{display:inline-flex;align-items:center;gap:9px;padding:1px 9px;vertical-align:baseline}
+.rich-text .display-equation.editing{display:flex;flex-direction:column;align-items:stretch;gap:10px;padding:12px 14px;text-align:left}
+.equation-source{font:12.5px/1.5 'SFMono-Regular',Menlo,Consolas,monospace;color:var(--ink);background:transparent;border:0;outline:0;padding:0;min-width:3ch;resize:none;caret-color:var(--ink)}
+textarea.equation-source{width:100%}
+.equation-preview{min-width:1.5em}
+.inline-equation.editing .equation-preview{padding-left:9px;border-left:1px solid var(--line)}
+.display-equation.editing .equation-preview{text-align:center;padding-top:10px;border-top:1px solid var(--line);min-height:1.8em}
+.equation-preview.empty{color:var(--muted);font-size:12px}
+.equation-preview.invalid .katex-error{font-size:12px}
+/* The caret is drawn by editor-caret.js so it can slant in italics and keep one height on every line. */
+.rich-text[data-caret]{caret-color:transparent}
+#slant-caret{position:fixed;left:0;top:0;width:2px;border-radius:1px;background:var(--ink);pointer-events:none;z-index:60;display:none;transform-origin:50% 100%;animation:caret-blink 1.1s step-end infinite}
+@keyframes caret-blink{0%,55%{opacity:1}56%,100%{opacity:0}}
+@media(prefers-reduced-motion:reduce){#slant-caret{animation:none}}
+.table-size-grid button:focus-visible{outline-offset:-1px}
+.equation-source:focus-visible{outline:0}
+/* Table row and column menu */
+.table-menu{position:fixed;z-index:200;display:flex;flex-direction:column;gap:2px;min-width:180px;padding:6px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);box-shadow:0 12px 36px #0003}
+.table-menu button{display:block;width:100%;text-align:left;padding:7px 10px;font-size:12px;border-radius:6px}
+.table-menu button:hover,.table-menu button:focus-visible{background:var(--soft)}
+.table-menu button.danger{color:#b3402f}
+.table-menu hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
+/* One header: the Note / Mind map switch stays put, and the format bar is a single grouped row. */
+body .toolbar>.tabs{display:inline-flex;flex:0 0 auto;gap:2px;padding:3px;border:1px solid var(--line);border-radius:10px}
+body .toolbar>.tabs button{padding:6px 16px;font-size:12px;font-weight:500;color:var(--muted);border-radius:8px}
+body .toolbar>.tabs button.selected{color:var(--ink);background:var(--bg);box-shadow:0 1px 4px #0002;font-weight:600}
+body .toolbar>.tabs button:not(.selected):hover{color:var(--ink)}
+body #format-bar{align-items:center;gap:4px}
+body #format-bar>button[data-command]{min-width:30px;padding:5px 8px;font-size:13px}
+body #format-bar>button[data-command]:hover{background:var(--soft)}
+body #format-bar>.format-gap{width:1px;height:18px;background:var(--line);margin:0 6px;flex:0 0 auto}
+body #format-bar .editor-menu,body #format-bar .editor-menu:has(#editor-alignment){margin-left:0}
+body #format-bar #heading-style{min-width:122px}
+body #format-bar>button[data-command] .shortcut-hint{display:none}
+body #format-bar>.format-gap{margin:0 3px}
+body #format-bar #heading-style{min-width:0;width:112px}
+body #format-bar{padding-inline:12px}
+.file-source-title{margin:20px 0 8px;font-size:13px}
+.file-source-note{font-size:12px;color:var(--muted);line-height:1.5;margin:8px 0 14px}
+/* The sidebar toggle is always the first thing in the header, at the far left, drawn as a sidebar. */
+header>#sidebar-toggle{order:-10;margin-right:10px;padding:7px 9px;color:var(--ink);border:1px solid var(--line);border-radius:8px;display:inline-flex;align-items:center}
+header>#sidebar-toggle:hover{background:var(--soft)}
+/* Star: an icon beside the title. */
+.title-row{display:flex;align-items:center;gap:6px}
+.title-row #title{flex:1 1 auto;min-width:0}
+.title-row #pin{flex:0 0 auto;min-height:0!important;height:34px;width:34px;padding:0!important;border:0!important;border-radius:8px;font-size:20px!important;line-height:1;color:var(--muted);background:transparent}
+.title-row #pin:hover{background:var(--soft);color:var(--ink)}
+.title-row #pin[aria-pressed=true]{color:#e0a526}
+/* Header actions read as one family: Questions, Open PDF, Tools and Context share a style. */
+body .toolbar-actions>button,body .toolbar-actions .editor-menu>button{height:32px;padding:0 12px;border:1px solid var(--line);border-radius:8px;font-size:12px;font-weight:500;color:var(--ink);background:transparent;white-space:nowrap}
+body .toolbar-actions>button:hover,body .toolbar-actions .editor-menu>button:hover{background:var(--soft)}
+body .toolbar-actions #note-context-toggle[aria-expanded=true]{background:var(--soft);border-color:color-mix(in srgb,var(--green) 40%,var(--line))}
+body .toolbar-actions #open-pdf{color:var(--green)}
+/* Even columns by default, so typing in one cell never squeezes the others. Long words wrap instead of widening a column. */
+body #editor .rich-text table:not(.sized) td,body #editor .rich-text table:not(.sized) th{overflow-wrap:anywhere;word-break:normal;hyphens:auto}
+/* Picture resize handles appear when the pointer rests on an image. */
+.image-resizer{position:fixed;z-index:70;pointer-events:none;box-sizing:border-box;border:2px solid #986cff;border-radius:6px}
+.image-resizer[hidden]{display:none}
+.image-handle{position:absolute;width:12px;height:12px;background:#fff;border:2px solid #986cff;border-radius:3px;pointer-events:auto;box-shadow:0 1px 4px #0003}
+.image-handle[data-corner=nw]{left:-7px;top:-7px;cursor:nwse-resize}
+.image-handle[data-corner=ne]{right:-7px;top:-7px;cursor:nesw-resize}
+.image-handle[data-corner=sw]{left:-7px;bottom:-7px;cursor:nesw-resize}
+.image-handle[data-corner=se]{right:-7px;bottom:-7px;cursor:nwse-resize}
+.rich-text img{max-width:100%;height:auto}
+/* The PDF edge: a quiet strip in the left margin that opens the attached PDF. */
+#pdf-edge{position:fixed;z-index:6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:0;border:0;border-right:1px dashed var(--line);border-radius:0;background:transparent;color:var(--muted);cursor:pointer;transition:background .15s,color .15s}
+#pdf-edge[hidden]{display:none}
+#pdf-edge:hover,#pdf-edge:focus-visible{background:color-mix(in srgb,var(--green) 9%,transparent);color:var(--green);border-right-style:solid;border-right-color:color-mix(in srgb,var(--green) 40%,var(--line))}
+#pdf-edge:focus-visible{outline:2px solid var(--green);outline-offset:-2px}
+.pdf-edge-chevron{transition:transform .18s ease}
+#pdf-edge:hover .pdf-edge-chevron{transform:translateX(-4px)}
+.pdf-edge-label{font-size:10px;font-weight:600;letter-spacing:.04em;text-align:center;line-height:1.2}
+@media(prefers-reduced-motion:reduce){#pdf-edge,.pdf-edge-chevron{transition:none}}
+.equation-hint{font-size:10px;color:var(--muted);text-align:right;letter-spacing:.02em}
+/* The line handle: shows what a line is and turns it into something else. */
+#block-handle{position:fixed;z-index:65;width:28px;height:24px;padding:0;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--muted);font:600 10px/1 -apple-system,BlinkMacSystemFont,sans-serif;letter-spacing:.02em;cursor:pointer;box-shadow:0 1px 4px #0002}
+#block-handle[hidden]{display:none}
+#block-handle:hover,#block-handle[aria-expanded=true],#block-handle:focus-visible{color:var(--ink);border-color:color-mix(in srgb,var(--green) 45%,var(--line));background:var(--soft)}
+.block-menu{min-width:190px}
+.block-menu button{display:flex;align-items:center;gap:10px}
+.block-menu .block-menu-mark{display:inline-grid;place-items:center;width:26px;height:20px;border:1px solid var(--line);border-radius:5px;font-size:10px;font-weight:600;color:var(--muted)}
+.block-menu button.current{background:var(--soft);font-weight:600}
+/* A display equation inside a list item shrinks to sit under the bullet's text. */
+.rich-text li>.display-equation{display:block;margin:6px 0 8px;padding:8px 12px;font-size:.88em;text-align:left;border-radius:8px;max-width:100%;overflow-x:auto}
+.rich-text li>.display-equation .katex{font-size:1em}
+.rich-text li>.display-equation.editing{display:flex}
+.rich-text li>.display-equation .katex-display{margin:0}
+/* Word count: tiny and out of the way, in the corner of the block it belongs to. */
+.word-count{position:absolute;right:16px;bottom:5px;font-size:11px;line-height:1;font-variant-numeric:tabular-nums;color:var(--muted);opacity:.85;user-select:none;-webkit-user-select:none;letter-spacing:.01em;cursor:default}
+.block:not(.code):has(.word-count) .rich-text{padding-bottom:16px}
+/* With a PDF beside the note, the header matches the PDF bar's height so the two lines meet. */
+body.pdf-workspace header{height:56px;min-height:56px;padding-block:0;flex-wrap:nowrap;overflow:hidden}
+body.pdf-workspace header .breadcrumb{display:none}
+/* The comment box inside the PDF selection panel fills its row; only the button row is right-aligned. */
+#pdf-selection>.pdf-comment-editor{display:block;justify-content:normal;margin-top:0}
+#pdf-selection .pdf-comment-editor .rich-text{width:100%;min-width:0}
+.block-tools .cell-copy{display:inline-flex;align-items:center;justify-content:center;padding:5px 7px;color:var(--muted)}
+body #editor>.block:first-child:not(.code) .block-tools{top:4px}
+.block-tools .cell-copy:hover{color:var(--ink)}
+
+#share-note{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 12px}
+#share-note[hidden]{display:none}
+#share-menu{position:fixed;z-index:1100;min-width:200px;padding:5px;background:var(--bg);border:1px solid var(--line);border-radius:10px;box-shadow:0 14px 35px #24234b33}
+#share-menu[hidden]{display:none}
+#share-menu button{display:block;width:100%;padding:8px 11px;border:0;border-radius:7px;background:none;color:var(--ink);font:inherit;text-align:left;cursor:pointer}
+#share-menu button:hover,#share-menu button:focus-visible{background:var(--soft)}

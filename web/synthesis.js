@@ -7,7 +7,7 @@
  const studio=make('dialog',undefined,'synthesis-studio');document.body.append(studio);let draft,projectId,query='',scopeAll=false;
  function save(){draft.updated=Date.now();persist()}
  function openNote(note,id){studio.close();active=note.id;mode='write';render();if(id)requestAnimationFrame(()=>document.querySelector('#editor').children[note.blocks.findIndex(b=>b.id===id)]?.scrollIntoView({block:'center'}))}
- function create(project){const note={id:uid(),title:'Untitled synthesis',updated:Date.now(),projectId:project||null,pinned:false,nodes:[],blocks:[],synthesis:{version:1,question:state.projects.find(p=>p.id===project)?.guidingQuestion||'',conclusion:'',evidence:[],status:'draft'}};state.notes.unshift(note);return note}
+ function create(project){const location=window.marginCurrentStudyLocation?.()||{},destination=project&&location.projectId===project?location:window.marginCaptureDestination?.()||{};const note={id:uid(),title:'Untitled synthesis',updated:Date.now(),projectId:project||destination.projectId||null,unitId:(!project||destination.projectId===project)?destination.unitId||null:null,pinned:false,nodes:[],blocks:[],synthesis:{version:1,question:state.projects.find(p=>p.id===project)?.guidingQuestion||'',conclusion:'',evidence:[],status:'draft'}};state.notes.unshift(note);return note}
  function open(project=null,note=null){projectId=project;draft=note||create(project);query='';scopeAll=!projectId;active=draft.id;save();paint();if(!studio.open)studio.showModal()}
  function close(){studio.close();window.marginHome(projectId)}
  studio.addEventListener('cancel',e=>{e.preventDefault();close()});

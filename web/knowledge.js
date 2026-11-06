@@ -35,5 +35,5 @@ const Knowledge = (()=>{
   const days=rating==='Again'?0:rating==='Hard'?Math.max(1,Math.min(interval,3)):rating==='Good'?Math.max(3,interval*2):Math.max(7,interval*3);
   return {due:now+(days?Math.min(90,days)*86400000:600000),interval:Math.min(90,days),reviewedAt:now,rating};
  }
- return {analyze,cards,prose,reviewQueue,schedule};
+ return {analyze,cards,prose,terms,reviewQueue,schedule};
 })();
