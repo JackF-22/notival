@@ -8,3 +8,9 @@ preview.png
 .env.*
 *.pem
 *.key
+
+__pycache__/
+*.pyc
+
+# Parallel agent worktrees
+.claude/worktrees/
