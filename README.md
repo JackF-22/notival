@@ -296,30 +296,9 @@ zsh scripts/publish-github.sh
 ```
 
 The script initializes Git, commits the app source, and creates a private
-`margin` repository under the signed-in account. It refuses to push to an
+`notival` repository under the signed-in account. It refuses to push to an
 unexpected remote or a public repository. It must be run locally when the
 agent's filesystem policy prevents writes to `.git`.
-
-
-## Notival 0.8.0 — New name and visual identity
-
-Margin is now **Notival**, with a blue-and-mint folded-tab **n** mark.
-Build with `zsh scripts/build.sh`, then open `dist/Notival.app`.
-The sidebar, window, menus, backup filenames, and VS Code companion display the
-new name. Production vector assets are `web/mark.svg` and
-`web/notival-symbol.svg`; the native icon is rendered by `scripts/make-icon.swift`.
-
-The existing `local.margin.desktop` application identity, legacy storage folder,
-web storage keys, and VS Code command/extension identifiers are intentionally
-retained. Both `notival://capture` and `margin://capture` are registered. Existing
-notes, attachments, PDF references, and older backups require no migration.
-Quit Margin before opening Notival so the two builds do not edit the same
-library concurrently. Rename/remove the old application copy when installing
-the new one to avoid duplicate launch targets.
-
-The publishing script uses `notival` for new repositories, and continues to use
-an existing `margin` remote when one is already configured. It does not rename
-an existing GitHub repository automatically.
 
 
 ## Notival 0.9.0 — Filing and capture
