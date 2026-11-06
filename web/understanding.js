@@ -28,7 +28,7 @@
    const panel=el('section',undefined,'session-panel');panel.append(el('h2','Pick up a thought'));
    const recent=state.notes.filter(n=>(!projectId||n.projectId===projectId)&&(filter!=='pinned'||n.pinned)).slice().sort((a,b)=>b.updated-a.updated).slice(0,3);
    for(const note of recent)panel.append(button('Continue · '+(note.title||'Untitled'),()=>source(note)));
-   const project=state.projects.find(p=>p.id===projectId);if(project){const scoped=state.notes.filter(n=>n.projectId===projectId);const due=Knowledge.reviewQueue(Knowledge.cards(scoped),state.reviews||{},Date.now(),1000).length;panel.append(button(due+' prompts ready to review',()=>window.marginReviewProject(project)))}
+   const project=state.projects.find(p=>p.id===projectId);if(project){const scoped=state.notes.filter(n=>n.projectId===projectId);const ready=RecallModel.stats(RecallModel.collect(state,{projectId}),state.reviews||{}).ready;panel.append(button(ready+' ready to recall',()=>window.marginReviewProject(project)));const flagged=window.marginFlags?.count(projectId);if(flagged)panel.append(button(flagged+' to clarify',()=>window.marginFlags.list({project})))}
    const open=questions(projectId).filter(({q})=>q.stage!=='Understood');panel.append(button(open.length+' open question'+(open.length===1?'':'s'),()=>browse(projectId)),button('Build an explanation',()=>synthesize(projectId)));
    if(open[0])panel.append(button('Explore · '+open[0].q.title,()=>compose(open[0].note,open[0].q)));
    home.insertBefore(panel,home.querySelector('.workspace-grid'));
@@ -37,12 +37,16 @@
   document.body.classList.toggle('compact-notes',!!state.compactNotes);
   for(const old of document.querySelectorAll('.question-summary'))old.remove();
   const note=current();if(note&&!home.hidden)return;
-  if(note){const summary=el('section',undefined,'question-summary');summary.append(button('Ask a question',()=>compose(note)),button('Questions · '+(note.questions?.length||0),()=>browseNote(note)),button('Focus writing',()=>{document.body.classList.toggle('focus-writing');focus.textContent=document.body.classList.contains('focus-writing')?'Exit focus':'Focus writing'}));const focus=summary.lastChild;
-   for(const q of (note.questions||[]).filter(q=>q.stage!=='Understood').slice(0,3))summary.append(button(q.title,()=>compose(note,q)));$('#add-bar').after(summary);
-   note.blocks.forEach((b,i)=>{const cellNode=$('#editor').children[i];if(b.type==='text'&&cellNode&&!cellNode.querySelector('.passage-question')){const ask=button('Question this passage',()=>compose(note,null,{excerpt:Knowledge.prose(b.text).slice(0,4000),blockId:b.id}));ask.className='passage-question';cellNode.append(ask)}if(b.type==='code'){const cell=$('#editor').children[i];if(cell&&!cell.querySelector('.experiment-reflection')){const details=el('details',undefined,'experiment-reflection');details.append(el('summary','What happened, and why?'));const response=el('textarea');response.value=b.reflection||'';response.placeholder='Explain the result. What changed your understanding?';response.setAttribute('aria-label','Experiment reflection');response.oninput=()=>{b.reflection=response.value;persist()};details.append(response);cell.append(details)}}if(!b.sourceNoteId)return;const node=$('#editor').children[i];if(!node||node.querySelector('.synthesis-source'))return;const link=button('Open original passage',()=>{const origin=state.notes.find(n=>n.id===b.sourceNoteId);if(origin)source(origin,b.sourceBlockId);else toast('Source note is in Trash or unavailable')});link.className='synthesis-source';node.append(link)})
+  window.marginEditorRefresh?.();
+  if(note){
+   note.blocks.forEach((b,i)=>{if(b.type==='code'){const cell=$('#editor').children[i];if(cell&&!cell.querySelector('.experiment-reflection')){const details=el('details',undefined,'experiment-reflection');details.append(el('summary','What happened, and why?'));const response=el('textarea');response.value=b.reflection||'';response.placeholder='Explain the result. What changed your understanding?';response.setAttribute('aria-label','Experiment reflection');response.oninput=()=>{b.reflection=response.value;persist()};details.append(response);cell.append(details)}}if(!b.sourceNoteId)return;const node=$('#editor').children[i];if(!node||node.querySelector('.synthesis-source'))return;const link=button('Open original passage',()=>{const origin=state.notes.find(n=>n.id===b.sourceNoteId);if(origin)source(origin,b.sourceBlockId);else toast('Source note is in Trash or unavailable')});link.className='synthesis-source';node.append(link)})
   }
  }
  function browseNote(note){dialog.replaceChildren(el('h2','Questions · '+note.title));for(const q of note.questions||[])dialog.append(button(q.stage+' · '+q.title,()=>compose(note,q)));dialog.append(button('New question',()=>compose(note)),button('Done',()=>dialog.close()));if(!dialog.open)dialog.showModal()}
+ window.marginAskQuestion=()=>{const note=current();if(note)compose(note)};
+ window.marginExploreQuestion=(note,q)=>compose(note,q);
+ window.marginUnsureQuestion=()=>{const note=current();if(note)compose(note)};
+ window.marginBrowseNoteQuestions=()=>{const note=current();if(note)browseNote(note)};
  const originalRender=render;render=function(){originalRender();refresh()};window.marginUnderstandingRefresh=refresh;
  const globalQuestions=button('Questions',()=>browse());globalQuestions.className='nav';$('#all').after(globalQuestions);
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.body.classList.contains('focus-writing')){document.body.classList.remove('focus-writing');const focus=$('.question-summary button:nth-child(3)');if(focus)focus.textContent='Focus writing'}});

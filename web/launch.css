@@ -1,0 +1,33 @@
+/* A small folded-paper reveal, shown once per app launch. */
+#launch-screen{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;background:var(--bg);pointer-events:none;opacity:1;transition:opacity .26s ease,visibility .26s}
+#launch-screen::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 45% 42%,#3979ff0b,transparent 45%),radial-gradient(ellipse at 58% 46%,#73d3ac0c,transparent 40%)}
+.launch-identity{position:relative;text-align:center;transform:translateY(-12px)}
+.launch-symbol{position:relative;width:100px;height:100px;margin:0 auto 22px;perspective:500px}
+.launch-symbol::before{content:'';position:absolute;inset:12px;border-radius:35px;background:linear-gradient(135deg,#3979ff44,#8ae0b444);filter:blur(25px);animation:launch-glow 1.8s ease-in-out infinite alternate}
+.launch-symbol svg{position:relative;width:100%;height:100%;overflow:visible;filter:drop-shadow(0 12px 20px #13233120)}
+.launch-field{animation:launch-field .45s cubic-bezier(.2,.75,.25,1) both;transform-origin:center}
+.launch-blue{animation:launch-blue .8s cubic-bezier(.16,.8,.25,1) both;transform-origin:48px 62px}
+.launch-mint{animation:launch-mint .85s .12s cubic-bezier(.16,.8,.25,1) both;transform-origin:70px 70px}
+.launch-wordmark{font:650 29px/1.2 -apple-system,BlinkMacSystemFont,sans-serif;letter-spacing:-1.2px;color:var(--ink);animation:launch-word .6s .24s ease-out both}
+.launch-caption{margin:10px 0 0;color:var(--muted);font-size:12px;letter-spacing:.03em;animation:launch-word .6s .36s ease-out both}
+#launch-screen.is-leaving{opacity:0;visibility:hidden}
+#launch-screen.is-leaving .launch-identity{transform:translateY(-16px);transition:transform .26s ease}
+@keyframes launch-field{from{opacity:0;transform:scale(.88)}to{opacity:1;transform:scale(1)}}
+@keyframes launch-blue{0%{opacity:0;transform:translateY(18px) rotate(-14deg) scaleX(.5)}68%{opacity:1;transform:translateY(-2px) rotate(2deg) scaleX(1.03)}100%{opacity:1;transform:none}}
+@keyframes launch-mint{0%{opacity:0;transform:translateY(22px) rotate(16deg) scaleX(.4)}70%{opacity:1;transform:translateY(-2px) rotate(-2deg) scaleX(1.03)}100%{opacity:1;transform:none}}
+@keyframes launch-word{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@keyframes launch-glow{from{opacity:.35;transform:scale(.9)}to{opacity:.65;transform:scale(1.06)}}
+@media(prefers-reduced-motion:reduce){#launch-screen{transition:none}.launch-symbol::before,.launch-field,.launch-blue,.launch-mint,.launch-wordmark,.launch-caption{animation:none}#launch-screen.is-leaving .launch-identity{transition:none;transform:none}}
+
+.launch-symbol::after{content:'';position:absolute;inset:6px;border-radius:20px;background:linear-gradient(115deg,transparent 25%,#ffffff00 36%,#ffffff45 48%,#ffffff00 60%,transparent 75%);background-size:300% 100%;background-position:150% 0;pointer-events:none;mix-blend-mode:screen;opacity:0;animation:launch-sheen .7s .38s ease-in-out both}
+@keyframes launch-sheen{0%{opacity:0;background-position:150% 0}25%{opacity:.75}70%{opacity:.45}100%{opacity:0;background-position:-50% 0}}
+@media(prefers-reduced-motion:reduce){.launch-symbol::after{animation:none;display:none}}
+/* Notes get written, then gathered into the folded mark. */
+.launch-paper{position:absolute;left:27px;top:18px;width:46px;height:61px;border:1px solid color-mix(in srgb,var(--muted) 35%,var(--bg));border-radius:5px;background:var(--bg);box-shadow:0 5px 14px #13233110;opacity:0;animation:launch-organize 1s ease-in-out both;--spread:-59px;--tilt:-16deg}
+.launch-paper-right{--spread:59px;--tilt:16deg;animation-delay:.08s;border-color:#72c9aa88}
+.launch-paper::before,.launch-paper::after{content:'';position:absolute;left:8px;right:8px;height:2px;top:16px;border-radius:2px;background:#6495ed;box-shadow:0 9px 0 color-mix(in srgb,var(--muted) 40%,transparent),0 18px 0 color-mix(in srgb,var(--muted) 30%,transparent);transform:scaleX(0);transform-origin:left;animation:launch-writing .38s .2s ease-out both}
+.launch-paper::after{top:43px;right:20px;background:#72c9aa;box-shadow:none;animation-delay:.35s}
+.launch-paper-right::before{animation-delay:.28s}
+@keyframes launch-organize{0%{opacity:0;transform:translateX(calc(var(--spread)*1.2)) translateY(14px) rotate(var(--tilt))}20%,55%{opacity:1;transform:translateX(var(--spread)) rotate(var(--tilt))}85%{opacity:.8;transform:translateX(0) translateY(-2px) rotate(0)}100%{opacity:0;transform:translateX(0) scale(.85)}}
+@keyframes launch-writing{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@media(prefers-reduced-motion:reduce){.launch-paper{display:none;animation:none}.launch-paper::before,.launch-paper::after{animation:none}}

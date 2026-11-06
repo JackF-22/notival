@@ -1,0 +1,25 @@
+/* Canvas: connect, pair, sync. */
+.canvas-control{display:inline-flex;align-items:center;gap:4px;margin-left:auto}
+.widget-heading{gap:6px}
+.canvas-button{padding:5px 10px;font-size:11px;font-weight:600;border:1px solid color-mix(in srgb,var(--green) 40%,var(--line));border-radius:8px;color:var(--green);white-space:nowrap}
+.canvas-button:hover{background:color-mix(in srgb,var(--green) 10%,var(--bg))}
+.canvas-button:disabled{opacity:.6;cursor:default}
+.canvas-gear{padding:4px 7px;font-size:13px;color:var(--muted);border-radius:7px}
+.task-canvas{font-size:10px;font-weight:600;padding:2px 8px;border:1px solid var(--line);border-radius:999px;color:var(--muted)}
+.task-canvas:hover{color:var(--green);border-color:color-mix(in srgb,var(--green) 40%,var(--line))}
+.canvas-dialog{width:min(520px,calc(100vw - 32px));max-width:520px;padding:28px}
+.canvas-dialog h2{margin:0 0 8px;font-size:24px}
+.canvas-lede{margin:0 0 14px;font-size:13px;line-height:1.6;color:var(--muted)}
+.canvas-dialog label{display:grid;gap:6px;margin:12px 0;font-size:12px;color:var(--muted)}
+.canvas-dialog input:not([type=checkbox]),.canvas-dialog select{width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font-size:13px}
+.canvas-help{font-size:12px;color:var(--muted);margin:8px 0}
+.canvas-help summary{cursor:pointer;color:var(--ink);font-weight:600}
+.canvas-help p{line-height:1.6;margin:8px 0}
+.canvas-error{color:#b3402f;font-size:12px;line-height:1.5;margin:8px 0}
+.canvas-error[hidden]{display:none}
+.canvas-pairs{max-height:42vh;overflow:auto;margin:6px 0}
+.canvas-pair{grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);align-items:center;gap:12px!important}
+.canvas-pair>span{color:var(--ink);font-size:13px;font-weight:600}
+.canvas-create{display:flex!important;align-items:center;gap:8px;grid-template-columns:none;margin:14px 0}
+.canvas-paired{margin:6px 0 14px;padding-left:18px;font-size:13px;line-height:1.7}
+.canvas-danger{color:#b3402f;margin-right:auto}

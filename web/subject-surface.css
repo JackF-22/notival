@@ -1,0 +1,183 @@
+/* Subject overviews show the next work; the library opens on request. */
+body .student-home-view:has(.student-tabs){max-width:1000px;border-top:0;padding:32px clamp(22px,4vw,54px)!important}
+.student-home-view:has(.student-tabs)>.student-eyebrow{display:none}
+.student-home-view:has(.student-tabs)>h1{font-size:28px;margin-top:0!important}
+.student-home-view:has(.student-tabs)>.student-intro{max-width:620px;font-size:13px;margin-bottom:12px}
+.subject-main-actions{margin:12px 0 20px;gap:8px}
+.subject-add-menu{position:relative;z-index:5;font-size:12px}
+.subject-add-menu>summary{cursor:pointer;list-style:none;border:1px solid var(--line);border-radius:8px;padding:9px 14px}
+.subject-add-menu>summary::-webkit-details-marker{display:none}
+.subject-add-menu>summary::after{content:'⌄';margin-left:12px;color:var(--muted)}
+.subject-add-options{position:absolute;top:calc(100% + 6px);left:0;display:grid;width:210px;gap:3px;padding:7px;background:var(--bg);border:1px solid var(--line);border-radius:11px;box-shadow:0 12px 36px #0002}
+.subject-add-options button{text-align:left;white-space:normal}
+.student-home-view .student-tabs{margin:0 0 24px;gap:4px;padding-bottom:8px}
+.student-home-view .student-tabs .feature-icon{display:none}
+.student-home-view .student-tabs button{padding:8px 11px;border:0;background:transparent;color:var(--muted);border-radius:6px}
+.student-home-view .student-tabs button[aria-current=page]{color:var(--ink);background:var(--soft);font-weight:600}
+.student-home-view .subject-widgets{display:block;margin:0 0 28px}
+.student-home-view .subject-widgets>section{border:0!important;border-radius:0;padding:0;background:transparent;margin-bottom:28px}
+.subject-widgets .widget-heading{margin-bottom:10px}
+.subject-widgets .widget-heading h2{font-size:14px;font-weight:600}
+.subject-disclosure{border-top:1px solid var(--line);padding:16px 0}
+.subject-disclosure>summary{cursor:pointer;font-size:13px;font-weight:500;color:var(--muted)}
+.subject-disclosure[open]>summary{color:var(--ink);margin-bottom:16px}
+.subject-disclosure .unit-grid{display:block}
+.subject-disclosure .unit-tile{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:12px 0;background:transparent;min-height:0}
+.subject-disclosure .unit-tile h3{font-size:14px;margin:5px 0}
+.subject-disclosure .unit-tile p{display:none}
+.subject-disclosure .unit-tile small{font-size:11px;color:var(--muted)}
+.subject-disclosure .unit-add{border:0;font-size:12px;padding:12px 0}
+.subject-task{flex-wrap:wrap;column-gap:8px;row-gap:0;padding:4px 0;border-bottom:1px solid color-mix(in srgb,var(--line) 60%,transparent)}
+.subject-task .student-check{flex:1 1 200px;font-size:13px}
+.subject-task .task-date{font-size:10px;color:var(--muted);padding:5px;max-width:100%;white-space:normal;text-align:left}
+.subject-task .task-date.is-overdue{color:#c47762}
+.subject-task.is-complete .task-date{color:var(--muted)}
+.subject-task .task-remove{opacity:1;font-size:14px;padding:5px;color:var(--muted)}
+.checklist-add{display:flex!important;flex-direction:column;gap:7px!important;margin-top:10px}
+.checklist-entry{display:flex;gap:8px}
+.checklist-entry>input{flex:1;min-width:0;background:transparent;border:1px solid var(--line);font-size:12px;padding:11px}
+.checklist-entry>button{flex:0 0 auto}
+.recognized-date{display:flex;align-items:center;gap:8px;width:fit-content;max-width:100%;background:color-mix(in srgb,var(--green) 10%,var(--bg));color:var(--green);border-radius:7px;padding:4px 8px;font-size:11px;line-height:1.5}
+.recognized-date[hidden]{display:none}
+.recognized-date button{padding:0 4px!important;font-size:16px!important;border:0!important}
+/* Real checkboxes retain keyboard and screen-reader behavior. */
+.student-check{position:relative;gap:10px;cursor:pointer;line-height:1.5}
+.student-check.task-check>input[type=checkbox]{appearance:none;-webkit-appearance:none;position:relative;flex:0 0 19px;width:19px;height:19px;margin:0;border:1.5px solid var(--line);border-radius:50%;background:var(--bg);cursor:pointer;transition:background .18s,border-color .18s,box-shadow .18s;display:inline-grid;place-items:center}
+.student-check.task-check>input[type=checkbox]::after{content:'';width:8px;height:4px;border-left:2px solid var(--bg);border-bottom:2px solid var(--bg);transform:rotate(-45deg) scale(0);transition:transform .16s ease-out}
+.student-check.task-check>input[type=checkbox]:checked{background:var(--green);border-color:var(--green)}
+.student-check.task-check>input[type=checkbox]:checked::after{transform:rotate(-45deg) scale(1)}
+.student-check.task-check>input[type=checkbox]:focus-visible{outline:2px solid var(--green);outline-offset:4px}
+.student-check>.check-label{transition:color .2s,opacity .2s,transform .2s;overflow-wrap:anywhere;min-width:0}
+.student-check.task-check.is-checked>.check-label{color:var(--muted);text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--muted) 65%,transparent)}
+.student-check.just-completed>input{animation:task-complete .55s cubic-bezier(.22,.9,.3,1)}
+.student-check.just-completed>.check-label{animation:task-settle .4s ease-out}
+@keyframes task-complete{0%{transform:scale(.85);box-shadow:0 0 0 0 color-mix(in srgb,var(--green) 28%,transparent)}38%{transform:scale(1.18);box-shadow:0 0 0 7px color-mix(in srgb,var(--green) 12%,transparent)}70%{transform:scale(.97)}100%{transform:scale(1);box-shadow:0 0 0 12px transparent}}
+@keyframes task-settle{0%{transform:translateX(0)}40%{transform:translateX(3px)}100%{transform:translateX(0)}}
+@media(prefers-reduced-motion:reduce){.student-check.task-check>input[type=checkbox],.student-check.task-check>input[type=checkbox]::after,.student-check>.check-label{transition:none}.student-check.just-completed>input,.student-check.just-completed>.check-label{animation:none}}
+@media(max-width:780px){.student-home-view .student-tabs{gap:0}.student-home-view .student-tabs button{padding:8px;font-size:11px}}
+
+.subject-date>.student-check{flex:0 0 auto;margin-left:auto;padding-left:8px}
+
+.student-nav .subject-overview-button[hidden]{display:none}
+/* A middle ground: useful content visible, with room between groups. */
+body .student-home-view:has(.student-tabs){max-width:1200px}
+.student-home-view .subject-widgets{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:20px;margin:0 0 24px}
+.student-home-view .subject-widgets>section{border:1px solid var(--line)!important;border-radius:14px;padding:18px 20px;margin-bottom:0;background:color-mix(in srgb,var(--subject-color,var(--green)) 3%,var(--bg))}
+.student-home-view .subject-widgets>section:only-child{grid-column:1/-1}
+.student-home-view .student-tabs .feature-icon{display:inline-grid;width:22px;height:22px;flex-basis:22px}
+.subject-disclosure{padding:20px 0}
+.subject-disclosure>summary{font-size:14px;font-weight:600;color:var(--ink)}
+.subject-units .unit-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.subject-units .unit-tile{padding:15px 16px;border:1px solid var(--line);border-radius:11px;background:color-mix(in srgb,var(--subject-color,var(--green)) 4%,var(--bg))}
+.subject-units .unit-tile h3{margin:7px 0;font-size:15px}
+.subject-units .unit-tile p{display:block;font-size:12px;line-height:1.5;margin:0 0 8px}
+.subject-units .unit-add{border-style:dashed;background:transparent}
+.subject-recents .note-card-grid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.completed-items{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+.completed-items[hidden],.subject-task[hidden],.student-check[hidden],.subject-date[hidden]{display:none!important}
+.completed-items>summary{cursor:pointer;font-size:12px;color:var(--muted);padding:5px 0}
+.completed-items .clear-completed{font-size:11px;color:var(--muted);margin:5px 0;padding:6px 0}
+.completed-items .clear-completed:hover{color:var(--ink)}
+.completed-list{opacity:.8}
+.subject-task .task-remove{opacity:0}.subject-task:hover .task-remove,.subject-task:focus-within .task-remove{opacity:1}
+@media(max-width:1000px){.student-home-view .subject-widgets{grid-template-columns:1fr}}
+@media(max-width:780px){.student-home-view .student-tabs .feature-icon{display:none}}
+.project-icon-picker{display:grid;gap:10px;margin:10px 0 18px}
+.project-icon-picker>select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-size:12px}
+.project-icon-picker>.expanded-icon-choices{display:grid;grid-template-columns:repeat(auto-fill,minmax(36px,1fr));gap:6px;max-height:210px;overflow-y:auto;padding:4px;align-content:start}
+.project-icon-picker .expanded-icon-choices button{width:36px;height:36px;padding:0;font-size:20px;border:2px solid transparent;border-radius:8px;background:var(--soft)}
+.project-icon-picker .expanded-icon-choices button.selected{border-color:var(--green);background:color-mix(in srgb,var(--green) 15%,var(--bg))}
+.project-icon-picker>input{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+/* Recent notes keep a card-sized measure, even when there is only one. */
+.subject-recents .note-card-grid,.student-home-view>.student-section-title+.note-card-grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),300px));justify-content:start}
+
+/* Home layouts: notes lead on the left; the to-do list sits top right. */
+body .student-home-view.overview-layout:has(.student-tabs),body .student-home-view.home-layout{max-width:1240px;display:grid;grid-template-columns:minmax(0,1fr) 310px;column-gap:34px;align-content:start;align-items:start}
+/* The tall to-do column spans many rows; rows keep their own height instead of giving it up to that column. */
+.student-home-view.overview-layout,.student-home-view.home-layout{grid-auto-rows:min-content}
+.student-home-view.overview-layout>*,.student-home-view.home-layout>*{grid-column:1;min-width:0}
+.student-home-view.overview-layout>.subject-widgets,.student-home-view.home-layout>.global-todo{grid-column:2;grid-row:1/span 14;position:sticky;top:0;margin:0}
+.student-home-view.overview-layout .subject-widgets{display:block}
+.student-home-view.overview-layout .subject-widgets>section{margin-bottom:16px;padding:14px 16px}
+.student-home-view.overview-layout .student-tabs{margin-bottom:6px}
+.student-home-view.overview-layout .subject-disclosure{padding:10px 0}
+.student-home-view.overview-layout .subject-units .unit-grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.student-home-view.overview-layout .unit-tile{padding:16px 18px;min-height:0}
+.student-home-view.overview-layout .subject-recents .note-card-grid{grid-template-columns:repeat(auto-fill,minmax(210px,1fr));justify-content:stretch}
+.student-home-view.home-layout .subject-grid{grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin-top:14px}
+.student-home-view.home-layout .subject-tile{min-height:0;padding:20px 22px}
+.student-home-view.home-layout .subject-tile h2{font-size:19px;margin:10px 0 6px}
+.student-home-view.home-layout .subject-tile p{margin:0 0 12px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.student-home-view.home-layout .student-section-title{margin:22px 0 4px}
+.student-home-view.home-layout>.student-section-title+.note-card-grid{grid-template-columns:repeat(auto-fill,minmax(210px,1fr));justify-content:stretch}
+.student-home-view.home-layout .student-intro{margin-bottom:12px}
+.global-todo{padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:color-mix(in srgb,var(--green) 3%,var(--bg))}
+.global-task{align-items:flex-start}
+.global-task .student-check{flex:1 1 100%}
+.global-task-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;flex:1 1 100%;padding:0 0 4px 26px}
+.subject-tag{display:inline-flex;align-items:center;gap:4px;padding:1px 8px;font-size:10px;font-weight:600;border-radius:999px;color:var(--tag-color,var(--green));background:color-mix(in srgb,var(--tag-color,var(--green)) 13%,var(--bg));border:1px solid color-mix(in srgb,var(--tag-color,var(--green)) 35%,transparent)}
+.subject-tag:hover{background:color-mix(in srgb,var(--tag-color,var(--green)) 22%,var(--bg))}
+.subject-tag-icon{font-size:10px}
+.global-task-meta small{font-size:10px;color:var(--muted)}
+.global-task-meta .task-when.is-overdue{color:#c47762}
+.global-todo-empty{font-size:12px;color:var(--muted);margin:8px 0}
+.global-todo-more{font-size:11px;color:var(--muted);margin-top:6px;padding:4px 6px}
+.global-add select{width:100%;margin-bottom:6px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-size:12px}
+@media(max-width:1020px){body .student-home-view.overview-layout:has(.student-tabs),body .student-home-view.home-layout{display:block}.student-home-view.overview-layout>.subject-widgets,.student-home-view.home-layout>.global-todo{position:static;margin:0 0 20px}}
+.student-home-view.overview-layout .student-tabs{flex-wrap:wrap;overflow:visible;height:auto;min-height:0}
+.student-home-view.overview-layout .student-tabs button{padding:6px 9px}
+.student-home-view.overview-layout .subject-recents .note-card-grid,.student-home-view.home-layout>.student-section-title+.note-card-grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
+.student-home-view.home-layout .subject-grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
+
+/* Keep the subject's colour and icons present, with room to breathe. */
+.student-home-view.overview-layout .student-tabs{gap:6px;margin-bottom:10px}
+.student-home-view.overview-layout .student-tabs button{padding:8px 12px}
+.student-home-view.overview-layout .student-tabs .feature-icon{display:inline-grid}
+.student-home-view.overview-layout .student-tabs button[aria-current=page]{box-shadow:inset 0 -2px 0 var(--subject-color,var(--green))}
+.student-home-view.overview-layout .unit-tile{border-top:3px solid var(--subject-color,var(--green))}
+.student-home-view.overview-layout .unit-tile p{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.student-home-view.overview-layout .subject-widgets>section{border-top:3px solid var(--subject-color,var(--green))!important;padding:18px 20px}
+.student-home-view.overview-layout .subject-disclosure{padding:14px 0}
+.student-home-view.overview-layout>h1{font-size:32px}
+.student-home-view.overview-layout>.student-intro{font-size:14px;margin-bottom:16px}
+.student-home-view.overview-layout .subject-recents .note-card-grid{gap:14px}
+.global-todo{padding:18px 20px}
+.global-task-meta{padding-bottom:6px}
+.subject-tag{padding:2px 10px;font-size:11px}
+.subject-tag-icon{font-size:12px}
+.student-home-view.home-layout .student-intro{margin-bottom:16px}
+.student-home-view.home-layout .note-card-grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr));justify-content:stretch;gap:14px}
+.student-home-view.overview-layout .subject-units .unit-grid{grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}
+/* Tabs stay on one row; labels on inactive tabs give way when space is tight. */
+.student-home-view.overview-layout .student-tabs{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;gap:2px}
+.student-home-view.overview-layout .student-tabs::-webkit-scrollbar{display:none}
+.student-home-view.overview-layout .student-tabs button{flex:0 0 auto;padding:7px 10px;gap:6px}
+.student-home-view.overview-layout .student-tabs .feature-icon{width:20px;height:20px;flex-basis:20px}
+.student-home-view.overview-layout{container-type:inline-size}
+@container (max-width:900px){.student-home-view.overview-layout .student-tabs button:not([aria-current=page]) .feature-icon{display:none}}
+.student-home-view.overview-layout .student-tabs{overflow:visible}
+.student-home-view.overview-layout .student-tabs{border-bottom:0;padding-bottom:0;margin-bottom:6px}
+
+/* To-do sections: grouped by when things are due, each one folds away. */
+.todo-group{margin:0 0 4px}
+.todo-group>summary{display:flex;align-items:center;gap:7px;cursor:pointer;list-style:none;padding:7px 2px;font-size:12px;font-weight:600;color:var(--muted);user-select:none}
+.todo-group>summary::-webkit-details-marker{display:none}
+.todo-group>summary::before{content:"";width:6px;height:6px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(-45deg);transition:transform .15s;margin:0 3px 2px 1px}
+.todo-group[open]>summary::before{transform:rotate(45deg)}
+.todo-group>summary:hover{color:var(--ink)}
+.todo-group[data-group=overdue]>summary{color:#c47762}
+.todo-group[hidden]{display:none}
+.todo-group-body{padding-left:2px}
+@media(prefers-reduced-motion:reduce){.todo-group>summary::before{transition:none}}
+
+/* Big screens: the content spreads across the window, the to-do list rides the right edge, and there is still room to breathe. */
+body .student-home-view.home-layout,body .student-home-view.overview-layout:has(.student-tabs){max-width:none;margin:0;padding-inline:clamp(24px,2.2vw,44px)!important;grid-template-columns:minmax(0,1fr) clamp(310px,22vw,440px);column-gap:clamp(32px,3.5vw,72px)}
+.student-home-view.home-layout .subject-grid{grid-template-columns:repeat(auto-fill,minmax(clamp(200px,12vw,250px),1fr))}
+.student-home-view.overview-layout .subject-units .unit-grid{grid-template-columns:repeat(auto-fill,minmax(clamp(180px,13vw,260px),1fr))}
+/* Recent notes fill however many columns fit, up to three rows; the rest stay out of sight. */
+.student-home-view.home-layout>.student-section-title+.note-card-grid,.student-home-view.overview-layout .subject-recents .note-card-grid{grid-template-columns:repeat(auto-fill,minmax(clamp(180px,11vw,225px),1fr));grid-template-rows:repeat(3,auto);grid-auto-rows:0;overflow:hidden;row-gap:14px}
+
+.project-icon-picker .icon-filters{display:grid;grid-template-columns:1fr auto;gap:8px}
+.project-icon-picker .icon-filters>input,.project-icon-picker .icon-filters>select{min-width:0;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-size:12px}
+.project-icon-picker .expanded-icon-choices{max-height:260px}
+.project-icon-picker .icon-none{grid-column:1/-1;margin:8px 4px;font-size:12px;color:var(--muted)}
