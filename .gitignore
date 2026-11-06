@@ -8,3 +8,9 @@ preview.png
 .env.*
 *.pem
 *.key
+
+# Claude Code worktrees and local state
+.claude/
+
+__pycache__/
+*.pyc

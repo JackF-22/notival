@@ -1,0 +1,74 @@
+#editor.connecting,#editor.connecting *{user-select:none!important;-webkit-user-select:none!important}
+#connect-passages[aria-pressed=true]{background:#986cff22;border-color:#986cff;outline:2px solid #986cff}
+.connection-input-status{flex:1 0 100%;font-size:11px;color:var(--ink);padding:6px 0;font-weight:500;line-height:1.5}
+.connection-input-status[hidden]{display:none!important}
+/* This surface owns drawing input and painting, in the same coordinate system. */
+#connection-surface{position:fixed;z-index:20000;box-sizing:border-box;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;cursor:crosshair;background:transparent;box-shadow:inset 0 0 0 2px #986cff;outline:none}
+#connection-surface[hidden]{display:none!important}
+#connection-surface canvas{display:block;position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.connection-mode-badge{position:absolute;top:0;right:0;border-radius:0 0 0 8px;padding:7px 11px;background:#7850d4;color:#fff;font-size:9px;letter-spacing:1px;font-weight:700;pointer-events:none}
+.connection-target-caption{position:absolute;bottom:10px;left:12px;right:12px;width:fit-content;max-width:calc(100% - 24px);border:1px solid #986cff80;background:var(--bg);color:var(--ink);box-shadow:0 3px 16px #0002;border-radius:9px;padding:9px 12px;font-size:12px;line-height:1.5;pointer-events:none}
+#passage-connection-dialog{width:min(640px,92vw);max-width:640px}
+#passage-connection-dialog :is(.connection-from,.connection-to){max-height:120px;overflow:auto;white-space:pre-wrap;border-left:3px solid #986cff;padding-left:12px}
+#passage-connection-dialog .connection-to{border-left-color:#12bfa4}
+.passage-edge{stroke:#986cff;stroke-width:2;fill:none}
+.passage-edge-label{fill:var(--ink);font-size:11px;text-anchor:middle;paint-order:stroke;stroke:var(--bg);stroke-width:4px;stroke-linejoin:round}
+.map-node.source-missing{border-style:dashed;opacity:.65}
+#passage-connection-dialog .connection-field{display:block;margin:14px 0}
+.connection-field-label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+.connection-tools{display:flex;gap:2px;flex-wrap:wrap;padding:4px;border:1px solid var(--line);border-bottom:0;border-radius:9px 9px 0 0;background:var(--soft)}
+.connection-tools button{min-width:30px;padding:4px 8px;font-size:12px}
+.connection-editor{border:1px solid var(--line);border-radius:0 0 9px 9px;background:var(--bg);padding:10px 12px;min-height:110px;max-height:38vh;overflow:auto}
+.connection-editor .rich-text{min-height:90px;padding:0}
+.connection-editor .rich-text[data-empty]>:is(p,div):first-child::before{content:"e.g. supports, leads to, challenges… Explain the link in as much detail as you like."}
+#passage-connection-dialog small{display:block;margin-top:6px;font-size:11px;color:var(--muted)}
+#passage-connection-dialog .project-dialog-actions{align-items:center}
+.connection-spacer{flex:1}
+.connection-delete{color:#b3402f}
+.passage-edge-hit{stroke:transparent;stroke-width:16;fill:none;pointer-events:stroke;cursor:pointer}
+.passage-edge-label{pointer-events:all;cursor:pointer}
+#connection-list{margin-top:22px;display:grid;gap:10px}
+#connection-list h3{margin:0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.connection-card{display:block;width:100%;text-align:left;border:1px solid var(--line);border-left:3px solid #986cff;border-radius:10px;padding:12px 14px;background:var(--bg)}
+.connection-card:hover{background:var(--soft)}
+.connection-card strong{display:block;font-size:12px;font-weight:600;margin-bottom:6px}
+.connection-card-body{font-size:13px;line-height:1.6;color:var(--ink)}
+.connection-card-body>:first-child{margin-top:0}.connection-card-body>:last-child{margin-bottom:0}
+.connection-card-body :is(ul,ol){padding-left:22px;margin:4px 0}
+.connection-card-body p{margin:0 0 6px}
+/* Mind map: readable boxes, and full connection text in wrapped chips. */
+body #nodes .map-node{background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;box-shadow:0 2px 10px #0002;font-size:13px;font-weight:500;line-height:1.4;text-align:left;overflow-wrap:anywhere}
+body #nodes .map-node:hover{background:var(--soft)}
+body #nodes .map-node.root{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+body #nodes .map-node.selected{outline:2px solid #986cff;outline-offset:2px}
+#canvas{height:min(54vh,520px);min-height:340px;touch-action:none;cursor:grab;outline:none}
+#canvas.panning,#canvas.panning *{cursor:grabbing}
+#canvas:focus-visible{box-shadow:0 0 0 2px #986cff66}
+#map-world{position:absolute;left:0;top:0;width:0;height:0;transform-origin:0 0}
+#map-world #edges{width:1px;height:1px;overflow:visible}
+#edge-labels{position:absolute;left:0;top:0;width:0;height:0;pointer-events:none}
+.edge-chip{position:absolute;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:8;overflow:hidden;width:max-content;max-width:240px;padding:6px 10px;border:1px solid #986cff88;border-radius:9px;background:var(--bg);color:var(--ink);font-size:12px;line-height:1.45;text-align:left;white-space:normal;overflow-wrap:anywhere;pointer-events:auto;box-shadow:0 2px 8px #0002;cursor:pointer}
+.edge-chip:hover{background:var(--soft);border-color:#986cff}
+body #nodes .map-node,.edge-chip{cursor:grab}
+.edge-chip:active{cursor:grabbing}
+.map-zoom{position:absolute;right:10px;bottom:10px;z-index:5;display:flex;gap:2px;padding:3px;border:1px solid var(--line);border-radius:10px;background:var(--bg);box-shadow:0 2px 10px #0002;cursor:default}
+.map-zoom button{min-width:30px;padding:4px 8px;font-size:12px}
+.map-zoom .map-zoom-level{min-width:52px;font-variant-numeric:tabular-nums}
+@keyframes map-swipe-in-right{from{opacity:0;transform:translateX(36px)}to{opacity:1;transform:none}}
+@keyframes map-swipe-in-left{from{opacity:0;transform:translateX(-36px)}to{opacity:1;transform:none}}
+.swipe-in-right{animation:map-swipe-in-right .28s ease-out}
+.swipe-in-left{animation:map-swipe-in-left .28s ease-out}
+@media(prefers-reduced-motion:reduce){.swipe-in-right,.swipe-in-left{animation:none}}
+body #nodes .map-node.marked,.edge-chip.marked{outline:2px solid #e5484d;outline-offset:2px;background:color-mix(in srgb,#e5484d 10%,var(--bg))}
+.passage-edge.marked{stroke:#e5484d;stroke-width:3}
+.map-selection{position:absolute;left:10px;top:10px;z-index:5;display:flex;align-items:center;gap:8px;padding:5px 6px 5px 12px;border:1px solid #e5484d88;border-radius:10px;background:var(--bg);box-shadow:0 2px 10px #0002;font-size:12px;cursor:default}
+.map-selection[hidden]{display:none}
+.map-selection button{padding:4px 10px;font-size:12px}
+.map-selection .danger{background:#e5484d;color:#fff}
+.map-tie{stroke:color-mix(in srgb,var(--ink) 35%,var(--bg));stroke-width:1.5;fill:none;stroke-linecap:round}
+body #nodes .map-node.root{font-size:14px;font-weight:650;padding:14px 20px}
+#map-world .map-node{width:max-content}
+body #nodes .map-node{padding:14px 20px;line-height:1.5;max-width:210px;min-width:110px}
+body #nodes .map-node.root{padding:16px 24px}
+.edge-chip{padding:9px 14px;line-height:1.55;max-width:260px}
+.connection-editor .rich-text[data-empty]:focus>:is(p,div):first-child::before{content:none}

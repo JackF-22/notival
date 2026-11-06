@@ -1,0 +1,9 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const source=fs.readFileSync('web/app.js','utf8');let id=0;const old={id:'old',projectId:'history',unitId:'medieval',title:'Existing PDF',pdfPath:'/old.pdf',blocks:[]};const state={projects:[],notes:[old]};
+const context={window:{marginCaptureDestination:()=>({projectId:'biology',unitId:'cells'})},state,active:'old',mode:'write',uid:()=>String(++id),persist(){},render(){},toast(){},syncPDFHighlights(){},setSidebarCollapsed(){},pendingPDFSelection:null,openPDFPath:null};vm.createContext(context);
+function load(start,end){const a=source.indexOf(start),b=source.indexOf(end,a);assert(a>=0&&b>a);vm.runInContext(source.slice(a,b),context)}
+load('window.marginCapture=data=>','window.marginImportFoliose=');
+context.window.marginCapture({title:'Captured code',text:'const n=2',language:'javascript',source:{uri:'file:///source.js',start:2,end:3}});const captured=state.notes[0];assert.equal(captured.projectId,'biology');assert.equal(captured.unitId,'cells');assert.equal(captured.blocks[0].text,'const n=2');assert.equal(captured.blocks[0].source.start,2);assert.equal(old.projectId,'history');
+load('window.marginPDFOpened=data=>','window.marginPDFClosed=');context.window.marginPDFOpened({path:'/new.pdf',name:'New.pdf'});assert.equal(state.notes[0].unitId,'cells');assert.equal(state.notes[0].projectId,'biology');context.window.marginPDFOpened({path:'/old.pdf',name:'Existing.pdf'});assert.equal(context.active,'old');assert.equal(old.projectId,'history');assert.equal(old.unitId,'medieval');
+context.window.marginCaptureDestination=undefined;context.window.marginCapture({title:'Personal',text:'Hello'});assert.equal(state.notes[0].projectId,undefined);assert.equal(state.notes[0].title,'Personal');
+console.log('PASS: external code and new PDF captures inherit the destination; existing PDF workspaces and source references stay in place; personal capture remains supported.');
