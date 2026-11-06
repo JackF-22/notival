@@ -14,7 +14,7 @@ try{
   const {sessionId}=await call('Target.attachToTarget',{targetId,flatten:true});
   const evaluate=async expression=>{const result=await call('Runtime.evaluate',{expression,returnByValue:true},sessionId);if(result.exceptionDetails)throw Error(JSON.stringify(result.exceptionDetails));return result.result.value};
   for(let i=0;i<100;i++){if(await evaluate('typeof state!=="undefined" && !!state && document.readyState==="complete" && !!document.querySelector(".quick-search-trigger")'))break;await new Promise(resolve=>setTimeout(resolve,50))}
-  await evaluate(`document.querySelector('#new').click()`);
+  await evaluate(`document.querySelector('#new').click();document.querySelector('.rich-text')?.focus()`);
   await call('Input.insertText',{text:'Bold me'},sessionId);
   await evaluate(`const rich=document.querySelector('.rich-text'),range=document.createRange();range.selectNodeContents(rich);getSelection().removeAllRanges();getSelection().addRange(range)`);
   await new Promise(r=>setTimeout(r,30));

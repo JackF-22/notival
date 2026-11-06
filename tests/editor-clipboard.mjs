@@ -14,7 +14,7 @@ try{
   const {sessionId}=await call('Target.attachToTarget',{targetId,flatten:true});
   const evaluate=async expression=>{const result=await call('Runtime.evaluate',{expression,returnByValue:true},sessionId);if(result.exceptionDetails)throw Error(JSON.stringify(result.exceptionDetails));return result.result.value};
   for(let i=0;i<100;i++){if(await evaluate('typeof state!=="undefined" && !!state && document.readyState==="complete" && !!document.querySelector(".quick-search-trigger")'))break;await new Promise(resolve=>setTimeout(resolve,50))}
-  await evaluate(`document.querySelector('#new').click();const rich=document.querySelector('.rich-text');rich.innerHTML='<p>Select this first paragraph.</p><p>Continue into this second paragraph.</p>';rich.dispatchEvent(new Event('input',{bubbles:true}))`);
+  await evaluate(`document.querySelector('#new').click();document.querySelector('.rich-text')?.focus();const rich=document.querySelector('.rich-text');rich.innerHTML='<p>Select this first paragraph.</p><p>Continue into this second paragraph.</p>';rich.dispatchEvent(new Event('input',{bubbles:true}))`);
   const points=await evaluate(`(()=>{const paragraphs=document.querySelectorAll('.rich-text p');return [...paragraphs].map((p,index)=>{const r=document.createRange();r.setStart(p.firstChild,index?12:0);r.setEnd(p.firstChild,index?13:1);const rect=r.getBoundingClientRect();return {x:rect.left+1,y:rect.top+rect.height/2}})})()`);
   await call('Input.dispatchMouseEvent',{type:'mousePressed',...points[0],button:'left',clickCount:1},sessionId);
   await call('Input.dispatchMouseEvent',{type:'mouseMoved',...points[1],button:'left',buttons:1},sessionId);
