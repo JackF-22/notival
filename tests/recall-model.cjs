@@ -101,6 +101,16 @@ assert.equal(M.check(ans('1,000'),'1000'),'correct');
 assert.equal(M.check(ans('1947'),'1948'),'wrong');assert.equal(M.check(ans('1947'),'1947'),'correct');assert.equal(M.check(ans('x^2+y^2'),'x^2+y^3'),'wrong');
 assert.equal(M.check(ans('Paris'),'Pariss'),'close');assert.equal(M.check(c,'mitochondrian'),'close');
 
+// Math survives prose cleanup (subscripts and stars are markup elsewhere, not inside $…$) and is never typed as an answer
+const K=vm.runInNewContext(fs.readFileSync('web/knowledge.js','utf8')+'\nKnowledge');
+assert.equal(K.prose('Energy is $E_{k}=\\frac{1}{2}*m*v^2$ and **bold** _it_.'),'Energy is $E_{k}=\\frac{1}{2}*m*v^2$ and bold it.');
+assert.equal(K.prose('$$x_1+x_2$$\n# Heading\nplain_text'),'$$x_1+x_2$$\nHeading\nplaintext');
+assert.equal(M.hasMath('$x^2$'),true);assert.equal(M.hasMath('costs $5 or $6'),true,'a pair of dollar signs is treated as math');assert.equal(M.hasMath('plain'),false);
+assert.equal(M.checkable(M.newItem({type:'qa',prompt:'Energy?',answer:'$E=mc^2$'})),false);
+assert.equal(M.checkable(M.newItem({type:'cloze',text:'Area is $\\pi r^2$ always.',blank:'$\\pi r^2$'})),false);
+assert.equal(M.checkable(M.newItem({type:'cloze',text:'Area is $\\pi r^2$ always.',blank:'always'})),true,'a plain blank next to math can still be typed');
+assert.equal(M.format(M.newItem({type:'qa',prompt:'Energy?',answer:'$E=mc^2$'}),bank,{quiz:true}).kind,'self');
+
 // Daily new-item limit: new items stop counting as ready once today's budget is used
 const day=new Date(2026,10,6,15).getTime(),fresh=Array.from({length:30},(_,i)=>({id:'f'+i,noteId:'a',type:'qa',prompt:'p',answer:'x'}));
 assert.equal(M.allowance({},day),10);assert.equal(M.allowance({recallNewPerDay:20},day),20);

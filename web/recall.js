@@ -3,6 +3,18 @@
  const M=RecallModel,DAY=86400000,$=s=>document.querySelector(s);
  const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined&&text!==null)n.textContent=text;if(cls)n.className=cls;return n};
  const btn=(label,fn,cls)=>{const b=el('button',label,cls);b.type='button';b.onclick=fn;return b};
+ // Text containing $…$ or $$…$$ comes back as a fragment with the math typeset (plain source if KaTeX can't parse it).
+ const MATH_SPLIT=/(\$\$[\s\S]+?\$\$|\$[^$\n]+?\$)/;
+ function typeset(text){
+  const out=document.createDocumentFragment();
+  for(const part of String(text).split(MATH_SPLIT)){
+   if(!part)continue;const m=part.match(/^(\$\$?)([\s\S]+?)\1$/);
+   if(m&&typeof katex!=='undefined'){const s=el('span',undefined,'recall-math'+(m[1]==='$$'?' is-display':''));try{katex.render(m[2].trim(),s,{displayMode:m[1]==='$$',throwOnError:true,trust:false,maxExpand:1000,maxSize:20})}catch{s.textContent=part}out.append(s)}
+   else out.append(part);
+  }
+  return out;
+ }
+ const rich=(tag,text,cls)=>{const n=el(tag,undefined,cls);n.append(typeset(text));return n};
  const dialog=el('dialog',undefined,'recall-dialog');document.body.append(dialog);
  const typeNames={qa:'Question',cloze:'Fill in',explain:'Explain',passage:'Passage'};
  let ctx={project:null,notes:null,title:'',unitId:''},sess=null,onKey=null;
@@ -99,10 +111,10 @@
    const p=M.clozeParts(item),sentence=el('p',undefined,'recall-sentence');
    if(fmt.kind==='type'){field=el('input',undefined,'recall-blank');field.type='text';field.autocomplete='off';field.spellcheck=false;field.setAttribute('aria-label','Hidden words');field.style.width=Math.max(7,Math.min(30,item.blank.length+3))+'ch';gap=field}
    else gap=el('span','▁▁▁▁▁','recall-gap');
-   sentence.append(p.before,gap,p.after);body.append(sentence);
-   if(item.hint)body.append(el('small','Hint · '+item.hint,'recall-hint'));
+   sentence.append(typeset(p.before),gap,typeset(p.after));body.append(sentence);
+   if(item.hint)body.append(rich('small','Hint · '+item.hint,'recall-hint'));
   }else{
-   body.append(el('h3',item.prompt,'recall-prompt'));
+   body.append(rich('h3',item.prompt,'recall-prompt'));
    if(fmt.kind==='type'){field=el('input');field.type='text';field.autocomplete='off';field.placeholder='Your answer';field.setAttribute('aria-label','Your answer');body.append(field)}
    else if(fmt.kind==='self'){field=el('textarea');field.placeholder=item.type==='explain'||item.type==='passage'?'Explain it in your own words before you check…':'Say it from memory before you check…';field.setAttribute('aria-label','Your answer');body.append(field)}
   }
@@ -140,10 +152,10 @@
    const panel=el('div',undefined,'recall-feedback');body.append(panel);
    if(result){panel.append(el('strong',result==='correct'?'Correct':result==='close'?'Close — check the spelling':skipped?'Here it is':'Not quite','recall-result is-'+result))}
    const reference=item.type==='cloze'?item.blank:Knowledge.prose(item.answer||'');
-   if(item.type==='cloze'){if(result!=='correct'){const a=el('p',undefined,'recall-answer');a.append('Answer · ',el('b',item.blank));panel.append(a)}}
+   if(item.type==='cloze'){if(result!=='correct'){const a=el('p',undefined,'recall-answer');a.append('Answer · ',rich('b',item.blank));panel.append(a)}}
    else if(reference||typed){
     if(typed.trim()&&result!=='correct'){panel.append(el('small','You wrote','recall-label'),el('blockquote',typed.trim(),'recall-yours'))}
-    if(reference){panel.append(el('small',result==='correct'?'Answer':'From your notes','recall-label'),el('blockquote',reference,'recall-reference'))}
+    if(reference){panel.append(el('small',result==='correct'?'Answer':'From your notes','recall-label'),rich('blockquote',reference,'recall-reference'))}
     if(!result&&typed.trim().length>12&&reference){
      const cover=M.coverage(reference,typed);
      if(cover.hit.length+cover.missed.length>=3){const row=el('p',undefined,'recall-coverage');if(cover.hit.length){const a=el('span','Covered · '+cover.hit.slice(0,6).join(', '),'is-hit');row.append(a)}if(cover.missed.length){const b=el('span','Not mentioned · '+cover.missed.slice(0,6).join(', '),'is-missed');row.append(b)}panel.append(row)}
@@ -188,7 +200,7 @@
   const bar=el('div',undefined,'recall-progress');const fill=el('span');fill.style.width=result.pct+'%';bar.append(fill);dialog.append(score,bar);
   if(missed.length){
    dialog.append(el('h3','To revisit'));
-   for(const item of missed){const row=el('div',undefined,'recall-missed');row.append(el('p',M.promptText(item)));const answer=item.type==='cloze'?item.blank:Knowledge.prose(item.answer||'');if(answer)row.append(el('small',answer.length>200?answer.slice(0,200)+'…':answer));if(item.noteId&&noteOf(item.noteId))row.append(btn('Open in note',()=>goTo(item.noteId,item.blockId),'recall-link'));dialog.append(row)}
+   for(const item of missed){const row=el('div',undefined,'recall-missed');row.append(rich('p',M.promptText(item)));const answer=item.type==='cloze'?item.blank:Knowledge.prose(item.answer||'');if(answer)row.append(rich('small',answer.length>200&&!M.hasMath(answer)?answer.slice(0,200)+'…':answer));if(item.noteId&&noteOf(item.noteId))row.append(btn('Open in note',()=>goTo(item.noteId,item.blockId),'recall-link'));dialog.append(row)}
   }
   const row=el('div',undefined,'recall-actions');
   if(missed.length)row.append(btn('Drill the '+missed.length+' missed',()=>run({mode:'drill',list:missed,pool}),'primary'));
@@ -324,8 +336,8 @@
    if(!rows.length&&!open.length&&!list.children.length)list.append(el('p',everything.length?'Nothing matches.':'No questions here yet.','recall-note'));
    for(const item of rows.slice(0,150)){
     const paused=!!state.suspended?.[item.id],row=el('div',undefined,'recall-bank-row'+(paused?' is-paused':''));
-    const main=el('div');main.append(el('small',(typeNames[item.type]||'')+(sourceLabel(item)?' · '+sourceLabel(item):''),'recall-source'),el('p',M.promptText(item)));
-    const answer=item.type==='cloze'?item.blank:Knowledge.prose(item.answer||'');if(answer)main.append(el('small',answer.length>140?answer.slice(0,140)+'…':answer,'recall-hint'));
+    const main=el('div');main.append(el('small',(typeNames[item.type]||'')+(sourceLabel(item)?' · '+sourceLabel(item):''),'recall-source'),rich('p',M.promptText(item)));
+    const answer=item.type==='cloze'?item.blank:Knowledge.prose(item.answer||'');if(answer)main.append(rich('small',answer.length>140&&!M.hasMath(answer)?answer.slice(0,140)+'…':answer,'recall-hint'));
     const side=el('div',undefined,'recall-bank-side');side.append(el('span',paused?'Paused':when(reviews()[item.id]),'recall-chip'));
     if(item.kind==='authored'){const qid=item.id.match(/:question:([^:]+):/)?.[1],owner=noteOf(item.noteId),q=owner?.questions?.find(x=>x.id===qid);if(q)side.append(btn('Explore',()=>{dialog.close();window.marginExploreQuestion?.(owner,q)}))}
     if(isMade(item))side.append(btn('Edit',()=>compose({item:state.items.find(i=>i.id===item.id),note:item.noteId?noteOf(item.noteId):null,after:()=>bank()})));

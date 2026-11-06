@@ -5,10 +5,10 @@ const RecallModel=(()=>{
  const hash=text=>{let h=5381;for(const c of String(text))h=((h<<5)+h+c.charCodeAt(0))>>>0;return h.toString(36)};
  const squash=text=>String(text).replace(/\s+/g,' ').trim();
  // Signs, decimal points, fractions and percents inside numbers survive (parked in private-use characters while the rest is stripped).
- const NUMBER_MARKS={'':'.','':'/','':'-','':'%'};
+ const NUMBER_MARKS={'\uE000':'.','\uE001':'/','\uE002':'-','\uE003':'%'};
  const normalize=text=>squash(String(text).toLowerCase().replace(/[‘’]/g,"'").replace(/[−–—]/g,'-')
-  .replace(/(\d),(?=\d{3}(?!\d))/g,'$1').replace(/(\d)\.(?=\d)/g,'$1').replace(/(\d)\/(?=\d)/g,'$1').replace(/(^|[\s(=])-(?=\d)/g,'$1').replace(/(\d)%/g,'$1')
-  .replace(/[^\p{L}\p{N}' -]+/gu,' ').replace(/\b(?:the|a|an)\b/g,' ').replace(/[-]/g,c=>NUMBER_MARKS[c]));
+  .replace(/(\d),(?=\d{3}(?!\d))/g,'$1').replace(/(\d)\.(?=\d)/g,'$1\uE000').replace(/(\d)\/(?=\d)/g,'$1\uE001').replace(/(^|[\s(=])-(?=\d)/g,'$1\uE002').replace(/(\d)%/g,'$1\uE003')
+  .replace(/[^\p{L}\p{N}' \uE000-\uE003]+/gu,' ').replace(/\b(?:the|a|an)\b/g,' ').replace(/[\uE000-\uE003]/g,c=>NUMBER_MARKS[c]));
  // Answers with no letters or digits (∫, →, +) are compared symbol for symbol.
  const symbols=text=>String(text).toLowerCase().replace(/[−–—]/g,'-').replace(/\s+/g,'');
  const DEFAULT_NEW_PER_DAY=10;
@@ -207,8 +207,9 @@ const RecallModel=(()=>{
   for(let i=1;i<=a.length;i++){const row=[i];for(let j=1;j<=b.length;j++)row[j]=Math.min(prev[j]+1,row[j-1]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1));prev=row}
   return prev[b.length];
  }
- // Short answers can be checked; long ones need the student's own judgement.
- const checkable=item=>item.type==='cloze'||(item.type==='qa'&&normalize(item.answer).length<=40&&normalize(item.answer).split(' ').length<=6);
+ // Short answers can be checked; long ones need the student's own judgement. So do equations: nobody should have to type LaTeX to answer.
+ const hasMath=text=>/\$\$[\s\S]+?\$\$|\$[^$\n]+?\$/.test(String(text||''));
+ const checkable=item=>!hasMath(item.type==='cloze'?item.blank:item.answer)&&(item.type==='cloze'||(item.type==='qa'&&normalize(item.answer).length<=40&&normalize(item.answer).split(' ').length<=6));
  function check(item,typed){
   if(!checkable(item))return null;
   const answer=item.type==='cloze'?item.blank:item.answer,want=normalize(answer),got=normalize(typed);
@@ -243,5 +244,5 @@ const RecallModel=(()=>{
   return {total:results.length,correct,pct:results.length?Math.round(correct/results.length*100):0,missed:results.filter(r=>r.rating==='Again').map(r=>r.item),restudy:[...byNote].map(([noteId,count])=>({noteId,count})).sort((a,b)=>b.count-a.count)};
  }
 
- return {parseMarkup,noteItems,collect,collectAll,clozeParts,promptText,newItem,validItem,suggest,schedule,preview,retrievability,status,isDue,queue,stats,weakTopics,logReview,reviewedToday,newToday,allowance,workload,DEFAULT_NEW_PER_DAY,check,checkable,suggestedGrade,coverage,distractors,format,summarize,normalize,sentences,GRADES};
+ return {parseMarkup,noteItems,collect,collectAll,clozeParts,promptText,newItem,validItem,suggest,schedule,preview,retrievability,status,isDue,queue,stats,weakTopics,logReview,reviewedToday,newToday,allowance,workload,DEFAULT_NEW_PER_DAY,hasMath,check,checkable,suggestedGrade,coverage,distractors,format,summarize,normalize,sentences,GRADES};
 })();
