@@ -60,7 +60,7 @@ try{
   const seen=[];
   for(let i=0;i<3;i++){
    const card=await evaluate(`JSON.stringify({prompt:!!document.querySelector('.recall-prompt .katex'),sentence:!!document.querySelector('.recall-sentence .katex'),field:!!document.querySelector('.recall-card input[type=text]'),raw:document.querySelector('.recall-card').textContent.includes('$')})`).then(JSON.parse);
-   seen.push(card);assert.equal(card.raw,false,'no raw $ source shown on the card');
+   await shot('math-card-'+i);seen.push(card);assert.equal(card.raw,false,'no raw $ source shown on the card');
    await clickText('.recall-actions button','Check');await wait(100);
    if(!card.field)assert.equal(await evaluate(`document.querySelectorAll('.recall-feedback .katex, .recall-answer .katex').length>0`),true,'the revealed math answer is typeset');
    await clickText('.recall-grade','Good');await wait(120);
