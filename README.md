@@ -6,10 +6,8 @@ A local macOS study notebook for subjects, units, notes, materials, test packs, 
 zsh scripts/build.sh
 open dist/Notival.app
 ```
-Quit Margin or Notival before copying `dist/Notival.app` to Applications.
-Choose Replace if a Notival copy already exists. If the older application is
-still named Margin.app, remove or rename that application copy separately. The app uses the same
-local notes store, so existing Margin and Notival notes remain available.
+Quit Notival before copying `dist/Notival.app` to Applications.
+Choose Replace if a Notival copy already exists.
 Requires macOS 13+ and Xcode command line tools to build. The app is locally ad hoc signed, not notarized for distribution.
 
 Notes save atomically to `~/Library/Application Support/Margin/notes.json`, with
@@ -167,7 +165,7 @@ inserted into notes are embedded in the note backup and limited to 2 MB each.
 
 The new Notival icon and violet, cyan, and coral theme are included in the built app. Foliose's original Markdown files stay untouched.
 
-## Margin 0.4.0 — Understanding workspace
+## Notival 0.4.0 — Understanding workspace
 
 - A smaller home screen with recent notes and a persistent compact list option.
   All notes and Pinned now open their respective home views. Search uses one
@@ -196,7 +194,7 @@ Validation: `node tests/knowledge.cjs`, `node tests/lab.cjs`,
 recall provenance, reflection, synthesis navigation, focus, and persistence in an
 isolated Chrome profile. Chrome must be launchable by the test process.
 
-## Margin 0.5.0 — Persistent synthesis
+## Notival 0.5.0 — Persistent synthesis
 
 **Build an explanation** now opens a workspace with searchable source notes,
 editable or selected excerpts, three evidence lanes, reasoning for each excerpt,
@@ -216,7 +214,7 @@ Additional check: `node tests/synthesis.cjs` verifies source preservation and
 safe regeneration after manual editing. The synthesis workflow in
 `tests/understanding.mjs` uses the new workspace.
 
-## Margin 0.6.0 — Student notebooks
+## Notival 0.6.0 — Student notebooks
 
 The main workspace is now **Subjects → Units → Notes and materials**. Existing
 project IDs remain unchanged, so notes and source references keep their links.
@@ -229,7 +227,7 @@ navigation. Option-Left/Right navigates history.
   unit selectors. Removing a unit keeps its content unsorted and preserves
   existing test-pack coverage; Undo restores the unit.
 - **Attach materials** selects multiple files and copies them into
-  `~/Library/Application Support/Margin/Materials/`. PDFs open in Margin's PDF
+  `~/Library/Application Support/Margin/Materials/`. PDFs open in Notival's PDF
   workspace; other files open in their default app. Removing a material from a
   subject keeps its managed file and offers Undo.
 - **Test packs** include selected units and/or individual notes and materials,
@@ -252,7 +250,7 @@ remain applicable. The native interface was checked for unit creation, managed
 file attachment, test-pack creation, checklist saving, study-guide creation,
 and persistence after relaunch.
 
-### Margin 0.6.1 — Sidebar spacing
+### Notival 0.6.1 — Sidebar spacing
 
 The sidebar now uses one scrolling library instead of capped, nested lists.
 Subject names wrap over two lines, units have clear indentation and selection,
@@ -261,7 +259,7 @@ to 280 px and remains resizable. Verified visually in the native application;
 no storage changes were introduced.
 
 
-## Margin 0.7.0 — Subject personality and planning
+## Notival 0.7.0 — Subject personality and planning
 
 Features now have consistent icons and restrained colors: blue notes, teal
 materials, amber test packs, violet synthesis, and green units. A permanent
@@ -272,7 +270,7 @@ clicking the subject in the sidebar also resets its unit/tab context.
 whether the overview shows its checklist, test/assignment dates, feature
 shortcuts, and recent notes. The small checklist saves progress. Dates support
 tests, assignments, optional details, completion, editing, removal, and Undo;
-dated test packs appear automatically. Dates are displayed in Margin and do
+dated test packs appear automatically. Dates are displayed in Notival and do
 not create OS notifications or calendar events.
 
 ### Unit study guides
