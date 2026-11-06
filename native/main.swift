@@ -765,6 +765,16 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
       if let error { self.js("window.marginError", error.localizedDescription) } else { NSWorkspace.shared.activateFileViewerSelecting([url]); self.js("toast", "Exported “\(url.lastPathComponent)”") }
      }
     }
+   case "saveText":
+    let panel = NSSavePanel(); panel.canCreateDirectories = true
+    panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
+    panel.nameFieldStringValue = NoteExporter.suggestedName(body["title"] as? String ?? "Study notes") + ".md"
+    let text = body["text"] as? String ?? ""
+    panel.beginSheetModal(for: window) { response in
+     guard response == .OK, let url = panel.url else { return }
+     do { try text.write(to: url, atomically: true, encoding: .utf8); NSWorkspace.shared.activateFileViewerSelecting([url]); self.js("toast", "Saved “\(url.lastPathComponent)”") }
+     catch { self.js("window.marginError", error.localizedDescription) }
+    }
    case "exportGuide":
     let panel = NSSavePanel(); panel.canCreateDirectories = true
     panel.allowedContentTypes = [.pdf]

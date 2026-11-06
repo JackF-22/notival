@@ -9,11 +9,11 @@
  dialog.addEventListener('keydown',e=>onKey?.(e));
  dialog.addEventListener('close',()=>{sess=null;onKey=null});
 
- const scope=()=>ctx.notes?{notes:ctx.notes}:{projectId:ctx.project?.id||null,unitId:ctx.unitId||null};
+ const scope=()=>ctx.notes?{notes:ctx.notes}:{projectId:ctx.project?.id||null,unitId:ctx.unitId||null,exclude:ctx.exclude||null};
  const noteOf=id=>state.notes.find(n=>n.id===id);
  const reviews=()=>state.reviews??={};
  const isMade=item=>item.origin==='made'&&(state.items||[]).some(i=>i.id===item.id);
- function setScope(o={}){ctx={project:o.project||null,notes:o.notes||null,title:o.title||o.project?.name||'All notes',unitId:o.unitId||''}}
+ function setScope(o={}){ctx={project:o.project||null,notes:o.notes||null,title:o.title||o.project?.name||'All notes',unitId:o.unitId||'',exclude:o.exclude?new Set(o.exclude):null}}
  function unitLabel(item){const p=state.projects.find(p=>p.id===item.projectId);return p?.units?.find(u=>u.id===item.unitId)?.name||''}
  function sourceLabel(item){const n=item.noteId&&noteOf(item.noteId);return [n?(n.title||'Untitled'):'',unitLabel(item)].filter(Boolean).join(' · ')}
  function frame(title,subtitle,exit=()=>dialog.close()){
@@ -37,6 +37,7 @@
   const days=Math.ceil((Math.min(...dues)-now)/DAY);return days<=0?'later today':days===1?'tomorrow':'in '+days+' days';
  }
 
+ const importFromAI=()=>{const project=ctx.project&&state.projects.find(p=>p.id===ctx.project.id)||null;dialog.close?.();window.marginImportQuestions?.({project,unitId:ctx.unitId||'',note:ctx.notes?.length===1?ctx.notes[0]:null,onDone:()=>hub()})};
  // ── Hub ─────────────────────────────────────────────────────────────────────
  function hub(options){
   if(options)setScope(options);
@@ -49,7 +50,7 @@
   }
   if(!made){
    dialog.append(el('p','Answer questions from memory — it’s the surest way to remember. Start with a few of your own.','recall-lead-text'));
-   const row=el('div',undefined,'recall-actions');row.append(btn('Draft questions from my notes',()=>suggestions(),'primary'),btn('Make one',()=>compose({note:ctx.notes?.[0]||null,after:hub})));dialog.append(row);
+   const row=el('div',undefined,'recall-actions');row.append(btn('Draft questions from my notes',()=>suggestions(),'primary'),btn('Make one',()=>compose({note:ctx.notes?.[0]||null,after:hub})),btn('Import from AI',()=>importFromAI()));dialog.append(row);
    dialog.append(el('p','Tip: in a note, select a phrase and press ⌘⇧K. You can also type Q: and A: on two lines, or put {{double braces}} around words to hide.','recall-note'));
    return;
   }
@@ -61,7 +62,7 @@
   const row=el('div',undefined,'recall-actions');
   row.append(session?btn('Start',()=>start('due',15),'primary'):btn('Practice anyway',()=>start('quiz',10),'primary'));dialog.append(row);
   const links=el('div',undefined,'recall-links');
-  links.append(btn('Make a question',()=>compose({note:ctx.notes?.[0]||null,after:hub})),btn('Browse all '+made,()=>bank()));
+  links.append(btn('Make a question',()=>compose({note:ctx.notes?.[0]||null,after:hub})),btn('Import from AI',()=>importFromAI()),btn('Browse all '+made,()=>bank()));
   dialog.append(links);
  }
  function start(modeName,limit){
@@ -343,7 +344,7 @@
  window.marginReviewProject=project=>hub({project});
  window.marginReviewNotes=(name,notes,subjectId)=>hub({project:subjectId?{id:subjectId,name}:null,notes,title:name});
  window.marginRecallCapture=capture;window.marginAskQuestion=capture;
- window.marginRecall={hub,bank,compose,suggestions,start};
+ window.marginRecall={hub,bank,compose,suggestions,start,setScope};
  window.marginRecallSummary=project=>{const stats=M.stats(M.collect(state,{projectId:project.id}),reviews());return stats};
  window.marginRecallWidget=project=>{
   const list=M.collect(state,{projectId:project.id}),stats=M.stats(list,reviews());

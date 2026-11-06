@@ -14,6 +14,7 @@ try{
   const {sessionId}=await call('Target.attachToTarget',{targetId,flatten:true});
   const evaluate=async expression=>{const result=await call('Runtime.evaluate',{expression,returnByValue:true},sessionId);if(result.exceptionDetails)throw Error(JSON.stringify(result.exceptionDetails));return result.result.value};
   for(let i=0;i<100;i++){if(await evaluate('typeof state!=="undefined" && !!state && document.readyState==="complete" && !!document.querySelector(".quick-search-trigger")'))break;await new Promise(resolve=>setTimeout(resolve,50))}
+  await call('Emulation.setDeviceMetricsOverride',{width:1100,height:850,deviceScaleFactor:1,mobile:false},sessionId);
   await evaluate('document.querySelector("#new").click();document.querySelector(".rich-text").focus()');
   await new Promise(r=>setTimeout(r,60));
   await call('Input.insertText',{text:'\\heading1'},sessionId);
@@ -26,19 +27,19 @@ try{
   assert.equal(await evaluate('current().blocks[0].text'),'# My heading');
   await evaluate('render()');
   assert.equal(await evaluate('document.querySelector(".rich-text h1").textContent'),'My heading');
-  await evaluate('document.querySelector("#new").click()');await new Promise(r=>setTimeout(r,40));
+  await evaluate('document.querySelector("#new").click();document.querySelector(".rich-text")?.focus()');await new Promise(r=>setTimeout(r,40));
   await call('Input.insertText',{text:'-'},sessionId);
   await call('Input.insertText',{text:' '},sessionId);
   assert.equal(await evaluate('document.querySelector(".rich-text").firstElementChild.tagName'),'UL');
   await call('Input.insertText',{text:'Bullet item'},sessionId);
   assert.equal(await evaluate('current().blocks[0].text'),'- Bullet item');
-  await evaluate('document.querySelector("#new").click()');await new Promise(r=>setTimeout(r,40));
+  await evaluate('document.querySelector("#new").click();document.querySelector(".rich-text")?.focus()');await new Promise(r=>setTimeout(r,40));
   await call('Input.insertText',{text:'1.'},sessionId);
   await call('Input.insertText',{text:' '},sessionId);
   assert.equal(await evaluate('document.querySelector(".rich-text").firstElementChild.tagName'),'OL');
   await call('Input.insertText',{text:'Numbered item'},sessionId);
   assert.equal(await evaluate('current().blocks[0].text'),'1. Numbered item');
-  await evaluate('document.querySelector("#new").click()');await new Promise(r=>setTimeout(r,40));
+  await evaluate('document.querySelector("#new").click();document.querySelector(".rich-text")?.focus()');await new Promise(r=>setTimeout(r,40));
   const point=await evaluate('(()=>{const block=document.querySelector(".block:not(.code)");block.scrollIntoView({block:"center"});const rect=block.getBoundingClientRect();return {x:rect.right-8,y:rect.bottom-8}})()');
   await call('Input.dispatchMouseEvent',{type:'mousePressed',x:point.x,y:point.y,button:'left',clickCount:1},sessionId);
   await call('Input.dispatchMouseEvent',{type:'mouseReleased',x:point.x,y:point.y,button:'left',clickCount:1},sessionId);
@@ -59,7 +60,7 @@ try{
   await evaluate('document.querySelector("#toast button").click()');
   assert.equal(await evaluate('state.trash.length'),0);
   // The quiet surface must preserve selection when opening insertion tools.
-  await evaluate(`document.querySelector('#new').click()`);await new Promise(r=>setTimeout(r,40));
+  await evaluate(`document.querySelector('#new').click();document.querySelector('.rich-text')?.focus()`);await new Promise(r=>setTimeout(r,40));
   await call('Input.insertText',{text:'A passage worth questioning.'},sessionId);
   await evaluate(`const rich=document.querySelector('.rich-text'),r=document.createRange();r.selectNodeContents(rich);getSelection().removeAllRanges();getSelection().addRange(r)`);
   await new Promise(r=>setTimeout(r,60));

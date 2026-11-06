@@ -25,3 +25,20 @@
 .flag-mini{display:grid!important;gap:2px;text-align:left;width:100%;padding:8px 0!important;border:0!important;border-bottom:1px solid var(--line)!important;border-radius:0!important;background:none!important;color:var(--ink)!important;font-size:13px!important}
 .flag-mini small{color:var(--muted);font-size:11px}
 #selection-tools #selection-flag{white-space:nowrap}
+
+.flag-queue{position:fixed;right:20px;bottom:20px;z-index:90;width:min(320px,calc(100vw - 24px));box-sizing:border-box;padding:12px 14px;border:1px solid var(--line);border-left:4px solid #e0a030;border-radius:14px;background:var(--bg);color:var(--ink);box-shadow:0 10px 30px #0002;display:grid;gap:8px}
+.flag-queue[hidden]{display:none}
+.flag-queue.collapsed{width:auto;padding:0;border-left-width:1px;border-radius:999px}
+.flag-queue-pill{border:0;background:none;color:var(--ink);font-size:12.5px;padding:8px 14px;cursor:pointer}
+.flag-queue-head{display:flex;align-items:center;gap:2px}.flag-queue-head .flag-label{margin-right:auto}
+.flag-queue button.flag-quiet{border:0;background:none;color:var(--muted);padding:3px 8px;font-size:15px;cursor:pointer;text-decoration:none}
+.flag-queue button.flag-quiet:disabled{opacity:.3;cursor:default}
+.flag-queue-actions button.flag-quiet,.flag-queue .flag-actions .flag-quiet{font-size:12px;text-decoration:underline;text-underline-offset:3px}
+.flag-queue-quote{display:block;text-align:left;width:100%;margin:0;padding:8px 12px;border:0;border-left:3px solid #e0a030;background:var(--soft);border-radius:0 8px 8px 0;font-size:13px;line-height:1.5;color:var(--ink);cursor:pointer;overflow-wrap:anywhere}
+.flag-queue textarea{box-sizing:border-box;width:100%;min-height:62px;resize:vertical;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:8px 10px;font:inherit;font-size:13px;line-height:1.5}
+.flag-queue textarea:focus{outline:2px solid color-mix(in srgb,var(--green) 40%,transparent);outline-offset:1px;border-color:var(--green)}
+.flag-queue .flag-actions button:not(.flag-quiet){border:1px solid var(--line);border-radius:9px;padding:7px 12px;font-size:12.5px;background:var(--bg);color:var(--ink);cursor:pointer}
+.flag-queue .flag-actions button.primary{background:var(--green);border-color:var(--green);color:#fff;font-weight:600}
+.flag-queue .flag-actions button:disabled{opacity:.4;cursor:default}
+.flag-queue .flag-comment{font-size:12.5px;color:var(--muted)}
+@media print{.flag-queue{display:none}}

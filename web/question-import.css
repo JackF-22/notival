@@ -1,0 +1,15 @@
+.qimport-dialog{width:min(600px,calc(100vw - 32px));max-height:calc(100vh - 48px);overflow:auto}
+.qimport-dialog h2{margin:0 0 4px}.qimport-lead{margin:0 0 12px;font-size:13px;line-height:1.55;color:var(--muted)}
+.qimport-dialog textarea{box-sizing:border-box;width:100%;resize:vertical;min-height:140px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;font-size:13px;line-height:1.55}
+.qimport-where{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}
+.qimport-where label{display:grid;gap:4px;font-size:11px;color:var(--muted)}
+.qimport-where select{min-width:0;padding:8px 9px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit;font-size:12.5px}
+.qimport-list{display:grid;gap:6px;max-height:280px;overflow:auto;margin-bottom:12px}
+.qimport-summary{margin:0;font-size:12.5px;font-weight:600}.qimport-empty{margin:0;font-size:13px;color:var(--muted)}
+.qimport-row{display:flex;gap:10px;align-items:flex-start;padding:9px 11px;border:1px solid var(--line);border-radius:10px;cursor:pointer}
+.qimport-row.dupe{opacity:.6}.qimport-row input{margin-top:3px}
+.qimport-row strong{display:block;font-size:13px;line-height:1.45}.qimport-row small{display:block;margin-top:2px;color:var(--muted);font-size:12px;line-height:1.45;white-space:pre-wrap}
+.qimport-row em{display:block;margin-top:2px;font-size:11px;color:var(--muted)}
+.qimport-dialog button.primary{background:var(--green);border-color:var(--green);color:#fff;font-weight:600;border-radius:9px;padding:8px 14px}
+.qimport-dialog button.primary:disabled{opacity:.4;cursor:default}
+@media(max-width:560px){.qimport-where{grid-template-columns:1fr}}

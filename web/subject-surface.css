@@ -176,3 +176,8 @@ body .student-home-view.home-layout,body .student-home-view.overview-layout:has(
 .student-home-view.overview-layout .subject-units .unit-grid{grid-template-columns:repeat(auto-fill,minmax(clamp(180px,13vw,260px),1fr))}
 /* Recent notes fill however many columns fit, up to three rows; the rest stay out of sight. */
 .student-home-view.home-layout>.student-section-title+.note-card-grid,.student-home-view.overview-layout .subject-recents .note-card-grid{grid-template-columns:repeat(auto-fill,minmax(clamp(180px,11vw,225px),1fr));grid-template-rows:repeat(3,auto);grid-auto-rows:0;overflow:hidden;row-gap:14px}
+
+.project-icon-picker .icon-filters{display:grid;grid-template-columns:1fr auto;gap:8px}
+.project-icon-picker .icon-filters>input,.project-icon-picker .icon-filters>select{min-width:0;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-size:12px}
+.project-icon-picker .expanded-icon-choices{max-height:260px}
+.project-icon-picker .icon-none{grid-column:1/-1;margin:8px 4px;font-size:12px;color:var(--muted)}

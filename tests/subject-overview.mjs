@@ -17,7 +17,7 @@ try{
   await evaluate(`state.projects=[{id:'bio',name:'Biology',units:[{id:'u',name:'Cells'}],materials:[],packs:[],assessments:[{id:'exam',title:'Midterm',date:'2026-12-10'}],checklist:[]}];state.notes=[{id:'n',projectId:'bio',title:'Cell notes',updated:1,blocks:[{id:'b',type:'text',text:'Membranes'}],nodes:[]}];window.marginShowProject('bio')`);
   assert.equal(await evaluate(`document.querySelectorAll('.feature-launcher').length`),0);
   assert.equal(await evaluate(`[...document.querySelectorAll('.subject-disclosure')].every(d=>d.open)`),true);
-  assert.equal(await evaluate(`document.querySelectorAll('.subject-main-actions>button').length`),2);
+  assert.equal(await evaluate(`[...document.querySelectorAll('.subject-main-actions>button')].map(b=>b.textContent).slice(0,3).join('|')`),'＋ Note|＋ Test date|Attach materials');
   const fill=async(selector,value)=>evaluate(`(()=>{const n=document.querySelector(${JSON.stringify(selector)});n.value=${JSON.stringify(value)};n.dispatchEvent(new Event('input',{bubbles:true}))})()`);
   await fill('[aria-label="New checklist item"]','HW3 due Friday at 11:59pm');
   assert.equal(await evaluate(`document.querySelector('.recognized-date').hidden`),false);

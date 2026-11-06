@@ -45,7 +45,7 @@ const RecallModel=(()=>{
   }
   return out;
  }
- function collect(state,{notes,projectId=null,unitId=null}={}){
+ function collect(state,{notes,projectId=null,unitId=null,exclude=null}={}){
   const all=state.notes||[],scoped=notes||all.filter(n=>(!projectId||n.projectId===projectId)&&(!unitId||n.unitId===unitId));
   const ids=new Set(scoped.map(n=>n.id)),out=[],seen=new Set(),push=item=>{if(seen.has(item.id))return;seen.add(item.id);out.push(item)};
   const markupBlocks=new Set();
@@ -61,7 +61,7 @@ const RecallModel=(()=>{
    const note=all.find(n=>n.id===card.noteId);
    push({id:card.id,type:card.kind==='authored'||card.kind==='question'?'qa':'passage',prompt:state.reviewPrompts?.[card.id]||card.question,answer:card.answer,noteId:card.noteId,blockId:card.blockId,projectId:note?.projectId||null,unitId:note?.unitId||null,origin:card.kind==='authored'?'made':'legacy',kind:card.kind});
   }
-  return out.filter(item=>!state.suspended?.[item.id]);
+  return out.filter(item=>!state.suspended?.[item.id]&&!(exclude&&item.projectId&&exclude.has(item.projectId)));
  }
  // Every item, suspended or not, for the question bank.
  function collectAll(state,scope){return collect({...state,suspended:{}},scope)}

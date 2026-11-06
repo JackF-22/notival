@@ -159,10 +159,55 @@
   area.oninput=()=>{go.disabled=!area.value.trim()};
   slot.append(area,go);area.focus();
  }
- function refreshCounts(){window.marginEditorRefresh?.();window.marginUnderstandingRefresh?.()}
+ function refreshCounts(){window.marginEditorRefresh?.();window.marginUnderstandingRefresh?.();queue(true)}
+
+ // ── Queue: this note's open flags, docked bottom right, to step through and resolve ─────────
+ const box=el('aside',undefined,'flag-queue');box.hidden=true;box.setAttribute('aria-label','To clarify');document.body.append(box);
+ let at=0,shown=null,collapsed=false;const drafts={};
+ try{collapsed=localStorage.getItem('margin-flag-queue')==='collapsed'}catch{}
+ const fold=value=>{collapsed=value;try{localStorage.setItem('margin-flag-queue',value?'collapsed':'open')}catch{}queue(true)};
+ function reveal(flag){
+  const found=spans(flag.id);found[0]?.scrollIntoView({block:'center',behavior:'smooth'});
+  for(const s of found){s.classList.add('flag-pulse');setTimeout(()=>s.classList.remove('flag-pulse'),1800)}
+  if(!found.length)toast('The flagged text was edited away. You can still resolve it.');
+ }
+ function queue(force){
+  const note=current(),open=note&&document.body.dataset.view==='note'?(note.flags||[]).filter(F.isOpen).sort((a,b)=>a.created-b.created):[];
+  if(!open.length){box.hidden=true;box.replaceChildren();shown=null;return}
+  if(!force&&box.contains(document.activeElement)&&document.activeElement.tagName==='TEXTAREA')return;
+  if(shown&&shown.id!==open[Math.min(at,open.length-1)]?.id){const i=open.findIndex(f=>f.id===shown.id);if(i>=0)at=i}
+  at=Math.max(0,Math.min(at,open.length-1));const flag=open[at];shown=flag;
+  box.hidden=false;box.classList.toggle('collapsed',collapsed);box.replaceChildren();
+  const step=delta=>{at=(at+delta+open.length)%open.length;shown=open[at];queue(true);reveal(open[at])};
+  if(collapsed){const pill=btn('To clarify · '+open.length,()=>fold(false),'flag-queue-pill');pill.title='Show the queue';box.append(pill);return}
+  const head=el('div',undefined,'flag-queue-head');
+  const prev=btn('‹',()=>step(-1),'flag-quiet'),next=btn('›',()=>step(1),'flag-quiet'),min=btn('–',()=>fold(true),'flag-quiet');
+  prev.setAttribute('aria-label','Previous flag');next.setAttribute('aria-label','Next flag');min.setAttribute('aria-label','Minimise');min.title='Minimise';
+  prev.disabled=next.disabled=open.length<2;
+  head.append(el('small','To clarify · '+(at+1)+' of '+open.length,'flag-label'),prev,next,min);
+  const quote=btn(shorten(flag.quote,140),()=>reveal(flag),'flag-queue-quote');quote.title='Show in the note';
+  box.append(head,quote);
+  if(flag.comment)box.append(el('p',flag.comment,'flag-comment'));
+  const area=el('textarea');area.placeholder='When it clicks: what cleared it up?';area.setAttribute('aria-label','What cleared it up');area.value=drafts[flag.id]||'';
+  const done=btn('Resolve',()=>{
+   if(!F.resolve(flag,area.value)){toast('Write what cleared it up first');area.focus();return}
+   delete drafts[flag.id];persist();paint();
+   const left=open.filter(f=>f!==flag);at=Math.min(at,Math.max(0,left.length-1));refreshCounts();
+   if(!left.length)toast('Everything flagged is cleared up');
+  },'primary');
+  done.disabled=!area.value.trim();
+  area.oninput=()=>{drafts[flag.id]=area.value;done.disabled=!area.value.trim()};
+  area.onkeydown=e=>{if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)&&!done.disabled){e.preventDefault();done.click()}};
+  const skip=open.length>1?btn('Skip',()=>step(1),'flag-quiet'):null;
+  const row=el('div',undefined,'flag-actions');row.append(done);if(skip)row.append(skip);
+  box.append(area,row);
+ }
+ const baseRenderQueue=render;render=function(){baseRenderQueue();queue()};
+ new MutationObserver(()=>queue()).observe(document.body,{attributes:true,attributeFilter:['data-view']});
+ window.addEventListener('load',()=>queue());
 
  // ── Entry points ────────────────────────────────────────────────────────────
- window.marginFlags={list,goTo,count:projectId=>F.count(state.notes,{projectId:projectId||null}),flagSelection};
+ window.marginFlags={list,goTo,queue,count:projectId=>F.count(state.notes,{projectId:projectId||null}),flagSelection};
  window.marginFlagsWidget=project=>{
   const open=F.open(state.notes,{projectId:project.id});if(!open.length)return null;
   const box=el('section',undefined,'subject-checklist subject-flags'),head=el('div',undefined,'widget-heading');

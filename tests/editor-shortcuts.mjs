@@ -14,7 +14,7 @@ try{
   const {sessionId}=await call('Target.attachToTarget',{targetId,flatten:true});
   const evaluate=async expression=>{const result=await call('Runtime.evaluate',{expression,returnByValue:true},sessionId);if(result.exceptionDetails)throw Error(JSON.stringify(result.exceptionDetails));return result.result.value};
   for(let i=0;i<100;i++){if(await evaluate('typeof state!=="undefined" && !!state && document.readyState==="complete" && !!document.querySelector(".quick-search-trigger")'))break;await new Promise(resolve=>setTimeout(resolve,50))}
-  await evaluate(`document.querySelector('#new').click();const rich=document.querySelector('.rich-text');rich.innerHTML='<h1><strong>Important heading</strong></h1><p>Body stays here.</p>';rich.dispatchEvent(new Event('input',{bubbles:true}));rich.focus();const range=document.createRange();range.selectNodeContents(rich.firstElementChild);range.collapse(false);getSelection().removeAllRanges();getSelection().addRange(range);window.prompt=()=> 'x^2'`);
+  await evaluate(`document.querySelector('#new').click();document.querySelector('.rich-text')?.focus();const rich=document.querySelector('.rich-text');rich.innerHTML='<h1><strong>Important heading</strong></h1><p>Body stays here.</p>';rich.dispatchEvent(new Event('input',{bubbles:true}));rich.focus();const range=document.createRange();range.selectNodeContents(rich.firstElementChild);range.collapse(false);getSelection().removeAllRanges();getSelection().addRange(range);window.prompt=()=> 'x^2'`);
   await new Promise(r=>setTimeout(r,40));
   assert.equal(await evaluate(`document.querySelector('#heading-style').value`),'h1');
   await evaluate(`document.querySelector('#heading-style').value='h2';document.querySelector('#heading-style').dispatchEvent(new Event('change',{bubbles:true}))`);
@@ -23,7 +23,7 @@ try{
   const key=async(code,modifiers,key)=>{await call('Input.dispatchKeyEvent',{type:'keyDown',code,key,modifiers,windowsVirtualKeyCode:({Enter:13,Escape:27,ArrowLeft:37,ArrowUp:38,ArrowRight:39,ArrowDown:40}[code]||0)},sessionId);await call('Input.dispatchKeyEvent',{type:'keyUp',code,key,modifiers:0},sessionId)};
   await key('Digit3',5,'3');
   assert.equal(await evaluate(`!!document.querySelector('.rich-text h3 strong')`),true);
-  await evaluate(`document.querySelector('#new').click()`);
+  await evaluate(`document.querySelector('#new').click();document.querySelector('.rich-text')?.focus()`);
   await key('KeyE',12,'E');
   assert.equal(await evaluate(`document.querySelectorAll('.inline-equation.editing').length`),1);
   await call('Input.insertText',{text:'x^2'},sessionId);
@@ -42,7 +42,7 @@ try{
   await call('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13},sessionId);
   assert.equal(await evaluate(`document.querySelectorAll('.display-equation:not(.editing)').length`),1);
   assert.equal(await evaluate(`document.querySelector('[data-command="inlineequation"] kbd').textContent`),'⌘⇧E');
-  await evaluate(`document.querySelector('#new').click()`);
+  await evaluate(`document.querySelector('#new').click();document.querySelector('.rich-text')?.focus()`);
   await call('Input.insertText',{text:'Keep this passage.'},sessionId);
   await key('KeyT',5,'t');
   assert.equal(await evaluate(`document.querySelector('.table-picker').open`),true);
@@ -65,7 +65,7 @@ try{
   assert.equal(await evaluate(`document.querySelectorAll('.rich-text table').length`),2);
   await evaluate(`document.querySelector('#title').focus()`);await key('KeyE',12,'E');
   assert.equal(await evaluate(`document.querySelectorAll('.inline-equation').length`),0);
-  await evaluate(`document.querySelector('#new').click();document.querySelector('[data-add="code"]').click()`);await key('KeyT',5,'t');
+  await evaluate(`document.querySelector('#new').click();document.querySelector('.rich-text')?.focus();document.querySelector('[data-add="code"]').click()`);await key('KeyT',5,'t');
   assert.equal(await evaluate(`document.querySelector('.table-picker').open`),false);
   console.log('PASS: heading conversion preserves text/formatting, equation and heading hotkeys, visible hints, table drag sizing, caret placement, keyboard sizing, cancellation, and shortcut scope.');
 }finally{browser.kill();for(const pending of waiting.values())clearTimeout(pending.timer);await rm(profile,{recursive:true,force:true,maxRetries:10,retryDelay:100})}
