@@ -9,8 +9,8 @@ preview.png
 *.pem
 *.key
 
+# Claude Code worktrees and local state
+.claude/
+
 __pycache__/
 *.pyc
-
-# Parallel agent worktrees
-.claude/worktrees/
