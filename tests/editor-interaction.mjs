@@ -13,8 +13,9 @@ try{
   const {targetId}=await call('Target.createTarget',{url:new URL('../web/index.html',import.meta.url).href});
   const {sessionId}=await call('Target.attachToTarget',{targetId,flatten:true});
   const evaluate=async expression=>{const result=await call('Runtime.evaluate',{expression,returnByValue:true},sessionId);if(result.exceptionDetails)throw Error(JSON.stringify(result.exceptionDetails));return result.result.value};
-  for(let i=0;i<100;i++){if(await evaluate('typeof state!=="undefined" && !!state'))break;await new Promise(resolve=>setTimeout(resolve,50))}
+  for(let i=0;i<100;i++){if(await evaluate('typeof state!=="undefined" && !!state && document.readyState==="complete" && !!document.querySelector(".quick-search-trigger")'))break;await new Promise(resolve=>setTimeout(resolve,50))}
   await evaluate('document.querySelector("#new").click();document.querySelector(".rich-text").focus()');
+  await new Promise(r=>setTimeout(r,60));
   await call('Input.insertText',{text:'\\heading1'},sessionId);
   assert.equal(await evaluate('!!document.querySelector(".slash-menu:not([hidden])")'),true);
   await call('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13},sessionId);
@@ -25,20 +26,20 @@ try{
   assert.equal(await evaluate('current().blocks[0].text'),'# My heading');
   await evaluate('render()');
   assert.equal(await evaluate('document.querySelector(".rich-text h1").textContent'),'My heading');
-  await evaluate('document.querySelector("#new").click()');
+  await evaluate('document.querySelector("#new").click()');await new Promise(r=>setTimeout(r,40));
   await call('Input.insertText',{text:'-'},sessionId);
   await call('Input.insertText',{text:' '},sessionId);
   assert.equal(await evaluate('document.querySelector(".rich-text").firstElementChild.tagName'),'UL');
   await call('Input.insertText',{text:'Bullet item'},sessionId);
   assert.equal(await evaluate('current().blocks[0].text'),'- Bullet item');
-  await evaluate('document.querySelector("#new").click()');
+  await evaluate('document.querySelector("#new").click()');await new Promise(r=>setTimeout(r,40));
   await call('Input.insertText',{text:'1.'},sessionId);
   await call('Input.insertText',{text:' '},sessionId);
   assert.equal(await evaluate('document.querySelector(".rich-text").firstElementChild.tagName'),'OL');
   await call('Input.insertText',{text:'Numbered item'},sessionId);
   assert.equal(await evaluate('current().blocks[0].text'),'1. Numbered item');
-  await evaluate('document.querySelector("#new").click()');
-  const point=await evaluate('(()=>{const rect=document.querySelector(".block:not(.code)").getBoundingClientRect();return {x:rect.right-8,y:rect.bottom-8}})()');
+  await evaluate('document.querySelector("#new").click()');await new Promise(r=>setTimeout(r,40));
+  const point=await evaluate('(()=>{const block=document.querySelector(".block:not(.code)");block.scrollIntoView({block:"center"});const rect=block.getBoundingClientRect();return {x:rect.right-8,y:rect.bottom-8}})()');
   await call('Input.dispatchMouseEvent',{type:'mousePressed',x:point.x,y:point.y,button:'left',clickCount:1},sessionId);
   await call('Input.dispatchMouseEvent',{type:'mouseReleased',x:point.x,y:point.y,button:'left',clickCount:1},sessionId);
   assert.equal(await evaluate('document.activeElement.className'),'rich-text');
@@ -57,5 +58,37 @@ try{
   assert.equal(await evaluate('state.trash.length>0'),true);
   await evaluate('document.querySelector("#toast button").click()');
   assert.equal(await evaluate('state.trash.length'),0);
-  console.log('PASS: heading, text card focus, cell delete shortcut, and sidebar note menu.');
-}finally{browser.kill();for(const pending of waiting.values())clearTimeout(pending.timer);await rm(profile,{recursive:true,force:true})}
+  // The quiet surface must preserve selection when opening insertion tools.
+  await evaluate(`document.querySelector('#new').click()`);await new Promise(r=>setTimeout(r,40));
+  await call('Input.insertText',{text:'A passage worth questioning.'},sessionId);
+  await evaluate(`const rich=document.querySelector('.rich-text'),r=document.createRange();r.selectNodeContents(rich);getSelection().removeAllRanges();getSelection().addRange(r)`);
+  await new Promise(r=>setTimeout(r,60));
+  assert.equal(await evaluate(`document.querySelector('#selection-tools').hidden`),false);
+  const clickControl=async selector=>{const point=await evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.scrollIntoView({block:'nearest'});const r=node.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2}})()`);await call('Input.dispatchMouseEvent',{type:'mousePressed',...point,button:'left',clickCount:1},sessionId);await call('Input.dispatchMouseEvent',{type:'mouseReleased',...point,button:'left',clickCount:1},sessionId)};
+  await clickControl('#selection-question');
+  assert.equal(await evaluate(`document.querySelector('.recall-dialog .recall-quote').textContent`),'A passage worth questioning.');
+  await evaluate(`document.querySelector('.recall-dialog').close()`);
+  assert.equal(await evaluate(`!!document.querySelector('.question-summary')`),false);
+  assert.equal(await evaluate(`getComputedStyle(document.querySelector('#note-rail')).display`),'none');
+  await clickControl('#note-context-toggle');
+  assert.notEqual(await evaluate(`getComputedStyle(document.querySelector('#note-rail')).display`),'none');
+  await clickControl('#note-context-toggle');
+  await clickControl('#editor-insert');
+  assert.equal(await evaluate(`document.querySelector('#editor-insert-panel').hidden`),false);
+  await clickControl('#editor-insert-panel [data-add=code]');
+  assert.equal(await evaluate(`current().blocks.length`),2);
+  assert.equal(await evaluate(`document.querySelector('#editor-insert-panel').hidden`),true);
+  await clickControl('#focus-writing-toggle');
+  assert.equal(await evaluate(`document.body.classList.contains('focus-writing')`),true);
+  await call('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27},sessionId);
+  assert.equal(await evaluate(`document.body.classList.contains('focus-writing')`),false);
+  await evaluate(`setMode('write');document.querySelector('#note-tools').click();document.querySelector('#map-tab').click()`);
+  assert.equal(await evaluate(`document.querySelector('#map').hidden`),false);
+  await clickControl('#write-tab');
+  assert.equal(await evaluate(`document.querySelector('#editor').hidden`),false);
+  await call('Emulation.setDeviceMetricsOverride',{width:740,height:800,deviceScaleFactor:1,mobile:false},sessionId);
+  assert.equal(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),true);
+  await evaluate(`document.querySelector('#note-tools').click()`);
+  assert.equal(await evaluate(`document.querySelector('#note-tools-panel').hidden`),false);
+  console.log('PASS: editing, source-linked selection capture, Insert, context, focus exit, map return, and narrow layout.');
+}finally{browser.kill();for(const pending of waiting.values())clearTimeout(pending.timer);await rm(profile,{recursive:true,force:true,maxRetries:10,retryDelay:100})}

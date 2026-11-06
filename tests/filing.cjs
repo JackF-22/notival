@@ -1,0 +1,12 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const model=vm.runInNewContext(fs.readFileSync('web/filing-model.js','utf8')+'\nFilingModel');
+const a={id:'a',name:'Biology',units:[{id:'u',name:'Cells'}],materials:[{id:'file',name:'Reading.pdf',path:'/library/Reading.pdf',unitId:'u'}]},b={id:'b',name:'History',units:[{id:'v',name:'Unit 1'}],materials:[]};
+const note={id:'n',title:'Original',projectId:'a',unitId:'u',blocks:[{id:'quote',type:'text',text:'Evidence',sourceNoteId:'other',sourceBlockId:'original'}],questions:[{id:'q',blockId:'quote'}],pdfPath:'/library/Reading.pdf'},personal={id:'p',title:'Personal',blocks:[]};const state={projects:[a,b],notes:[note,personal]};
+assert.equal(model.destination(state,{projectId:'missing'}),null);assert.equal(model.destination(state,{projectId:'a',unitId:'v'}),null);assert.equal(model.destination(state,{projectId:null,unitId:'u'}),null);assert.equal(model.destination(state,{projectId:'a',unitId:'u'}).unitId,'u');
+const before=JSON.stringify(state),result=model.move(state,[{kind:'note',id:'n'},{kind:'note',id:'p'},{kind:'material',id:'file'},{kind:'note',id:'n'}],{projectId:'b',unitId:'v'});
+assert.equal(result.count,3);assert.equal(note.unitId,'v');assert.equal(note.projectId,'b');assert.equal(b.materials[0].path,'/library/Reading.pdf');assert.equal(note.blocks[0].id,'quote');assert.equal(note.questions[0].blockId,'quote');assert.equal(note.pdfPath,'/library/Reading.pdf');result.undo();assert.equal(JSON.stringify(state),before);
+assert.throws(()=>model.move(state,[{kind:'note',id:'n'},{kind:'material',id:'missing'}],{projectId:'b'}));assert.equal(JSON.stringify(state),before);
+assert.throws(()=>model.move(state,[{kind:'material',id:'file'}],{projectId:null}));assert.equal(JSON.stringify(state),before);
+assert.equal(model.move(state,[{kind:'note',id:'n'}],{projectId:'a',unitId:'u'}).count,0);
+const unfile=model.move(state,[{kind:'note',id:'n'}],{projectId:null});assert.equal(note.projectId,null);assert.equal(note.unitId,null);unfile.undo();assert.equal(JSON.stringify(state),before);
+console.log('PASS: filing validates destinations, moves groups atomically, deduplicates selection, preserves content/source/PDF identities, and fully restores membership with Undo.');
