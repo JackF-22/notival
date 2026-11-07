@@ -67,29 +67,45 @@ while True do
 
   // ── Double-click to edit; the preview follows what you type ──
   await evaluate(`document.querySelector('#editor .procedure').dispatchEvent(new MouseEvent('dblclick',{bubbles:true,cancelable:true}))`);await wait(200);
-  assert.equal(await evaluate(`document.querySelector('.procedure-dialog')?.open`),true);
+  assert.equal(await evaluate(`!!document.querySelector('#editor .procedure.editing')`),true);
   assert.equal(await evaluate(`document.querySelector('.proc-source').value===${JSON.stringify(beam)}`),true,'the steps as written');
   assert.equal(await evaluate(`document.querySelector('.proc-preview .proc-title').textContent`),'Algorithm 1 Beam Search');
   await evaluate(`(()=>{const f=document.querySelector('.proc-source');f.value=f.value.replace('Beam Search','Greedy Search');f.dispatchEvent(new Event('input'))})()`);
   assert.equal(await text('.proc-preview .proc-title'),'Algorithm 1 Greedy Search','live preview');
-  await evaluate(`(()=>{const c=document.querySelector('.proc-actions input');c.click()})()`);
+  await evaluate(`(()=>{const c=document.querySelector('.proc-bar input');c.click()})()`);
   assert.equal(await count('.proc-preview .proc-no'),10,'line numbers on request');
   await shot('editing');
-  await evaluate(`[...document.querySelectorAll('.procedure-dialog button')].find(b=>b.textContent==='Done').click()`);await wait(200);
+  await evaluate(`[...document.querySelectorAll('#editor .procedure.editing button')].find(b=>b.textContent==='Done').click()`);await wait(200);
   assert.equal(await text('#editor .procedure .proc-title'),'Algorithm 1 Greedy Search');
   assert.equal(await count('#editor .procedure .proc-no'),10);
   assert.match(await markdown(),/```procedure numbered\nAlgorithm: Greedy Search/);
-  assert.equal(await evaluate(`document.querySelector('.procedure-dialog')`),null);
+  assert.equal(await evaluate(`document.querySelector('#editor .procedure.editing')`),null);
   // Cancel keeps things as they were
   await evaluate(`document.querySelector('#editor .procedure .proc-edit').click()`);await wait(150);
   await evaluate(`(()=>{const f=document.querySelector('.proc-source');f.value='changed';f.dispatchEvent(new Event('input'))})()`);
-  await evaluate(`[...document.querySelectorAll('.procedure-dialog button')].find(b=>b.textContent==='Cancel').click()`);await wait(150);
-  assert.equal(await text('#editor .procedure .proc-title'),'Algorithm 1 Greedy Search');
+  await evaluate(`[...document.querySelectorAll('#editor .procedure.editing button')].find(b=>b.textContent==='Cancel').click()`);await wait(150);
+  // the editor is the box itself, inside the note, not a separate window
+  await evaluate(`document.querySelector('#editor .procedure .proc-edit').click()`);await wait(150);
+  assert.equal(await evaluate(`(()=>{const box=document.querySelector('#editor .procedure.editing');return !!box&&box.contains(document.activeElement)&&document.activeElement.classList.contains('proc-source')&&!document.querySelector('dialog[open]')})()`),true,'editing happens in place');
+  // typing updates the typeset result underneath, live
+  await evaluate(`(()=>{const f=document.querySelector('#editor .procedure.editing .proc-source');f.value=f.value.replace('Greedy Search','Live Search');f.dispatchEvent(new Event('input'))})()`);
+  assert.equal(await text('#editor .procedure.editing .proc-preview .proc-title'),'Algorithm 1 Live Search');
+  // Esc puts it back
+  await evaluate(`document.querySelector('#editor .procedure.editing .proc-source').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}))`);await wait(150);
+  assert.equal(await text('#editor .procedure .proc-title'),'Algorithm 1 Greedy Search','Esc cancels');
+  // clicking away keeps the change
+  await evaluate(`document.querySelector('#editor .procedure .proc-edit').click()`);await wait(150);
+  await evaluate(`(()=>{const f=document.querySelector('#editor .procedure.editing .proc-source');f.value=f.value.replace('Greedy Search','Kept Search');f.dispatchEvent(new Event('input'))})()`);
+  await evaluate(`(()=>{const p=[...document.querySelectorAll('#editor .rich-text > p')].at(-1);p.focus?.();document.querySelector('#editor .rich-text').focus()})()`);await wait(250);
+  assert.equal(await evaluate(`!!document.querySelector('#editor .procedure.editing')`),false,'clicking away finishes editing');
+  assert.equal(await text('#editor .procedure .proc-title'),'Algorithm 1 Kept Search','and keeps what was written');
+  assert.match(await markdown(),/Algorithm: Kept Search/);
+  assert.equal(await text('#editor .procedure .proc-title'),'Algorithm 1 Kept Search');
 
   // ── Writing steps: Tab, Shift-Tab and Enter shape the indentation ──
   await open('Notes');
   await evaluate(`document.querySelector('.rich-text').focus();RichEditor.command('procedure')`);await wait(250);
-  assert.equal(await evaluate(`document.querySelector('.procedure-dialog')?.open`),true,'Procedure from the command opens the editor');
+  assert.equal(await evaluate(`!!document.querySelector('#editor .procedure.editing')`),true,'Procedure from the command opens the editor');
   assert.equal(await count('#editor .procedure'),1,'an empty box is waiting in the note');
   const key=(k,extra={})=>evaluate(`(()=>{const f=document.querySelector('.proc-source');const e=new KeyboardEvent('keydown',{key:${JSON.stringify(k)},bubbles:true,cancelable:true,...${JSON.stringify(extra)}});f.dispatchEvent(e);return f.value})()`);
   const field=(value,start=value.length,end=start)=>evaluate(`(()=>{const f=document.querySelector('.proc-source');f.value=${JSON.stringify(value)};f.setSelectionRange(${start},${end});f.dispatchEvent(new Event('input'))})()`);
@@ -105,7 +121,7 @@ while True do
   assert.equal(await key('Tab'),'  a\n  b\n  c','Tab on several lines nests them all');
   assert.equal(await key('Tab',{shiftKey:true}),'a\nb\nc','Shift-Tab takes it back');
   // Cancel on a new box removes it
-  await evaluate(`[...document.querySelectorAll('.procedure-dialog button')].find(b=>b.textContent==='Cancel').click()`);await wait(200);
+  await evaluate(`[...document.querySelectorAll('#editor .procedure.editing button')].find(b=>b.textContent==='Cancel').click()`);await wait(200);
   assert.equal(await count('#editor .procedure'),0,'cancelling a new procedure leaves nothing behind');
 
   // ── LaTeX: bare commands are typeset, and a pasted LaTeX algorithm is converted ──
@@ -126,11 +142,11 @@ while True do
   const plain=await pasteInto('just some words with \\alpha in it');
   assert.equal(plain.prevented,false,'a normal paste is not touched');
   // pasting into a brand-new box
-  await evaluate(`[...document.querySelectorAll('.procedure-dialog button')].find(b=>b.textContent==='Cancel').click()`);await wait(200);
+  await evaluate(`[...document.querySelectorAll('#editor .procedure.editing button')].find(b=>b.textContent==='Cancel').click()`);await wait(200);
   await evaluate(`document.querySelector('.rich-text').focus();RichEditor.command('procedure')`);await wait(250);
   const replaced=await pasteInto('\\State only this');
   assert.equal(replaced.value,'only this','pasting into a new, empty box');
-  await evaluate(`[...document.querySelectorAll('.procedure-dialog button')].find(b=>b.textContent==='Cancel').click()`);await wait(200);
+  await evaluate(`[...document.querySelectorAll('#editor .procedure.editing button')].find(b=>b.textContent==='Cancel').click()`);await wait(200);
 
   // ── New box, written and finished with ⌘↵ ──
   await evaluate(`document.querySelector('.rich-text').focus();document.querySelector('#insert-procedure').click()`);await wait(250);
@@ -156,8 +172,8 @@ while True do
   assert.deepEqual(await evaluate(`[...document.querySelectorAll('#editor .proc-title')].map(t=>t.textContent)`),['Procedure 1 Second','Algorithm 2 Third']);
   // Enter on a focused box opens it
   await evaluate(`document.querySelector('#editor .procedure').focus();document.querySelector('#editor .procedure').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}))`);await wait(200);
-  assert.equal(await evaluate(`document.querySelector('.procedure-dialog')?.open`),true,'the box can be opened from the keyboard');
-  await evaluate(`[...document.querySelectorAll('.procedure-dialog button')].find(b=>b.textContent==='Delete').click()`);await wait(200);
+  assert.equal(await evaluate(`!!document.querySelector('#editor .procedure.editing')`),true,'the box can be opened from the keyboard');
+  await evaluate(`[...document.querySelectorAll('#editor .procedure.editing button')].find(b=>b.textContent==='Delete').click()`);await wait(200);
   assert.deepEqual(await evaluate(`[...document.querySelectorAll('#editor .proc-title')].map(t=>t.textContent)`),['Algorithm 1 Third'],'Delete removes it and the next one renumbers');
 
   // ── A procedure inside columns, and an empty one ──

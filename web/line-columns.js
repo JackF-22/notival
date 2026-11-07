@@ -241,6 +241,7 @@ const LineColumns=(()=>{
  // Otherwise deleting at the start of one column would pull its text into the neighbouring column.
  document.addEventListener('keydown',event=>{
   if((event.key!=='Backspace'&&event.key!=='Delete')||event.metaKey||event.ctrlKey||event.altKey)return;
+  if(event.target.closest?.('textarea,input'))return;
   const selection=getSelection();if(!selection?.rangeCount||!selection.isCollapsed)return;
   const node=selection.anchorNode,column=(node?.nodeType===1?node:node?.parentElement)?.closest?.('.col');if(!column)return;
   let line=node.nodeType===1?node:node.parentElement;while(line&&line.parentElement!==column)line=line.parentElement;
