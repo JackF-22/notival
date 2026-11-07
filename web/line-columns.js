@@ -2,13 +2,36 @@
 // the left or right edge sets them side by side, the top or bottom edge puts one above the other.
 // A group of columns is <div class="cols"><div class="col">…</div><div class="col">…</div></div>; the blocks inside a
 // column are ordinary lines, and reading order is left to right, then down.
+//
+// Hierarchy: bullets that come right after a line belong to it. The line is their header, and the two always move
+// together; nothing can be dropped between a header and its bullets. A blank line ends the belonging.
 const LineColumns=(()=>{
  const MAX=3,EDGE=.22,MOVE_PX=5;
  const make=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text!=null)node.textContent=text;return node};
  const isGroup=node=>node?.nodeType===1&&node.classList.contains('cols');
  const isCol=node=>node?.nodeType===1&&node.classList.contains('col');
+ const isList=node=>node?.nodeType===1&&(node.tagName==='UL'||node.tagName==='OL');
  const hasContent=node=>!!node&&(node.textContent.replace(/[​\s]/g,'')!==''||!!node.querySelector('img,table,.equation,hr,pre'));
  const colsOf=group=>[...group.children].filter(isCol);
+
+ // ── What belongs to what ───────────────────────────────────────────────────
+ // A line can head bullets; an empty line, an equation, a list or a column group cannot.
+ const canHead=node=>node?.nodeType===1&&/^(P|H[1-6]|BLOCKQUOTE|DIV)$/.test(node.tagName)&&!isGroup(node)&&!isCol(node)&&!node.classList.contains('equation')&&!node.classList.contains('task-row')&&hasContent(node);
+ // The lists straight after a line.
+ function followers(line){
+  const out=[];if(!canHead(line))return out;
+  for(let next=line.nextElementSibling;isList(next);next=next.nextElementSibling)out.push(next);
+  return out;
+ }
+ // A line with its bullets: the unit that moves.
+ const sectionOf=line=>[line,...followers(line)];
+ // Whatever you point at, the thing it belongs to: bullets answer to the line above them.
+ function ownerOf(node){
+  if(!isList(node))return node;
+  let above=node.previousElementSibling;while(isList(above))above=above.previousElementSibling;
+  return canHead(above)?above:node;
+ }
+ const bulletCount=lists=>lists.reduce((total,list)=>total+list.querySelectorAll('li').length,0);
 
  // ── Keeping the structure honest ───────────────────────────────────────────
  // A column that empties out goes away, a group left with one column stops being a group, and stray text that
@@ -42,41 +65,44 @@ const LineColumns=(()=>{
  }
 
  // ── Moving a line ──────────────────────────────────────────────────────────
- // The thing that moves: a line, or a single list item (which becomes a list of its own).
+ // What travels: a line with its bullets, or a single list item (which becomes a list of its own).
  function extract(unit){
-  if(unit.tagName!=='LI')return unit;
+  if(unit.tagName!=='LI')return sectionOf(unit);
   const list=unit.parentElement,wrap=document.createElement(list.tagName);
   wrap.append(unit);if(!list.children.length)list.remove();
-  return wrap;
+  return [wrap];
  }
  // May `moving` go on `side` (left | right | above | below) of `target`?
  function check(moving,target,side){
   if(!moving||!target||moving===target)return {ok:false,reason:'self'};
   if(moving.tagName==='LI'&&moving.parentElement===target&&target.children.length===1)return {ok:false,reason:'self'};
+  if(sectionOf(moving).includes(target))return {ok:false,reason:'self'};
   if((side==='left'||side==='right')&&isCol(target.parentElement)){
    const group=target.parentElement.parentElement,cols=colsOf(group),oldCol=moving.parentElement;
-   const freed=isCol(oldCol)&&cols.includes(oldCol)&&oldCol.children.length===1?1:0;   // its old column disappears
+   const freed=isCol(oldCol)&&cols.includes(oldCol)&&oldCol.children.length===sectionOf(moving).length?1:0;   // its old column disappears
    if(cols.length-freed>=MAX)return {ok:false,reason:'full'};
   }
   return {ok:true};
  }
- function move(editor,moving,target,side){
+ function move(editor,moving,rawTarget,side){
+  const target=ownerOf(rawTarget);
   const verdict=check(moving,target,side);if(!verdict.ok)return verdict;
-  const piece=extract(moving);
-  if(side==='above')target.before(piece);
-  else if(side==='below')target.after(piece);
+  const targetSection=sectionOf(target),tail=targetSection.at(-1);   // measured before anything moves
+  const pieces=extract(moving);
+  if(side==='above')target.before(...pieces);
+  else if(side==='below')tail.after(...pieces);       // after the target's bullets, never between them
   else{
-   const column=make('div','col');column.append(piece);
+   const column=make('div','col');column.append(...pieces);
    if(isCol(target.parentElement))target.parentElement[side==='left'?'before':'after'](column);
    else{
     const group=make('div','cols'),home=make('div','col');group.dataset.n='2';
-    target.replaceWith(group);home.append(target);
+    target.replaceWith(group);home.append(...targetSection);       // the target keeps its bullets
     group.append(...(side==='left'?[column,home]:[home,column]));
    }
   }
   tidy(editor);
   if(!editor.lastElementChild||isGroup(editor.lastElementChild))editor.append(Object.assign(make('p'),{innerHTML:'<br>'}));   // always somewhere to click below
-  placeCaret(piece.isConnected?piece:target);
+  placeCaret(pieces[0].isConnected?pieces[0]:target);
   editor.dispatchEvent(new Event('input',{bubbles:true}));
   return {ok:true};
  }
@@ -93,7 +119,7 @@ const LineColumns=(()=>{
  }
  function moveOut(editor,unit){
   const group=unit.closest('.cols');if(!group)return;
-  group.after(extract(unit));tidy(editor);editor.dispatchEvent(new Event('input',{bubbles:true}));
+  group.after(...extract(unit));tidy(editor);editor.dispatchEvent(new Event('input',{bubbles:true}));
  }
  // Click alternatives for the handle's menu.
  function menuItems(editor,unit){
@@ -102,7 +128,7 @@ const LineColumns=(()=>{
    let above=unit.previousElementSibling;
    while(above&&!isGroup(above)&&!hasContent(above))above=above.previousElementSibling;   // blank lines are only spacing
    if(above&&unit.tagName!=='LI'){
-    const target=isGroup(above)?colsOf(above).at(-1)?.lastElementChild:above;
+    const target=isGroup(above)?colsOf(above).at(-1)?.lastElementChild:ownerOf(above);   // a list above answers to its header
     if(target)items.push(['Put beside the line above','◫',()=>{if(!move(editor,unit,target,'right').ok)window.toast?.('A row holds up to '+MAX+' columns.')}]);
    }
   }else{
@@ -112,8 +138,8 @@ const LineColumns=(()=>{
  }
 
  // ── Dragging ───────────────────────────────────────────────────────────────
- // The line under the pointer, as something that can be dropped on.
- function lineAt(editor,x,y,moving){
+ // The line under the pointer, as something that can be dropped on (bullets stand for their header).
+ function lineAt(editor,x,y){
   // Look through anything laid over the text (the cell's hover toolbar sits right where the first line's edge is).
   let node=document.elementsFromPoint(x,y).find(item=>editor.contains(item));
   if(!node)return null;
@@ -124,18 +150,23 @@ const LineColumns=(()=>{
    const lines=[...node.querySelectorAll(isGroup(node)?':scope>.col>*':':scope>*')];
    node=lines.sort((a,b)=>distance(a,x,y)-distance(b,x,y))[0]||null;
   }
-  return node;
+  return node?ownerOf(node):null;
  }
  function distance(node,x,y){const r=node.getBoundingClientRect(),dx=Math.max(r.left-x,0,x-r.right),dy=Math.max(r.top-y,0,y-r.bottom);return dx*dx+dy*dy*4}
- function zoneOf(node,x,y){
-  const r=node.getBoundingClientRect(),fx=(x-r.left)/Math.max(1,r.width),fy=(y-r.top)/Math.max(1,r.height);
+ // The space a line and its bullets take up together.
+ function boxOf(line){
+  const rects=sectionOf(line).map(node=>node.getBoundingClientRect());
+  return {left:Math.min(...rects.map(r=>r.left)),right:Math.max(...rects.map(r=>r.right)),top:rects[0].top,bottom:rects.at(-1).bottom};
+ }
+ function zoneOf(line,x,y){
+  const b=boxOf(line),fx=(x-b.left)/Math.max(1,b.right-b.left),fy=(y-b.top)/Math.max(1,b.bottom-b.top);
   return fx<EDGE?'left':fx>1-EDGE?'right':fy<.5?'above':'below';
  }
- function barFor(node,side){
-  const r=node.getBoundingClientRect();
-  if(side==='left')return {left:r.left-8,top:r.top,width:4,height:r.height};
-  if(side==='right')return {left:r.right+4,top:r.top,width:4,height:r.height};
-  return {left:r.left,top:side==='above'?r.top-4:r.bottom,width:r.width,height:4};
+ function barFor(line,side){
+  const b=boxOf(line);
+  if(side==='left')return {left:b.left-8,top:b.top,width:4,height:b.bottom-b.top};
+  if(side==='right')return {left:b.right+4,top:b.top,width:4,height:b.bottom-b.top};
+  return {left:b.left,top:side==='above'?b.top-4:b.bottom,width:b.right-b.left,height:4};
  }
  function scrollParent(node){
   for(let p=node.parentElement;p;p=p.parentElement){if(/(auto|scroll)/.test(getComputedStyle(p).overflowY)&&p.scrollHeight>p.clientHeight)return p}
@@ -143,11 +174,12 @@ const LineColumns=(()=>{
  }
  let drag=null;
  function startDrag(editor,unit,event){
-  const label=unit.textContent.replace(/\s+/g,' ').trim();
-  drag={editor,unit,x:event.clientX,y:event.clientY,plan:null,refused:false,scroller:scrollParent(editor),raf:0};
-  drag.ghost=make('div','line-ghost',label?(label.length>46?label.slice(0,46)+'…':label):'Line');
+  const label=unit.textContent.replace(/\s+/g,' ').trim(),pieces=unit.tagName==='LI'?[unit]:sectionOf(unit),bullets=bulletCount(pieces.slice(1));
+  drag={editor,unit,pieces,x:event.clientX,y:event.clientY,plan:null,refused:false,scroller:scrollParent(editor),raf:0};
+  const shown=label?(label.length>40?label.slice(0,40)+'…':label):'Line';
+  drag.ghost=make('div','line-ghost',shown+(bullets?'  ·  +'+bullets+(bullets===1?' bullet':' bullets'):''));
   drag.mark=make('div','line-drop');drag.mark.hidden=true;
-  document.body.append(drag.ghost,drag.mark);document.body.classList.add('line-dragging');unit.classList.add('line-moving');
+  document.body.append(drag.ghost,drag.mark);document.body.classList.add('line-dragging');pieces.forEach(node=>node.classList.add('line-moving'));
   window.marginBlockHandle?.hide();
   frame();
  }
@@ -158,8 +190,8 @@ const LineColumns=(()=>{
   const view=drag.scroller===document.scrollingElement?{top:0,bottom:innerHeight}:drag.scroller.getBoundingClientRect();
   if(y<view.top+60)drag.scroller.scrollTop-=Math.ceil((view.top+60-y)/4);else if(y>view.bottom-60)drag.scroller.scrollTop+=Math.ceil((y-view.bottom+60)/4);
   drag.plan=null;drag.refused=false;
-  const target=lineAt(editor,x,y,unit);
-  if(target&&target!==unit){
+  const target=lineAt(editor,x,y);
+  if(target&&target!==unit&&!sectionOf(unit).includes(target)){
    const side=zoneOf(target,x,y),verdict=check(unit,target,side);
    Object.assign(drag.mark.style,Object.fromEntries(Object.entries(barFor(target,side)).map(([key,value])=>[key,value+'px'])));
    drag.mark.hidden=false;drag.mark.classList.toggle('is-refused',!verdict.ok);
@@ -170,8 +202,8 @@ const LineColumns=(()=>{
  }
  function endDrag(commit){
   if(!drag)return;
-  const {editor,unit,plan,refused}=drag;
-  cancelAnimationFrame(drag.raf);drag.ghost.remove();drag.mark.remove();unit.classList.remove('line-moving');document.body.classList.remove('line-dragging');
+  const {editor,unit,pieces,plan,refused}=drag;
+  cancelAnimationFrame(drag.raf);drag.ghost.remove();drag.mark.remove();pieces.forEach(node=>node.classList.remove('line-moving'));document.body.classList.remove('line-dragging');
   drag=null;
   if(commit&&plan)move(editor,unit,plan.target,plan.side);
   else if(commit&&refused)window.toast?.('A row holds up to '+MAX+' columns.');
@@ -181,17 +213,29 @@ const LineColumns=(()=>{
   if(!api||event.button!==0||!api.handle.contains(event.target)||api.menuOpen())return;
   const unit=api.unit(),editor=api.editor();if(!unit||!editor)return;
   const from={x:event.clientX,y:event.clientY};let started=false;
-  const move=e=>{
+  const step=e=>{
    if(!started&&Math.hypot(e.clientX-from.x,e.clientY-from.y)<MOVE_PX)return;
    if(!started){started=true;startDrag(editor,unit,e)}
    drag.x=e.clientX;drag.y=e.clientY;
   };
-  const off=()=>{document.removeEventListener('pointermove',move);document.removeEventListener('pointerup',up);document.removeEventListener('pointercancel',cancel);document.removeEventListener('keydown',key,true)};
+  const off=()=>{document.removeEventListener('pointermove',step);document.removeEventListener('pointerup',up);document.removeEventListener('pointercancel',cancel);document.removeEventListener('keydown',key,true)};
   const up=()=>{off();if(started){const swallow=e=>{e.stopPropagation();e.preventDefault()};window.addEventListener('click',swallow,true);setTimeout(()=>window.removeEventListener('click',swallow,true),60)}endDrag(started)};
   const cancel=()=>{off();endDrag(false)};
   const key=e=>{if(e.key==='Escape'){e.preventDefault();off();endDrag(false)}};
-  document.addEventListener('pointermove',move);document.addEventListener('pointerup',up);document.addEventListener('pointercancel',cancel);document.addEventListener('keydown',key,true);
+  document.addEventListener('pointermove',step);document.addEventListener('pointerup',up);document.addEventListener('pointercancel',cancel);document.addEventListener('keydown',key,true);
  },true);
+
+ // Pointing at the handle of a line shows what will travel with it.
+ const watchHandle=()=>{
+  const handle=window.marginBlockHandle?.handle;if(!handle)return;
+  const clear=()=>document.querySelectorAll('.line-with').forEach(node=>node.classList.remove('line-with'));
+  handle.addEventListener('pointerenter',()=>{
+   clear();const unit=window.marginBlockHandle.unit();if(!unit||unit.tagName==='LI')return;
+   const lists=followers(unit);if(lists.length)[unit,...lists].forEach(node=>node.classList.add('line-with'));
+  });
+  handle.addEventListener('pointerleave',clear);handle.addEventListener('pointerdown',clear);
+ };
+ watchHandle();
 
  // ── Backspace and Delete stop at the edge of a column ──────────────────────
  // Otherwise deleting at the start of one column would pull its text into the neighbouring column.
@@ -210,6 +254,6 @@ const LineColumns=(()=>{
   if(!hasContent(column)){const editor=column.closest('.rich-text');tidy(editor);editor?.dispatchEvent(new Event('input',{bubbles:true}))}
  },true);
 
- return {tidy,move,check,unwrap,moveOut,menuItems,MAX};
+ return {tidy,move,check,unwrap,moveOut,menuItems,followers,sectionOf,ownerOf,MAX};
 })();
 window.LineColumns=LineColumns;

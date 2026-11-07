@@ -131,6 +131,47 @@ try{
   await dragLine('.rich-text li',1,'.rich-text p',0,.93,.5);
   assert.equal(await evaluate(`(()=>{const rich=document.querySelector('.rich-text');return rich.querySelector('ul li')?.textContent+' | '+[...rich.querySelectorAll('.cols .col')].map(c=>c.textContent).join(' | ')})()`),'One | Side note | Two');
 
+  // ── Bullets belong to the line above them, and travel with it ──
+  const sections='<p>Alpha</p><ul><li>a1</li><li>a2</li></ul><p>Beta</p><ul><li>b1</li></ul>';
+  await open(sections);
+  // pointing at a line's handle shows what comes along
+  {const [x,y]=await point('.rich-text p',0,.15,.5);await mouse('mouseMoved',x,y);await wait(150);
+   const [hx,hy]=await evaluate(`(()=>{const r=document.querySelector('#block-handle').getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2]})()`);
+   await mouse('mouseMoved',hx,hy);await wait(100);
+   assert.equal(await evaluate(`[...document.querySelectorAll('.line-with')].map(n=>n.tagName).join()`),'P,UL','the line and its bullets are lit together');}
+  // the drag label counts the bullets that come along, and the drop bar spans line and bullets
+  {const from=await grab('.rich-text > p',1);                       // Beta, with one bullet
+   const [tx,ty]=await point('.rich-text > p',0,.93,.5);              // right edge of Alpha
+   await dragTo(from,tx,ty,{release:false});
+   assert.match(await evaluate(`document.querySelector('.line-ghost').textContent`),/Beta\s+·\s+\+1 bullet$/);
+   assert.equal(await evaluate(`(()=>{const m=document.querySelector('.line-drop').getBoundingClientRect(),p=document.querySelector('.rich-text > p').getBoundingClientRect(),u=document.querySelector('.rich-text > ul').getBoundingClientRect();return Math.abs(m.height-(u.bottom-p.top))<2})()`),true,'the bar is as tall as Alpha and its bullets together');
+   assert.equal(await evaluate(`[...document.querySelectorAll('.line-moving')].map(n=>n.tagName).join()`),'P,UL','the bullets fade with their line');
+   await shot('section-drag');await mouse('mouseReleased',tx,ty);await wait(200);}
+  assert.equal(await shape(),'Alpha+a1a2 | Beta+b1','each line took its bullets into its column');await shot('section-columns');
+  // Alpha onto the bullet under Beta: it lands after Beta's bullets, never between Beta and them, and brings its own
+  await open(sections);
+  await dragLine('.rich-text > p',0,'.rich-text li',2,.5,.5);
+  assert.equal(await shape(),'Beta / b1 / Alpha / a1a2');
+  assert.equal(await evaluate(`[...document.querySelectorAll('.rich-text > p')].map(p=>p.nextElementSibling?.tagName).join()`),'UL,UL','each line still has its own list directly under it');
+  // a plain line dropped on someone's bullets can't wedge itself between them and their header
+  await open('<p>Alpha</p><ul><li>a1</li><li>a2</li></ul><p>Gamma</p>');
+  await dragLine('.rich-text > p',1,'.rich-text li',0,.5,.2);
+  assert.equal(await evaluate(`document.querySelector('.rich-text > p + ul')?.previousElementSibling.textContent`),'Alpha','Alpha and its bullets are still together');
+  // a blank line ends the belonging
+  await open('<p>Head</p><p><br></p><ul><li>x</li></ul><p>Side</p>');
+  await dragLine('.rich-text > p',2,'.rich-text > p',0,.93,.5);
+  assert.equal(await evaluate(`document.querySelector('.cols').textContent`),'HeadSide','only the line moved with its neighbour');
+  assert.equal(await evaluate(`!!document.querySelector('.rich-text > ul')&&!document.querySelector('.cols ul')`),true,'the list after a blank line is not Head\'s');
+  // the menu action carries bullets too, and a list above answers to its header
+  await open('<p>Alpha</p><ul><li>a1</li></ul><p>Beta</p><ul><li>b1</li></ul>');
+  await openMenu('Beta');
+  await choose('Put beside the line above');
+  assert.equal(await shape(),'Alpha+a1 | Beta+b1');
+  // moving a line out of a column takes its bullets with it
+  await openMenu('Alpha');
+  await choose('Move out of the columns');
+  assert.equal(await shape(),'Beta / b1 / Alpha / a1','Alpha left the columns with its bullets');
+
   // ── Export and copy see columns in reading order ──
   await open('<div class="cols" data-n="2"><div class="col"><p>First</p></div><div class="col"><p>Second</p></div></div><p>After</p>');
   assert.equal(await evaluate(`RichEditor.cleanHTML(document.querySelector('.rich-text').innerHTML).includes('<div class="cols" data-n="2"><div class="col"><p>First</p></div><div class="col"><p>Second</p></div></div>')`),true,'columns survive cleaning');

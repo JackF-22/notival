@@ -18,3 +18,6 @@ body.line-dragging,body.line-dragging *{cursor:grabbing!important;user-select:no
 .line-drop.is-refused{background:#d4584a;box-shadow:0 0 0 3px #d4584a33}
 .line-drop.is-refused::after{content:attr(data-note);position:absolute;left:0;top:8px;white-space:nowrap;padding:3px 8px;border-radius:6px;background:#d4584a;color:#fff;font-size:12px}
 .block-menu-rule{height:1px;margin:5px 8px;background:var(--line,#ddd)}
+
+/* Pointing at a line's handle shows what travels with it: the line and the bullets right under it. */
+.rich-text .line-with{background:color-mix(in srgb,#986cff 9%,transparent);border-radius:4px;box-shadow:-6px 0 0 color-mix(in srgb,#986cff 9%,transparent),6px 0 0 color-mix(in srgb,#986cff 9%,transparent)}
