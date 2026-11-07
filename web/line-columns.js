@@ -16,7 +16,7 @@ const LineColumns=(()=>{
 
  // ── What belongs to what ───────────────────────────────────────────────────
  // A line can head bullets; an empty line, an equation, a list or a column group cannot.
- const canHead=node=>node?.nodeType===1&&/^(P|H[1-6]|BLOCKQUOTE|DIV)$/.test(node.tagName)&&!isGroup(node)&&!isCol(node)&&!node.classList.contains('equation')&&!node.classList.contains('task-row')&&hasContent(node);
+ const canHead=node=>node?.nodeType===1&&/^(P|H[1-6]|BLOCKQUOTE|DIV)$/.test(node.tagName)&&!isGroup(node)&&!isCol(node)&&!node.classList.contains('equation')&&!node.classList.contains('procedure')&&!node.classList.contains('task-row')&&hasContent(node);
  // The lists straight after a line.
  function followers(line){
   const out=[];if(!canHead(line))return out;

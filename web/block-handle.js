@@ -24,7 +24,7 @@
   if(el.tagName==='BLOCKQUOTE')return 'quote';
   if(el.tagName==='PRE')return 'code';
   if(el.classList.contains('task-row'))return 'task';
-  if(/^(P|DIV)$/.test(el.tagName)&&!el.classList.contains('equation'))return 'p';
+  if(/^(P|DIV)$/.test(el.tagName)&&!el.classList.contains('equation')&&!el.classList.contains('procedure'))return 'p';
   return null;
  }
  function place(){
@@ -42,7 +42,7 @@
  const hideSoon=()=>{clearTimeout(timer);timer=setTimeout(()=>{if(!menu){handle.hidden=true;unit=null}},350)};
  root.addEventListener('mousemove',event=>{
   const rich=event.target.closest?.('.rich-text');
-  if(rich&&!event.target.closest('.equation,table,img')){if(!show(rich,event.target))hideSoon()}
+  if(rich&&!event.target.closest('.equation,table,img,.procedure')){if(!show(rich,event.target))hideSoon()}
   else if(!menu)hideSoon();
  });
  root.addEventListener('mouseleave',()=>{if(!menu)hideSoon()});

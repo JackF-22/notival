@@ -54,10 +54,12 @@ const RichEditor = (() => {
       const line = lines[i];
       if (!line.trim()) { i++; continue; }
       if (/^```/.test(line)) {
-        const code = []; i++;
+        const info = line.slice(3).trim(), code = []; i++;
         while (i < lines.length && !/^```/.test(lines[i])) code.push(lines[i++]);
         if (i < lines.length) i++;
-        output.push(`<pre><code>${escape(code.join('\n'))}</code></pre>`); continue;
+        if (/^procedure\b/i.test(info)) output.push(`<div class="procedure" data-procedure="${escape(code.join('\n'))}"${/\bnumbered\b/i.test(info) ? ' data-numbered="1"' : ''} contenteditable="false"></div>`);
+        else output.push(`<pre><code>${escape(code.join('\n'))}</code></pre>`);
+        continue;
       }
       if (/^:::columns\s*$/.test(line.trim())) {
         const columns = []; let current = null; i++;
@@ -120,6 +122,14 @@ const RichEditor = (() => {
           child.textContent=source;
           continue;
         }
+        // A procedure keeps only its steps; the box is drawn again from them when the note opens.
+        if(child.tagName==='DIV'&&child.classList.contains('procedure')) {
+          const steps=String(child.getAttribute('data-procedure')||'').slice(0,20000),numbered=child.getAttribute('data-numbered')==='1';
+          for(const attribute of [...child.attributes])child.removeAttribute(attribute.name);
+          child.className='procedure';child.dataset.procedure=steps;if(numbered)child.dataset.numbered='1';
+          child.setAttribute('contenteditable','false');child.textContent='';
+          continue;
+        }
         // Lines set side by side: a group of two or three columns, each holding ordinary blocks.
         if(child.tagName==='DIV'&&(child.classList.contains('cols')||child.classList.contains('col'))) {
           const group=child.classList.contains('cols');
@@ -179,6 +189,8 @@ const RichEditor = (() => {
       const content = children(node), tag = node.tagName;
       if (tag==='BR') return '\n';
       if (node.classList.contains('equation'))return tag==='SPAN'?`$${node.dataset.equation||''}$`:`$$\n${node.dataset.equation||''}\n$$\n\n`;
+      // A procedure is a fenced block whose text is the steps as written, so it stays readable anywhere.
+      if (tag==='DIV' && node.classList.contains('procedure')) { const steps=String(node.dataset.procedure||'').replace(/^```/gm,' ```'); return steps.trim() ? `\`\`\`procedure${node.dataset.numbered==='1'?' numbered':''}\n${steps}\n\`\`\`\n\n` : ''; }
       // Columns are written as marker lines with a blank line around each, so every reader of the text still sees plain paragraphs.
       if (tag==='DIV' && node.classList.contains('cols')) return `:::columns\n\n${[...node.children].filter(col=>col.classList.contains('col')).map(col=>`:::col\n\n${toMarkdown(col)}\n\n`).join('')}:::\n\n`;
       if (tag==='STRONG'||tag==='B') return `**${content}**`;
@@ -215,6 +227,7 @@ const RichEditor = (() => {
     ['code','Code block','Monospace block','code'],
     ['table','Table','Insert rows and columns','table'],
     ['equation','Equation','Write LaTeX','equation'],
+    ['procedure','Procedure','Pseudocode or steps, typeset like a paper','procedure'],
     ['inlineequation','Inline equation','LaTeX within a sentence','inlineequation'],
     ['wordcount','Word count','Show or hide a live word count for this block','wordcount'],
     ['link','Link','Link selected text','link'],
@@ -292,6 +305,7 @@ const RichEditor = (() => {
   };
   function renderMath(root) {
     for(const item of root.querySelectorAll('.equation:not(.editing)'))renderOne(item);
+    window.ProcedureBox?.render(root);
     for(const table of root.querySelectorAll('table'))applyTableWidths(table);
     for(const picture of root.querySelectorAll('img[data-width]'))picture.style.width=picture.dataset.width+'%';
   }
@@ -471,7 +485,7 @@ const RichEditor = (() => {
     if(focused?.editor===editor)focused.range=range.cloneRange();
   }
   function endsInMedia(element) {
-    if(['TABLE','IMG','HR'].includes(element.tagName)||element.classList.contains('equation')||element.classList.contains('cols'))return true;
+    if(['TABLE','IMG','HR'].includes(element.tagName)||element.classList.contains('equation')||element.classList.contains('cols')||element.classList.contains('procedure'))return true;
     if(!/^(P|DIV)$/.test(element.tagName))return false;
     const last=[...element.childNodes].reverse().find(node=>!(node.nodeType===Node.TEXT_NODE&&!node.textContent.trim())&&node.nodeName!=='BR');
     return last?.nodeName==='IMG'||(last?.nodeType===Node.ELEMENT_NODE&&last.classList.contains('inline-equation')&&false);
@@ -917,6 +931,7 @@ const RichEditor = (() => {
       const table=editor.querySelector(`[data-new-table="${marker}"]`);if(table){table.removeAttribute('data-new-table');applyTableWidths(table);const range=document.createRange();range.selectNodeContents(table.querySelector('td'));range.collapse(true);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);focused.range=range.cloneRange();}
     }
     else if(name==='task')document.execCommand('insertHTML',false,'<div class="task-row" data-task="open"><input type="checkbox" contenteditable="false"><span>Task</span></div><p><br></p>');
+    else if(name==='procedure'){window.ProcedureBox?.insert(editor);return;}
     else if(name==='equation'||name==='inlineequation'){
       const inline=name==='inlineequation',selection=window.getSelection(),picked=typeof value==='string'&&value?value:selection.rangeCount&&!selection.isCollapsed?selection.toString():'';
       editEquation(editor,{display:!inline,source:picked,insert:region=>{
