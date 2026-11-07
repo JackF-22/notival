@@ -118,7 +118,6 @@ const ProcedureModel=(()=>{
   const code=String(line).replace(/\s*\/\/.*$/,'').trim();
   return /(\bdo|\bthen|\belse|\brepeat|:)$/i.test(code)&&!HEADER.test(code)&&!TITLE.test(code)?indent+step:indent;
  }
- const starter='Algorithm: Name\nInput: what goes in\nOutput: what comes out\n\nresult <- ∅\nforeach x ∈ items do\n  if x > 0 then\n    result <- result ∪ {x}  // keep positives\nreturn result';
 
  // ── Pasting a paper's LaTeX ────────────────────────────────────────────────
  // algorithmic / algpseudocode (\State, \If{…}, \EndIf, \For{…}, \Require …) becomes the plain indented form.
@@ -173,6 +172,6 @@ const ProcedureModel=(()=>{
   return head.join('\n')+(head.length&&lines.length?'\n\n':'')+lines.join('\n');
  }
 
- return {parse,inline,html,label,nextIndent,starter,looksLikeLatex,fromLatex};
+ return {parse,inline,html,label,nextIndent,looksLikeLatex,fromLatex};
 })();
 if(typeof module!=='undefined')module.exports=ProcedureModel;
