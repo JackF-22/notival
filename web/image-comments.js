@@ -4,7 +4,7 @@
  const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n};
  const button=(label,fn)=>{const b=el('button',label);b.type='button';b.onclick=fn;return b};
  let target=null,editing=null;
- function imageTarget(image){const note=current(),wrap=image.closest('#editor>.block'),block=note?.blocks[[...editor.children].indexOf(wrap)];return block&&image.closest('.rich-text')?{note,block,image,wrap}:null}
+ function imageTarget(image){const note=current(),wrap=image.closest('#editor .block'),block=note?.blocks[[...editor.querySelectorAll(".block")].indexOf(wrap)];return block&&image.closest('.rich-text')?{note,block,image,wrap}:null}
  function open(image){const next=imageTarget(image);if(!next)return;target=next;editing=null;draw();if(!dialog.open)dialog.showModal();dialog.querySelector('textarea')?.focus()}
  function draw(){if(!target)return;const {image,block}=target;dialog.replaceChildren();const header=el('div',undefined,'image-comment-heading');header.append(el('h2','Image comments'),button('Close',()=>dialog.close()));dialog.append(header);
   const preview=el('img');preview.src=image.src;preview.alt=image.alt||'Image being discussed';preview.className='comment-image-preview';dialog.append(preview);
@@ -18,7 +18,7 @@
   };dialog.append(form);
  }
  // Comments are opened by double-clicking a picture (or Enter on it); there is no extra button under the note.
- function refresh(){const note=current();if(!note)return;for(const [i,wrap] of [...editor.children].entries()){const block=note.blocks[i],images=[...wrap.querySelectorAll('.rich-text img')];wrap.querySelector('.image-comments-actions')?.remove();
+ function refresh(){const note=current();if(!note)return;for(const [i,wrap] of [...editor.querySelectorAll(".block")].entries()){const block=note.blocks[i],images=[...wrap.querySelectorAll('.rich-text img')];wrap.querySelector('.image-comments-actions')?.remove();
    for(const image of images){const count=(block?.imageComments||[]).filter(c=>c.imageId===image.dataset.imageId).length;image.tabIndex=0;image.setAttribute('contenteditable','false');image.setAttribute('role','button');image.title=(count?count+' comment'+(count===1?'':'s')+' · ':'')+'Double-click to comment on this image';image.setAttribute('aria-label',(image.alt||'Image')+' · Open comments');if(count)image.dataset.comments=String(count);else delete image.dataset.comments}
   }}
  editor.addEventListener('dblclick',e=>{const image=e.target.closest('.rich-text img');if(image){e.preventDefault();e.stopImmediatePropagation();open(image)}},true);

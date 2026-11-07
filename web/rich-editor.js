@@ -119,13 +119,14 @@ const RichEditor = (() => {
         const checked=child.tagName==='INPUT' && child.hasAttribute('checked');
         const widths=child.tagName==='TABLE'?child.getAttribute('data-widths')||'':'';
         const imageWidth=child.tagName==='IMG'?child.getAttribute('data-width')||'':'';
+        const imageAlign=child.tagName==='IMG'?child.getAttribute('data-align')||'':'';
         for (const attribute of [...child.attributes]) child.removeAttribute(attribute.name);
         if(/^\d+(\.\d+)?(,\d+(\.\d+)?)*$/.test(widths))child.dataset.widths=widths;
         if(['left','center','right','justify'].includes(alignment))child.style.textAlign=alignment;
         if (passageId && /^[a-zA-Z0-9_-]{1,100}$/.test(passageId)) child.dataset.passageId=passageId;
         if (flagId && /^[a-zA-Z0-9_-]{1,100}$/.test(flagId)) child.dataset.flag=flagId;
         if (child.tagName === 'A' && href) child.setAttribute('href',href);
-        if (child.tagName === 'IMG') { if(src){child.setAttribute('src',src);child.setAttribute('alt',alt);if(imageId&&/^[a-zA-Z0-9_-]{1,100}$/.test(imageId))child.dataset.imageId=imageId;if(/^\d{1,3}(\.\d)?$/.test(imageWidth)&&+imageWidth>=5&&+imageWidth<=100)child.dataset.width=imageWidth;} else {child.remove();continue;} }
+        if (child.tagName === 'IMG') { if(src){child.setAttribute('src',src);child.setAttribute('alt',alt);if(imageId&&/^[a-zA-Z0-9_-]{1,100}$/.test(imageId))child.dataset.imageId=imageId;if(/^\d{1,3}(\.\d)?$/.test(imageWidth)&&+imageWidth>=5&&+imageWidth<=100)child.dataset.width=imageWidth;if(['left','right','center'].includes(imageAlign))child.dataset.align=imageAlign;} else {child.remove();continue;} }
         if (child.tagName === 'INPUT') {child.setAttribute('type','checkbox'); child.setAttribute('contenteditable','false');if(checked)child.setAttribute('checked','');}
         if (task) {child.className='task-row';child.dataset.task=child.querySelector('input:checked')?'done':'open';}
         clean(child);
@@ -647,13 +648,24 @@ const RichEditor = (() => {
       handle.addEventListener('pointerenter',()=>clearTimeout(resizerTimer));handle.addEventListener('pointerleave',()=>hideResizer());
       handle.addEventListener('pointerdown',event=>startPictureResize(event,corner));resizer.append(handle);
     }
+    // Where the picture sits: in the line of text, or floated so the text flows beside it.
+    const bar=document.createElement('div');bar.className='image-align';bar.setAttribute('role','group');bar.setAttribute('aria-label','Picture position');
+    for(const [value,name,mark] of [['','In line with text','▤'],['left','Picture left, text wraps','◧'],['center','Picture centred','▥'],['right','Picture right, text wraps','◨']]){
+      const b=document.createElement('button');b.type='button';b.textContent=mark;b.title=name;b.setAttribute('aria-label',name);b.dataset.align=value;
+      b.onmousedown=e=>e.preventDefault();
+      b.onclick=()=>{const picture=pictureTarget;if(!picture?.isConnected)return;if(value)picture.dataset.align=value;else delete picture.dataset.align;markAlign(picture);placeResizer(picture);picture.closest('.rich-text')?.dispatchEvent(new Event('input',{bubbles:true}))};
+      bar.append(b);
+    }
+    bar.addEventListener('pointerenter',()=>clearTimeout(resizerTimer));bar.addEventListener('pointerleave',()=>hideResizer());
+    resizer.append(bar);
     document.body.append(resizer);
     const reposition=()=>{if(resizer.hidden)return;if(!pictureTarget?.isConnected){resizer.hidden=true;return}placeResizer(pictureTarget)};
     window.addEventListener('scroll',reposition,true);window.addEventListener('resize',reposition);
     return resizer;
   }
   function placeResizer(picture){const r=picture.getBoundingClientRect();Object.assign(resizer.style,{left:r.left+'px',top:r.top+'px',width:r.width+'px',height:r.height+'px'})}
-  function showResizer(picture){ensureResizer();clearTimeout(resizerTimer);pictureTarget=picture;placeResizer(picture);resizer.hidden=false}
+  function markAlign(picture){for(const b of resizer.querySelectorAll('.image-align button')){const on=b.dataset.align===(picture.dataset.align||'');b.classList.toggle('on',on);b.setAttribute('aria-pressed',String(on))}}
+  function showResizer(picture){ensureResizer();clearTimeout(resizerTimer);pictureTarget=picture;placeResizer(picture);markAlign(picture);resizer.hidden=false}
   function hideResizer(){clearTimeout(resizerTimer);resizerTimer=setTimeout(()=>{if(!resizing&&resizer){resizer.hidden=true;pictureTarget=null}},300)}
   function startPictureResize(event,corner){
     const picture=pictureTarget;if(!picture||event.button!==0)return;

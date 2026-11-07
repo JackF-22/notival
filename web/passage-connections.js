@@ -77,7 +77,7 @@
   if(!dirty&&cacheScroll===scroller.scrollTop)return;
   targets=[];cacheScroll=scroller.scrollTop;dirty=false;
   const note=current();if(!note)return;
-  [...editor.children].forEach((wrap,index)=>{
+  [...editor.querySelectorAll(".block")].forEach((wrap,index)=>{
    const block=note.blocks[index];if(!block)return;
    const rich=wrap.querySelector('.rich-text');
    if(!rich){const el=wrap.querySelector('textarea');if(el&&el.value.trim())targets.push({el,block,text:el.value.trim(),kind:'Code'});return}
@@ -228,7 +228,7 @@
  };
  editor.addEventListener('input',()=>{
   const seen=new Set();for(const el of editor.querySelectorAll('[data-passage-id]')){if(seen.has(el.dataset.passageId))el.dataset.passageId=uid();seen.add(el.dataset.passageId)}
-  const note=current();if(note)[...editor.children].forEach((wrap,i)=>{const rich=wrap.querySelector('.rich-text');if(rich&&note.blocks[i])note.blocks[i].html=RichEditor.cleanHTML(rich.innerHTML)});
+  const note=current();if(note)[...editor.querySelectorAll(".block")].forEach((wrap,i)=>{const rich=wrap.querySelector('.rich-text');if(rich&&note.blocks[i])note.blocks[i].html=RichEditor.cleanHTML(rich.innerHTML)});
  });
  const baseRender=render;render=function(...args){enable(false);return baseRender(...args)};
  const baseMode=setMode;setMode=function(next){if(next!=='write'&&enabled)enable(false);return baseMode(next)};
