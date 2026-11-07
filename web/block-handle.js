@@ -10,12 +10,15 @@
  // The thing the handle belongs to: a top-level block, or one top-level list item.
  function unitAt(rich,node){
   let el=node?.nodeType===Node.ELEMENT_NODE?node:node?.parentElement;if(!el||!rich.contains(el))return null;
-  const inner=el;while(el&&el.parentElement!==rich)el=el.parentElement;if(!el)return null;
+  // A line is a direct child of the text, or of one of its columns.
+  const inner=el;while(el&&el.parentElement!==rich&&!el.parentElement?.classList?.contains('col'))el=el.parentElement;if(!el)return null;
+  if(el.classList.contains('cols')||el.classList.contains('col'))return null;
   if(isList(el)){let item=inner.closest('li');while(item&&item.parentElement!==el)item=item.parentElement;return item||null}
   return el;
  }
  function kindOf(el){
   if(!el)return null;
+  if(el.classList.contains('cols')||el.classList.contains('col'))return null;
   if(el.tagName==='LI')return el.parentElement.tagName==='UL'?'ul':'ol';
   if(/^H[1-3]$/.test(el.tagName))return el.tagName.toLowerCase();
   if(el.tagName==='BLOCKQUOTE')return 'quote';
@@ -29,9 +32,12 @@
   const kind=kindOf(unit);if(!kind){handle.hidden=true;return}
   const box=unit.getBoundingClientRect(),home=editor.getBoundingClientRect(),size=getComputedStyle(unit);
   const line=parseFloat(size.lineHeight)||(parseFloat(size.fontSize)||15)*1.6;
-  handle.textContent=symbol[kind];handle.title='Turn this line into… (now: '+label[kind]+')';handle.setAttribute('aria-label',handle.title);
-  Object.assign(handle.style,{left:Math.max(6,home.left-40)+'px',top:(box.top+Math.max(0,(line-24)/2))+'px'});handle.hidden=false;
+  handle.textContent=symbol[kind];handle.title='Click to turn this line into… (now: '+label[kind]+') · drag it beside another line to make columns';handle.setAttribute('aria-label',handle.title);
+  // A line in a column carries its handle in the gap just to its left, not out at the edge of the cell.
+  Object.assign(handle.style,{left:Math.max(6,unit.closest('.col')?box.left-34:home.left-40)+'px',top:(box.top+Math.max(0,(line-24)/2))+'px'});handle.hidden=false;
  }
+ // What the drag-to-columns code needs to know about the line the handle is on.
+ window.marginBlockHandle={handle,unit:()=>unit,editor:()=>editor,menuOpen:()=>!!menu,hide:()=>{handle.hidden=true}};
  const show=(rich,node)=>{const next=unitAt(rich,node);if(!next||!kindOf(next))return false;clearTimeout(timer);unit=next;editor=rich;if(!menu)place();return true};
  const hideSoon=()=>{clearTimeout(timer);timer=setTimeout(()=>{if(!menu){handle.hidden=true;unit=null}},350)};
  root.addEventListener('mousemove',event=>{
@@ -92,6 +98,16 @@
    const row=document.createElement('button');row.type='button';row.setAttribute('role','menuitemradio');row.setAttribute('aria-checked',String(id===current));
    const badge=document.createElement('span');badge.className='block-menu-mark';badge.textContent=mark;row.append(badge,document.createTextNode(name));if(id===current)row.classList.add('current');
    row.onmousedown=e=>e.preventDefault();row.onclick=()=>{closeMenu();convert(rich,item,id)};menu.append(row);
+  }
+  // Moving a line next to another, for people who would rather click than drag.
+  const layout=window.LineColumns?.menuItems(rich,item)||[];
+  if(layout.length){
+   const rule=document.createElement('div');rule.className='block-menu-rule';rule.setAttribute('role','separator');menu.append(rule);
+   for(const [name,mark,run] of layout){
+    const row=document.createElement('button');row.type='button';row.setAttribute('role','menuitem');
+    const badge=document.createElement('span');badge.className='block-menu-mark';badge.textContent=mark;row.append(badge,document.createTextNode(name));
+    row.onmousedown=e=>e.preventDefault();row.onclick=()=>{closeMenu();run()};menu.append(row);
+   }
   }
   document.body.append(menu);handle.setAttribute('aria-expanded','true');
   const box=handle.getBoundingClientRect();

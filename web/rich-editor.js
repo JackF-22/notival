@@ -59,6 +59,19 @@ const RichEditor = (() => {
         if (i < lines.length) i++;
         output.push(`<pre><code>${escape(code.join('\n'))}</code></pre>`); continue;
       }
+      if (/^:::columns\s*$/.test(line.trim())) {
+        const columns = []; let current = null; i++;
+        while (i < lines.length && lines[i].trim() !== ':::') {
+          if (/^:::col\s*$/.test(lines[i].trim())) { current = []; columns.push(current); }
+          else if (current) current.push(lines[i]);
+          i++;
+        }
+        if (i < lines.length) i++;
+        const made = columns.filter(col => col.join('').trim());
+        if (made.length >= 2) output.push(`<div class="cols" data-n="${Math.min(3, made.length)}">${made.slice(0, 3).map(col => `<div class="col">${fromMarkdown(col.join('\n'))}</div>`).join('')}</div>`);
+        else for (const col of made) output.push(fromMarkdown(col.join('\n')));
+        continue;
+      }
       const display = MathSyntax.displayAt(lines, i);
       if (display) {
         output.push(`<div class="equation display-equation" data-equation="${escape(display.source)}" contenteditable="false">${escape(display.source)}</div>`);
@@ -105,6 +118,15 @@ const RichEditor = (() => {
           if(passageId&&/^[a-zA-Z0-9_-]{1,100}$/.test(passageId))child.dataset.passageId=passageId;
           child.setAttribute('contenteditable','false');
           child.textContent=source;
+          continue;
+        }
+        // Lines set side by side: a group of two or three columns, each holding ordinary blocks.
+        if(child.tagName==='DIV'&&(child.classList.contains('cols')||child.classList.contains('col'))) {
+          const group=child.classList.contains('cols');
+          for(const attribute of [...child.attributes])child.removeAttribute(attribute.name);
+          child.className=group?'cols':'col';
+          clean(child);
+          if(group)child.dataset.n=String(Math.max(2,Math.min(3,[...child.children].filter(item=>item.classList.contains('col')).length)));
           continue;
         }
         const href=child.tagName==='A' ? safeURL(child.getAttribute('href')||'') : '';
@@ -157,6 +179,8 @@ const RichEditor = (() => {
       const content = children(node), tag = node.tagName;
       if (tag==='BR') return '\n';
       if (node.classList.contains('equation'))return tag==='SPAN'?`$${node.dataset.equation||''}$`:`$$\n${node.dataset.equation||''}\n$$\n\n`;
+      // Columns are written as marker lines with a blank line around each, so every reader of the text still sees plain paragraphs.
+      if (tag==='DIV' && node.classList.contains('cols')) return `:::columns\n\n${[...node.children].filter(col=>col.classList.contains('col')).map(col=>`:::col\n\n${toMarkdown(col)}\n\n`).join('')}:::\n\n`;
       if (tag==='STRONG'||tag==='B') return `**${content}**`;
       if (tag==='EM'||tag==='I') return `*${content}*`;
       if (tag==='S'||tag==='STRIKE') return `~~${content}~~`;
@@ -419,6 +443,7 @@ const RichEditor = (() => {
   }
   // A table must be a direct child of the note. If a block command wrapped one in a heading or paragraph, lift it out so it keeps its own styling.
   function hoistTables(editor) {
+    window.LineColumns?.tidy(editor);   // columns that emptied out or lost a partner stop being columns
     for(const table of editor.querySelectorAll('table')){
       let guard=0;
       while(table.parentElement!==editor&&guard++<8){
@@ -446,7 +471,7 @@ const RichEditor = (() => {
     if(focused?.editor===editor)focused.range=range.cloneRange();
   }
   function endsInMedia(element) {
-    if(['TABLE','IMG','HR'].includes(element.tagName)||element.classList.contains('equation'))return true;
+    if(['TABLE','IMG','HR'].includes(element.tagName)||element.classList.contains('equation')||element.classList.contains('cols'))return true;
     if(!/^(P|DIV)$/.test(element.tagName))return false;
     const last=[...element.childNodes].reverse().find(node=>!(node.nodeType===Node.TEXT_NODE&&!node.textContent.trim())&&node.nodeName!=='BR');
     return last?.nodeName==='IMG'||(last?.nodeType===Node.ELEMENT_NODE&&last.classList.contains('inline-equation')&&false);

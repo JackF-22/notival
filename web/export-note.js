@@ -18,6 +18,7 @@
   code{font-family:Menlo,Monaco,Courier,monospace;font-size:.9em}
   .task-row{margin:0 0 3pt}
   .display-equation{margin:8pt 0;text-align:center}
+  .cols{display:flex;gap:22pt;margin:6pt 0;align-items:flex-start}.cols>.col{flex:1 1 0;min-width:0}.cols>.col>:first-child{margin-top:0}.cols>.col>:last-child{margin-bottom:0}
   .cell{margin:0 0 10pt}
   .cell.pdf-note{padding-left:10pt;border-left:2.5pt solid #b8aef0}
   h1.guide-note-title{margin:30pt 0 8pt;padding-top:14pt;border-top:1pt solid #c9ccd6;font-size:19pt}

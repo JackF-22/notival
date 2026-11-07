@@ -106,6 +106,11 @@ assert(!drafts.some(d=>d.answer==='ATP is made mostly in mitochondria and is ade
 const kept=drafts.map(d=>M.newItem(d));assert.equal(M.suggestAll([prose,dupe],{notes:[prose,dupe],items:kept}).length,0);
 const byHand=[M.newItem({type:'qa',prompt:'Which organelle makes ATP?',answer:'The mitochondrion is the organelle that produces most of the cell\'s ATP.',noteId:'Prose',projectId:'p'})];
 assert(!M.suggestAll([prose],{notes:[prose],items:byHand}).some(d=>/mitochondri/i.test(d.prompt)));
+// Lines set in columns are saved with ::: markers; they never leak into questions, and the sentences inside still count
+const cols=note('Cols',':::columns\n\n:::col\n\nThe **mitochondrion** is the organelle that produces most of the cell\'s ATP.\n\n:::col\n\nThe nucleus is a membrane-bound organelle that stores the cell\'s DNA.\n\n:::\n\nDone.');
+const colDrafts=M.suggestAll([cols],{notes:[cols]}),colAsked=colDrafts.map(d=>(d.prompt||M.promptText(d))+' '+d.answer);
+assert(colDrafts.length>=2&&!colAsked.some(t=>/:::/.test(t)),'no marker text in suggestions: '+colAsked);
+assert(colAsked.some(t=>/mitochondrion/.test(t))&&colAsked.some(t=>/nucleus/.test(t)),'both columns are read');
 // Questions a student wrote into the note still count
 assert.equal(M.collect({notes:[note('Q','Why does water move across a membrane?\nBecause of a concentration gradient across it.')]},{projectId:'p'}).length,1);
 console.log('PASS: markup items, stable ids, scoping, scheduler, queues, answer checking, multiple choice, suggestions, question quality, summary.');
