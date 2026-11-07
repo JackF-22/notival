@@ -54,12 +54,13 @@ const ProcedureBox=(()=>{
   const options=make('label','proc-option'),numbered=make('input');numbered.type='checkbox';numbered.checked=before.numbered;options.append(numbered,' Number the lines');
   const help=make('details','proc-help'),summary=make('summary','','How to write one');
   const tips=make('ul');
-  for(const [code,what] of [['Algorithm: Name','a title (or Procedure: / Function:)'],['Input: … / Output: …','bold labels above the steps; a blank line starts the steps'],['indent','nests a step inside the one above it'],['<-   ->   !=   <=   >=','become ←  →  ≠  ≤  ≥'],['// note','a comment, set apart in small type'],['$x_i^2$','typeset maths'],['while  if  then  do  return','keywords are made bold for you']]){
+  for(const [code,what] of [['Algorithm: Name','a title (or Procedure: / Function:)'],['Input: … / Output: …','bold labels above the steps; a blank line starts the steps'],['indent','nests a step inside the one above it'],['<-   ->   !=   <=   >=','become ←  →  ≠  ≤  ≥'],['// note','a comment, set apart in small type'],['$x_i^2$','typeset maths'],['\\leftarrow  \\in  \\Sigma','LaTeX commands are typeset on their own, no dollar signs needed'],['paste \\State … \\EndIf','a LaTeX algorithm is converted for you'],['while  if  then  do  return','keywords are made bold for you']]){
    const item=make('li');item.append(make('code','',code),' '+what);tips.append(item);
   }
   help.append(summary,tips);
   const body=make('div','proc-dialog-body'),left=make('div','proc-pane'),right=make('div','proc-pane');
-  left.append(make('small','','Steps'),field);right.append(make('small','','Preview'),preview);body.append(left,right);
+  const note=make('div','proc-note');note.setAttribute('aria-live','polite');
+  left.append(make('small','','Steps'),field,note);right.append(make('small','','Preview'),preview);body.append(left,right);
   const actions=make('div','proc-actions');
   const done=make('button','primary','Done'),cancel=make('button','','Cancel');done.type=cancel.type='button';
   actions.append(options,make('span','proc-spacer'),...(!isNew&&before.source?[(()=>{const b=make('button','danger','Delete');b.type='button';b.onclick=()=>{box.remove();dlg.close();commit(editor)};return b})()]:[]),cancel,done);
@@ -86,6 +87,16 @@ const ProcedureBox=(()=>{
     paint();
    }
   };
+  // Pasting a paper's LaTeX algorithm (\State, \If{…}, \EndIf …) turns it into steps, and can be undone with ⌘Z.
+  field.addEventListener('paste',event=>{
+   const pasted=event.clipboardData?.getData('text/plain')||'';
+   if(!M.looksLikeLatex(pasted))return;
+   const converted=M.fromLatex(pasted);if(!converted.trim())return;
+   event.preventDefault();
+   if(field.value===M.starter)field.select();             // an untouched starting example is replaced, not added to
+   if(!document.execCommand('insertText',false,converted)){field.setRangeText(converted,field.selectionStart,field.selectionEnd,'end');}
+   paint();note.textContent='Converted from a LaTeX algorithm. ⌘Z undoes it.';
+  });
   const finish=save=>{
    if(save){
     const steps=field.value.replace(/\s+$/,'');

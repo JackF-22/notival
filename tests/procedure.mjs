@@ -108,6 +108,30 @@ while True do
   await evaluate(`[...document.querySelectorAll('.procedure-dialog button')].find(b=>b.textContent==='Cancel').click()`);await wait(200);
   assert.equal(await count('#editor .procedure'),0,'cancelling a new procedure leaves nothing behind');
 
+  // ── LaTeX: bare commands are typeset, and a pasted LaTeX algorithm is converted ──
+  await evaluate(`document.querySelector('.rich-text').focus();RichEditor.command('procedure')`);await wait(250);
+  await field('Algorithm: Maths\nx \\leftarrow y \\in \\Sigma\nfoo \\Users bar');
+  assert.equal(await evaluate(`document.querySelectorAll('.proc-preview .proc-line')[0].querySelectorAll('.katex').length`),3,'bare commands are typeset in the preview');
+  assert.equal(await evaluate(`document.querySelectorAll('.proc-preview .proc-line')[1].textContent`),'foo \\Users bar','what is not LaTeX is left as typed');
+  const latex='\\begin{algorithmic}[1]\n\\Require a list $A$\n\\For{$i=1$ to $n$}\n  \\If{$A_i > m$} \\State $m \\gets A_i$ \\EndIf\n\\EndFor\n\\State \\Return $m$\n\\end{algorithmic}';
+  const pasteInto=text=>evaluate(`(()=>{const f=document.querySelector('.proc-source');f.focus();const data=new DataTransfer();data.setData('text/plain',${JSON.stringify(text)});const e=new ClipboardEvent('paste',{clipboardData:data,bubbles:true,cancelable:true});f.dispatchEvent(e);return {prevented:e.defaultPrevented,value:f.value}})()`);
+  await field('');
+  const pasted=await pasteInto(latex);
+  assert.equal(pasted.prevented,true);
+  assert.equal(pasted.value,'Input: a list $A$\n\nfor $i=1$ to $n$ do\n  if $A_i > m$ then\n    $m \\gets A_i$\nreturn $m$','converted to steps');
+  assert.match(await text('.proc-note'),/Converted from a LaTeX algorithm/);
+  assert.equal(await count('.proc-preview .proc-block'),2,'and the preview shows the nesting');await shot('pasted-latex');
+  // ordinary text pasted in is left alone
+  await field('');
+  const plain=await pasteInto('just some words with \\alpha in it');
+  assert.equal(plain.prevented,false,'a normal paste is not touched');
+  // an untouched starting example is replaced by the paste
+  await evaluate(`[...document.querySelectorAll('.procedure-dialog button')].find(b=>b.textContent==='Cancel').click()`);await wait(200);
+  await evaluate(`document.querySelector('.rich-text').focus();RichEditor.command('procedure')`);await wait(250);
+  const replaced=await pasteInto('\\State only this');
+  assert.equal(replaced.value,'only this','the starter text is replaced, not added to');
+  await evaluate(`[...document.querySelectorAll('.procedure-dialog button')].find(b=>b.textContent==='Cancel').click()`);await wait(200);
+
   // ── New box, written and finished with ⌘↵ ──
   await evaluate(`document.querySelector('.rich-text').focus();document.querySelector('#insert-procedure').click()`);await wait(250);
   assert.equal(await evaluate(`document.querySelector('.proc-source').value.startsWith('Algorithm: Name')`),true,'a starting point to edit');
