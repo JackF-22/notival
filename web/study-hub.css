@@ -34,3 +34,7 @@ body>aside #home-button .nav-glyph,body>aside #study-nav .nav-glyph{width:18px;t
 
 .hub-col{display:grid;gap:16px;align-content:start;min-width:0}
 @media(max-width:900px){.hub-col{display:contents}}
+
+body>aside .nav-pair{display:flex;gap:6px;margin:0 0 8px;flex-shrink:0}
+body>aside .nav-pair #home-button,body>aside .nav-pair #study-nav{width:auto;flex:0 0 auto;margin:0;padding:4px 9px;min-height:22px;gap:5px;font-size:12px;border-radius:7px}
+body>aside .nav-pair .nav-glyph{width:auto;font-size:12px}

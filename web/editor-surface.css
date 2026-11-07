@@ -43,7 +43,7 @@ body #format-bar .editor-menu:has(#editor-alignment){margin-left:auto}
 #editor-alignment{border:1px solid var(--line);padding:6px 10px;border-radius:8px;font-size:12px;white-space:nowrap}
 body #editor>.block:not(.code){padding:16px;margin:0 0 16px}
 body #editor .rich-text{padding:0;line-height:1.85}
-body #editor .rich-text p{margin-bottom:16px}
+body #editor .rich-text p{margin-bottom:6px}
 body #editor .rich-text>p:last-child{margin-bottom:0}
 body #editor>.block:not(.code) .block-tools{top:-15px;right:3px}
 body #editor>.block:not(.code) .remove{width:28px;height:28px;min-height:28px}
@@ -222,3 +222,7 @@ body #editor>.block:first-child:not(.code) .block-tools{top:4px}
 #share-menu[hidden]{display:none}
 #share-menu button{display:block;width:100%;padding:8px 11px;border:0;border-radius:7px;background:none;color:var(--ink);font:inherit;text-align:left;cursor:pointer}
 #share-menu button:hover,#share-menu button:focus-visible{background:var(--soft)}
+/* Headings add a hair of space above themselves, so no blank line is needed before one. */
+body #editor .rich-text :is(h1,h2,h3){margin:24px 0 6px}
+body #editor .rich-text>:first-child:is(h1,h2,h3){margin-top:0}
+body #editor .rich-text :is(h1,h2,h3)+:is(h1,h2,h3){margin-top:12px}

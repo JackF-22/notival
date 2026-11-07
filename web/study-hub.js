@@ -123,7 +123,7 @@
  nav.append(el('span','◎','nav-glyph'),el('span','Study'));
  const homeButton=document.querySelector('#home-button');
  if(homeButton&&!homeButton.querySelector('.nav-glyph')){homeButton.replaceChildren(el('span','⌂','nav-glyph'),el('span','Home'))}
- if(homeButton)homeButton.after(nav);else document.querySelector('#new')?.before(nav);
+ if(homeButton){const pair=el('div',undefined,'nav-pair');homeButton.before(pair);pair.append(homeButton,nav)}else document.querySelector('#new')?.before(nav);
  const here=(which)=>{for(const [button,name] of [[homeButton,'home'],[nav,'study']]){if(!button)continue;button.classList.toggle('is-here',which===name);if(which===name)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current')}};
  new MutationObserver(()=>{if(document.body.dataset.view==='note')here(null)}).observe(document.body,{attributes:true,attributeFilter:['data-view']});
  const base=window.marginStudentHome;
