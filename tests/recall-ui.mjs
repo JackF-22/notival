@@ -28,7 +28,7 @@ try{
     const note=(id,title,text,unitId)=>({id,title,projectId:'bio',unitId,updated:Date.now(),pinned:false,nodes:[],blocks:[{id:id+'b',type:'text',text}]});
     state.notes=[
      note('n1','Organelles','Q: What organelle makes most of the cell’s ATP?\\nA: The mitochondrion\\n\\nThe {{nucleus::control centre}} stores the cell’s DNA.\\n\\nThe {{ribosome}} builds proteins from amino acids.','u1'),
-     note('n2','Membranes','# Osmosis\\n\\nOsmosis is the movement of water across a selectively permeable membrane from low to high solute concentration, which evens out the concentration on both sides.\\n\\nThe **phospholipid bilayer** forms the basic structure of every cell membrane.\\n\\nDiffusion is the net movement of particles from a region of high concentration to a region of low concentration.','u1'),
+     note('n2','Membranes','# Osmosis\\n\\nOsmosis is the movement of water across a selectively permeable membrane from low to high solute concentration, which evens out the concentration on both sides.\\n\\nThe **phospholipid bilayer** forms the basic structure of every cell membrane.\\n\\nDiffusion is the net movement of particles from a region of high concentration to a region of low concentration.\\n\\nQ: Which organelle packages proteins for export?\\nA: The Golgi apparatus\\n\\nQ: What fills the space inside a cell?\\nA: Cytoplasm','u1'),
      note('n3','Energy','Q: Where does glycolysis happen?\\nA: The cytoplasm\\n\\nQ: Which molecule carries energy in the cell?\\nA: ATP',null)];
     state.items=[];state.reviews={};active='n1';render();
     for(const i of RecallModel.collect(state,{projectId:'bio'}))state.reviews[i.id]={due:1,interval:1,reviewedAt:1,rating:'Good',reps:1,ease:2.5};
@@ -37,8 +37,8 @@ try{
 
   // Hub counts every item written in note markup; plain paragraphs (the Membranes note) are not turned into questions on their own
   await evaluate(`marginRecall.hub({project:state.projects[0]})`);await wait(120);
-  assert.equal(await text('.recall-count'),'5');
-  assert.match(await text('.recall-dialog'),/5 in total/);
+  assert.equal(await text('.recall-count'),'7');
+  assert.match(await text('.recall-dialog'),/7 in total/);
   await shot('hub');
   assert.equal(await evaluate(`!!document.querySelector('.recall-dialog select[aria-label=Unit]')`),true);
   // New questions are rationed per day; the picker changes the limit and the count follows
@@ -80,7 +80,7 @@ try{
     const info=JSON.parse(await evaluate(`JSON.stringify((()=>{const c=document.querySelector('.recall-card');if(!c)return null;const input=c.querySelector('input.recall-blank, input[aria-label="Your answer"]');return {cloze:!!c.querySelector('.recall-blank'),text:c.querySelector('.recall-sentence, .recall-prompt')?.textContent||'',typed:!!input}})())`));
     if(!info)break;
     if(info.typed){
-      const want=/ATP/.test(info.text)?'the mitochondrion':/Where/.test(info.text)?'cytoplasm':/molecule/.test(info.text)?'ATP':/control|stores/.test(info.text)?'nucleus':/builds/.test(info.text)?'ribsome':'zzz';
+      const want=/ATP/.test(info.text)?'the mitochondrion':/Where/.test(info.text)?'cytoplasm':/molecule/.test(info.text)?'ATP':/control|stores/.test(info.text)?'nucleus':/builds/.test(info.text)?'ribsome':/packages/.test(info.text)?'Golgi apparatus':/fills/.test(info.text)?'cytoplasm':'zzz';
       await evaluate(`(()=>{const i=document.querySelector('.recall-card input');i.value=${JSON.stringify(want)};i.dispatchEvent(new Event('input',{bubbles:true}))})()`);
       await clickText('.recall-actions button','Check');
     }else await clickText('.recall-actions button','Check');
@@ -93,8 +93,8 @@ try{
   }
   assert.match(await text('.recall-dialog h2'),/Session complete/);
   await shot('summary');
-  const saved=await evaluate(`JSON.stringify(Object.keys(state.reviews).length)`);assert.equal(Number(saved),5);
-  assert.equal(await evaluate(`state.reviewLog.length`),5);
+  const saved=await evaluate(`JSON.stringify(Object.keys(state.reviews).length)`);assert.equal(Number(saved),7);
+  assert.equal(await evaluate(`state.reviewLog.length`),7);
   assert.equal(await evaluate(`state.reviews[Object.keys(state.reviews)[0]].interval`),3);
 
   // Hub now says everything is caught up; a quiz still works and offers multiple choice
@@ -102,9 +102,9 @@ try{
   assert.equal(await text('.recall-count'),'0');
   assert.equal(await evaluate(`[...document.querySelectorAll('.recall-actions button')].some(b=>b.textContent==='Start')`),false);
   await clickText('.recall-actions button','Practice anyway');await wait(100);
-  assert.match(await text('.recall-top'),/Practice · 1 of 5/);
+  assert.match(await text('.recall-top'),/Practice · 1 of 7/);
   let choices=0;
-  for(let i=0;i<5;i++){
+  for(let i=0;i<7;i++){
     const hasChoices=await evaluate(`document.querySelectorAll('.recall-choice').length`);
     if(hasChoices){choices++;if(i===0)await shot('quiz');await click('.recall-choice');await wait(40);if(i===0)await shot('quiz-feedback');await click('.recall-grades .primary')}
     else{await clickText('.recall-actions button','know');await wait(40);await key('1')}

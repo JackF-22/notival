@@ -62,7 +62,7 @@ try{
   // A better reading among the candidates wins over a broken first one.
   await evaluate(`document.querySelector('.display-equation.editing .equation-source').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);await wait(100);
   await evaluate(`window.marginPDFEquation({latex:'\\\\frac{a',candidates:['\\\\frac{a','x^{2}+1'],page:1,name:'P.pdf',path:'/x/P.pdf',dataURL:'${png}'})`);await wait(300);
-  assert.equal(await evaluate(`document.querySelector('.display-equation.editing .equation-source').value`),'x^{2}+1');
+  assert.equal(await evaluate(`document.querySelector('.display-equation.editing .equation-source').value`),'x^2+1','the better reading wins, tidied (x^{2} is shown as x^2, which draws the same)');
   await evaluate(`document.querySelector('.display-equation.editing .equation-source').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);await wait(100);
   // When recognition is unavailable or fails, the traced picture is kept instead.
   await evaluate(`current().blocks[0].html='<p>Keep</p>';render()`);await wait(200);
