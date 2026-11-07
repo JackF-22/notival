@@ -9,7 +9,14 @@
   if(node.nodeType===Node.TEXT_NODE){
    const length=node.data.length;
    // Prefer the left edge of the next character: it lands on the right line at a soft wrap.
-   return (offset<length&&take([node,offset],[node,offset+1],'left'))||(offset>0&&take([node,offset-1],[node,offset],'right'))||null;
+   const measured=(offset<length&&take([node,offset],[node,offset+1],'left'))||(offset>0&&take([node,offset-1],[node,offset],'right'));
+   if(measured)return measured;
+   // An empty or collapsed text node (the anchor beside an inline equation) has nothing to measure, so sit against the neighbouring element.
+   const edge=(el,side)=>{const list=[...el.getClientRects()].filter(r=>r.height>0),r=side==='right'?list.at(-1):list[0];return r?{x:side==='right'?r.right:r.left,top:r.top,height:r.height}:null};
+   const prev=node.previousSibling,next=node.nextSibling;
+   if(offset===0&&prev?.nodeType===Node.ELEMENT_NODE&&prev.tagName!=='BR')return edge(prev,'right');
+   if(offset===length&&next?.nodeType===Node.ELEMENT_NODE&&next.tagName!=='BR')return edge(next,'left');
+   return null;
   }
   const child=node.childNodes[offset],before=node.childNodes[offset-1];
   // A caret sitting on a <br> (a new line inside a cell or paragraph) belongs where that line break is, not at the block's start.

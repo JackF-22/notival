@@ -12,7 +12,7 @@ def finish(payload):
 
 try:
     import numpy as np
-    from PIL import Image
+    from PIL import Image, ImageOps
     with contextlib.redirect_stdout(sys.stderr):
         from rapid_latex_ocr import LaTeXOCR
 except Exception as error:  # the environment is not set up
@@ -21,9 +21,19 @@ except Exception as error:  # the environment is not set up
 # Loops end sooner with a shorter decoder limit; 320 tokens covers most display equations.
 CONFIG = "max_width: 672\nmax_height: 192\nmin_height: 32\nmin_width: 32\nbos_token: 1\nmax_seq_len: 320\neos_token: 2\ntemperature: 0.00001\n"
 
-def tidy(path, pad=14, target=0):
-    """Trim blank margins, then optionally scale small equations up to a comfortable height."""
+def tidy(path, pad=14, target=0, soft=False):
+    """Trim blank margins, then optionally scale small equations up to a comfortable height.
+
+    soft=True also pushes the picture towards black on white, which helps grey text on tinted paper but
+    can thicken fine strokes in a crisp one, so it is a second opinion rather than the default."""
     image = Image.open(path).convert("L")
+    # The model reads dark ink on a light page, so a dark page is flipped. (Stretching contrast on every
+    # picture was measured and made results worse, so it is not done.)
+    if np.median(np.array(image)) < 128:
+        image = ImageOps.invert(image)
+    if soft:
+        levels = np.array(ImageOps.autocontrast(image, cutoff=0)).astype(float)
+        image = Image.fromarray((np.clip((levels - 90) / 100, 0, 1) * 255).astype("uint8"))
     ink = np.where(np.array(image) < 200)
     if ink[0].size == 0:
         return None
@@ -75,18 +85,35 @@ def balanced(latex):
     lefts, rights = len(re.findall(r"\\left\b", latex)), len(re.findall(r"\\right\b", latex))
     return depth == 0 and lefts == rights
 
-# Crops and scales to try. Different equations read best at different sizes.
-VARIANTS = ((14, 0, 1.0), (14, 96, 1.0), (30, 0, 1.0), (14, 64, 1.0), (14, 128, 1.0), (14, 0, 0.7))
+# Reading the same equation at several sizes gives several readings, and no single size is best: the model is
+# confidently wrong at some scales and right at others. So read it at each size and let the readings vote.
+# (On a synthetic benchmark this took exact matches from 83% to 93%.) Heights are in pixels after trimming; 0 = as is.
+HEIGHTS = (0, 64, 96, 128, 48, 80)
+EARLY_AGREE = 3  # this many identical readings in a row of the first scales is already conclusive
 
-def tidy_scaled(path, pad, target, shrink):
-    data = tidy(path, pad, target)
-    if data is None or shrink == 1.0:
+def at_height(data, height):
+    if not height:
         return data
     image = Image.open(io.BytesIO(data))
-    image = image.resize((max(32, int(image.width * shrink)), max(32, int(image.height * shrink))), Image.LANCZOS)
+    scale = height / image.height
+    image = image.resize((max(32, int(image.width * scale)), height), Image.LANCZOS)
     buffer = io.BytesIO()
     image.save(buffer, "PNG")
     return buffer.getvalue()
+
+def canonical(latex):
+    """A form for comparing readings: spacing, redundant braces and font wrappers don't make two readings different."""
+    text = re.sub(r"\\(?:left|right|big|Big|bigg|Bigg|bigl|bigr|Bigl|Bigr)(?![A-Za-z])\s*", "", latex)
+    text = re.sub(r"\\(?:displaystyle|textstyle|scriptstyle|mathrm|operatorname\*?|mathop|boldsymbol|mathbf|rm|bf|cal)(?![A-Za-z])", "", text)
+    text = re.sub(r"\\[dt]frac(?![A-Za-z])", r"\\frac", text)
+    text = re.sub(r"\\(?:[!,;:> ]|quad|qquad)", "", text)
+    text = re.sub(r"\s+", "", text)
+    previous = None
+    while previous != text:  # {x} -> x and {\alpha} -> \alpha
+        previous = text
+        text = re.sub(r"\{([A-Za-z0-9]|\\[A-Za-z]+)\}", r"\1", text)
+        text = re.sub(r"\{\{([^{}]*)\}\}", r"{\1}", text)
+    return text
 
 def run(path):
     config = tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False)
@@ -97,28 +124,50 @@ def run(path):
             model = LaTeXOCR(config_path=config.name)
     finally:
         os.unlink(config.name)
-    candidates = []  # (latex, looped)
+    plain, soft = tidy(path, 14, 0), tidy(path, 14, 0, soft=True)
+    if plain is None:
+        return {"ok": False, "error": "blank"}
+    readings = []  # (latex, looped) in the order read
     deadline = time.time() + 40
-    for pad, target, shrink in VARIANTS:
-        data = tidy_scaled(path, pad, target, shrink)
-        if data is None:
-            return {"ok": False, "error": "blank"}
-        started = time.time()
-        with contextlib.redirect_stdout(sys.stderr):
-            raw, _ = model(data)
-        looped = collapse_repeats(raw) != raw or time.time() - started > 6
-        latex = re.sub(r"\\(?:text|display|script)style\s*", "", collapse_repeats(raw)).strip()
-        if latex and latex not in [c[0] for c in candidates]:
-            candidates.append((latex, looped))
-        # Stop at the first clean, well-formed reading; otherwise keep looking until time runs out.
-        if latex and not looped and balanced(latex):
-            break
-        if time.time() > deadline:
-            break
-    if not candidates:
+    # The picture as it is first; the softened copy is only consulted if those readings don't settle it.
+    for base in (plain, soft):
+        for height in HEIGHTS:
+            started = time.time()
+            with contextlib.redirect_stdout(sys.stderr):
+                raw, _ = model(at_height(base, height))
+            cleaned = collapse_repeats(raw)
+            latex = re.sub(r"\\(?:text|display|script)style\s*", "", cleaned).strip()
+            if latex:
+                readings.append((latex, cleaned != raw or time.time() - started > 6))
+            # The first few sizes all agreeing on a clean reading needs no more evidence.
+            if base is plain and len(readings) >= EARLY_AGREE:
+                first = readings[:EARLY_AGREE]
+                if len({canonical(r[0]) for r in first}) == 1 and all(not r[1] and balanced(r[0]) for r in first):
+                    break
+            if time.time() > deadline:
+                break
+        else:
+            continue
+        break
+    if not readings:
         return {"ok": False, "error": "empty"}
-    ranked = sorted(candidates, key=lambda c: (c[1], not balanced(c[0])))
-    return {"ok": True, "latex": ranked[0][0], "uncertain": ranked[0][1] or not balanced(ranked[0][0]), "candidates": [c[0] for c in ranked]}
+    # Group readings that say the same thing; a clean, balanced reading counts for more than a broken one.
+    groups = {}
+    for order, (latex, looped) in enumerate(readings):
+        weight = (0.5 if looped else 1.0) * (1.0 if balanced(latex) else 0.4)
+        group = groups.setdefault(canonical(latex), {"latex": latex, "votes": 0.0, "count": 0, "order": order, "clean": not looped and balanced(latex)})
+        group["votes"] += weight
+        group["count"] += 1
+    ranked = sorted(groups.values(), key=lambda g: (-g["votes"], g["order"]))
+    top = ranked[0]
+    agreement = top["count"] / len(readings)
+    return {
+        "ok": True,
+        "latex": top["latex"],
+        "uncertain": not top["clean"] or agreement < 0.5,
+        "agreement": round(agreement, 2),
+        "candidates": [g["latex"] for g in ranked],
+    }
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:

@@ -1,0 +1,27 @@
+/* A calmer header: fewer controls, and the ones that stay are quiet. */
+
+/* Focus and Class become one menu; the originals stay in the page for the menu to press. */
+#focus-writing-toggle,#class-mode-toggle{display:none!important}
+#focus-menu{font-size:12px;color:var(--muted);white-space:nowrap;border:0;background:transparent;padding:6px 8px}
+#focus-menu:hover,#focus-menu[aria-expanded=true]{color:var(--green)}
+#focus-menu[hidden]{display:none}
+body[data-view=home] #focus-menu{display:none}
+.focus-popover{position:fixed;z-index:1100;width:264px;padding:6px;background:var(--bg,#fff);border:1px solid var(--line,#ddd);border-radius:12px;box-shadow:0 10px 30px #0003;display:grid;gap:2px}
+.focus-item{display:grid;gap:1px;text-align:left;padding:9px 11px;border:0;background:transparent;color:var(--ink,#333);border-radius:8px;cursor:pointer}
+.focus-item b{font-size:13px;font-weight:600}
+.focus-item small{color:var(--muted,#888);font-size:11.5px}
+.focus-item:hover,.focus-item:focus-visible{background:var(--soft,#eee);outline:none}
+
+/* Home is already in the sidebar; the header one is only needed once the sidebar is tucked away. */
+body:not(.sidebar-collapsed) main>header .student-nav .student-home{display:none}
+
+/* Share and Delete: small icons with their names in the tooltip, not two wide buttons. */
+main>header .header-actions #share-note,main>header .header-actions #delete{position:relative;width:34px;min-height:34px;height:34px;padding:0;font-size:0;border:1px solid transparent;background:transparent;color:var(--muted,#888);display:inline-flex;align-items:center;justify-content:center}
+main>header .header-actions #share-note:hover,main>header .header-actions #delete:hover{background:var(--soft,#eee);color:var(--ink,#333)}
+main>header .header-actions #share-note:focus-visible,main>header .header-actions #delete:focus-visible{outline:2px solid var(--green,#4a6452);outline-offset:1px}
+main>header .header-actions #delete:hover{color:#b3402f}
+main>header .header-actions #share-note svg{width:16px;height:16px}
+main>header .header-actions #delete::before{content:"";width:16px;height:16px;background:currentColor;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat}
+
+/* The saved note is a whisper, on one line. */
+main>header #saved{white-space:nowrap;font-size:11px;opacity:.65}

@@ -202,6 +202,10 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
   pdfView.backgroundColor = theme.dark ? theme.soft : theme.soft.blended(withFraction: 0.35, of: theme.background) ?? theme.soft
  }
  var currentPDF: URL?
+ // Where you were in each PDF, so reopening it (even after quitting) lands back on the same spot.
+ var restoringPDF=false
+ var pdfPositionTimer: Timer?
+ static let pdfPositionsKey="pdfReadingPositions"
  var pdfSelectionTimer: Timer?
  var suppressPDFSelection = false
  var pending: [String: Any]?
@@ -242,7 +246,7 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
   split.addArrangedSubview(pdfPane); split.addArrangedSubview(web); pdfPane.isHidden = true
   window = NSWindow(contentRect: NSRect(x: 0,y: 0,width: 1120,height: 790),styleMask: [.titled,.closable,.miniaturizable,.resizable],backing: .buffered,defer: false)
   window.acceptsMouseMovedEvents = true
-  window.title = "Notival"; window.minSize = NSSize(width: 720,height: 520); window.contentView = split; window.center(); window.setFrameAutosaveName("MarginMain"); window.isReleasedWhenClosed = false
+  window.title = "Notival"; window.minSize = NSSize(width: 720,height: 520); window.contentView = split; window.center(); window.setFrameAutosaveName("MarginMain"); window.isReleasedWhenClosed = false; window.collectionBehavior.insert(.fullScreenPrimary)
   let url = Bundle.main.resourceURL!.appendingPathComponent("web/index.html")
   web.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent()); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
   registerQuickNoteKey()
@@ -312,6 +316,41 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
   applyPDFTheme()
   NotificationCenter.default.addObserver(self,selector:#selector(pdfPageChanged),name:Notification.Name.PDFViewPageChanged,object:pdfView)
   NotificationCenter.default.addObserver(self,selector:#selector(pdfSelectionChanged),name:Notification.Name.PDFViewSelectionChanged,object:pdfView)
+  func scroller(_ view:NSView)->NSScrollView?{if let found=view as? NSScrollView{return found};for child in view.subviews{if let found=scroller(child){return found}};return nil}
+  if let scroll=scroller(pdfView){scroll.contentView.postsBoundsChangedNotifications=true;NotificationCenter.default.addObserver(self,selector:#selector(schedulePDFPositionSave),name:NSView.boundsDidChangeNotification,object:scroll.contentView)}
+  NotificationCenter.default.addObserver(self,selector:#selector(savePDFPosition),name:NSApplication.willTerminateNotification,object:nil)
+  // Class mode needs to know whether Notival itself is the active app, so reading the PDF pane doesn't look like leaving.
+  for (name,active) in [(NSApplication.didBecomeActiveNotification,true),(NSApplication.didResignActiveNotification,false)] {
+   NotificationCenter.default.addObserver(forName:name,object:nil,queue:.main){[weak self] _ in self?.web.evaluateJavaScript("window.notivalAppActive&&window.notivalAppActive(\(active))",completionHandler:nil)}
+  }
+  // ...and whether the window is full screen, which can also change by the person's own hand (Esc, ⌃⌘F).
+  for (name,on) in [(NSWindow.didEnterFullScreenNotification,true),(NSWindow.didExitFullScreenNotification,false)] {
+   NotificationCenter.default.addObserver(forName:name,object:nil,queue:.main){[weak self] _ in self?.web.evaluateJavaScript("window.notivalFullscreen&&window.notivalFullscreen(\(on))",completionHandler:nil)}
+  }
+ }
+ @objc func schedulePDFPositionSave(){
+  guard !restoringPDF,currentPDF != nil else{return}
+  pdfPositionTimer?.invalidate()
+  pdfPositionTimer=Timer.scheduledTimer(timeInterval:0.4,target:self,selector:#selector(savePDFPosition),userInfo:nil,repeats:false)
+ }
+ @objc func savePDFPosition(){
+  pdfPositionTimer?.invalidate();pdfPositionTimer=nil
+  guard !restoringPDF,let url=currentPDF,let document=pdfView.document,let destination=pdfView.currentDestination,let page=destination.page else{return}
+  var saved=UserDefaults.standard.dictionary(forKey:App.pdfPositionsKey) ?? [:]
+  saved[url.path]=["page":document.index(for:page),"x":Double(destination.point.x),"y":Double(destination.point.y)]
+  if saved.count > 200,let drop=saved.keys.first(where:{$0 != url.path}){saved.removeValue(forKey:drop)}
+  UserDefaults.standard.set(saved,forKey:App.pdfPositionsKey)
+ }
+ func restorePDFPosition(_ url:URL,_ document:PDFDocument){
+  guard let saved=(UserDefaults.standard.dictionary(forKey:App.pdfPositionsKey)?[url.path]) as? [String:Any],let index=saved["page"] as? Int,index >= 0,index < document.pageCount,let page=document.page(at:index) else{return}
+  let point=NSPoint(x:(saved["x"] as? Double) ?? 0,y:(saved["y"] as? Double) ?? 0)
+  restoringPDF=true
+  // The view needs a layout pass before it can scroll to a point.
+  DispatchQueue.main.async{[weak self] in
+   guard let self,self.currentPDF == url else{return}
+   self.pdfView.layoutDocumentView();self.pdfView.go(to:PDFDestination(page:page,at:point))
+   DispatchQueue.main.asyncAfter(deadline:.now()+0.3){if self.currentPDF == url{self.restoringPDF=false}}
+  }
  }
  func beginDrawing(_ request:[String:Any]){
   guard drawingSheet==nil,let requestID=request["requestID"] as? String else{return}
@@ -334,6 +373,8 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
  func openPDF(_ url: URL, page: Int? = nil, bounds: [String: Any]? = nil, notify: Bool = false) {
   guard url.pathExtension.lowercased()=="pdf", FileManager.default.fileExists(atPath:url.path), let document=PDFDocument(url:url),document.pageCount>0 else { js("window.marginError","That PDF could not be opened.");return }
   if pdfFindBar != nil, !pdfFindBar.isHidden { hidePDFFind() }
+  if currentPDF != nil,currentPDF != url{savePDFPosition()}
+  restoringPDF=false;pdfPositionTimer?.invalidate()
   currentPDF=url;pdfView.document=document;pdfTitle.stringValue=url.lastPathComponent;pdfPane.isHidden=false
   split.setPosition(max(380,window.contentView!.bounds.width * 0.46),ofDividerAt:0)
   if let page, page > 0, let target=document.page(at:min(page-1,document.pageCount-1)) {
@@ -346,6 +387,7 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
     DispatchQueue.main.asyncAfter(deadline:.now()+0.4){self.suppressPDFSelection=false}
    }
   }
+  if page == nil,bounds == nil{restorePDFPosition(url,document)}
   pdfPageChanged()
   if notify { js("window.marginPDFOpened",["path":url.path,"name":url.lastPathComponent,"pages":document.pageCount]) }
  }
@@ -395,7 +437,7 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
   askFoliose(kind:"pdf",notice:"Double-click a PDF in Foliose to open it here.",fallback:{[weak self] in self?.awaitingFoliosePDF=nil;self?.choosePDFFromFinder()})
  }
  @objc func choosePDFFromFinder(){let panel=NSOpenPanel();panel.allowedContentTypes=[.pdf];panel.allowsMultipleSelection=false;panel.beginSheetModal(for:window){ response in if response == .OK,let url=panel.url { self.openPDF(url,notify:true) } }}
- @objc func closePDF(){if !pdfFindBar.isHidden{hidePDFFind()};pdfPane.isHidden=true;currentPDF=nil;pdfView.document=nil;js("window.marginPDFClosed",NSNull())}
+ @objc func closePDF(){savePDFPosition();if !pdfFindBar.isHidden{hidePDFFind()};pdfPane.isHidden=true;currentPDF=nil;pdfView.document=nil;js("window.marginPDFClosed",NSNull())}
  func capturePDF(kind:String){
   guard let url=currentPDF,let document=pdfView.document,let page=pdfView.currentPage else{return}
   let pageNumber=document.index(for:page)+1
@@ -724,6 +766,7 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
     if data != nil && state == nil { js("window.marginError", "Notes could not be read. Original file preserved."); return }
     js("window.marginLoad", state ?? NSNull()); ready = true
     web.evaluateJavaScript("requestAnimationFrame(()=>requestAnimationFrame(()=>window.notivalReplayLaunch?.()))",completionHandler:nil)
+    web.evaluateJavaScript("window.notivalAppActive&&window.notivalAppActive(\(NSApp.isActive))",completionHandler:nil)
     let importScan = FolioseImporter.notes()
     js("window.marginImportFoliose", importScan.items)
     if importScan.skipped > 0 { js("window.marginImportWarning", "\(importScan.skipped) Foliose note record(s) could not be imported. Their originals were left untouched.") }
@@ -738,6 +781,10 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
      try FileManager.default.copyItem(at: storage, to: backup)
     }
     try data.write(to: storage,options: .atomic); web.evaluateJavaScript("window.marginSaved()",completionHandler: nil)
+   case "fullscreen":
+    // Class mode asks for a whole-screen window and gives it back when the class ends.
+    let wanted = body["on"] as? Bool ?? false
+    if wanted != window.styleMask.contains(.fullScreen) { window.toggleFullScreen(nil) }
    case "copy": NSPasteboard.general.clearContents(); NSPasteboard.general.setString(body["text"] as? String ?? "",forType: .string); js("toast","Snippet copied")
    case "runCode": if body["language"] as? String == "c" { runC(body) } else if body["language"] as? String == "python" { runPython(body) }
    case "revealFile":
@@ -811,7 +858,7 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
      let panel=NSOpenPanel();panel.canChooseFiles=true;panel.canChooseDirectories=false;panel.allowsMultipleSelection=true;panel.prompt="Attach Materials"
      panel.beginSheetModal(for:self.window){response in if response == .OK {self.importMaterials(panel.urls,subjectID:subjectID,unitID:unitID)}}
     }
-    if fileSource == "foliose"{askFoliose(kind:"materials",subjectID:subjectID,unitID:unitID,notice:"Double-click a file in Foliose to attach it, or select several and use Send to Notival.",fallback:finder)}else{finder()}
+    if fileSource == "foliose"{askFoliose(kind:"materials",subjectID:subjectID,unitID:unitID,notice:"Double-click files in Foliose to attach them one after another, or select several and use Send to Notival.",fallback:finder)}else{finder()}
    case "theme":
     func colour(_ key: String) -> NSColor? { (body[key] as? String).flatMap(NSColor.init(hex:)) }
     if let background = colour("background"), let ink = colour("ink"), let muted = colour("muted"), let line = colour("line"), let soft = colour("soft"), let accent = colour("accent") {
@@ -896,7 +943,9 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
    guard let request=folioseRequest(kind:"materials"),let value=URLComponents(url:url,resolvingAgainstBaseURL:false)?.queryItems?.first(where:{$0.name == "payload"})?.value,let data=Data(base64Encoded:value),data.count < 200_000,let body=(try? JSONSerialization.jsonObject(with:data)) as? [String:Any],let paths=body["paths"] as? [String] else{continue}
    let files=paths.filter{$0.hasPrefix("/") && FileManager.default.fileExists(atPath:$0)}.prefix(100).map{URL(fileURLWithPath:$0)}
    guard !files.isEmpty else{continue}
-   try? FileManager.default.removeItem(at:foliosePDFRequest)
+   // Keep the request open so more files can be attached in a row; it lapses after 15 minutes.
+   var renewed=request;renewed["stamp"]=Date().timeIntervalSince1970
+   if let data=try? JSONSerialization.data(withJSONObject:renewed){try? data.write(to:foliosePDFRequest,options:.atomic)}
    importMaterials(Array(files),subjectID:request["subjectID"] as? String ?? "",unitID:request["unitID"] as? String ?? "")
   }
   for url in urls where ["margin","notival"].contains(url.scheme ?? "") && url.host == "capture" {

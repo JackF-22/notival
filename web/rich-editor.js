@@ -5,14 +5,15 @@ const RichEditor = (() => {
   const safeURL = value => /^(https?:|file:|mailto:)/i.test(value.trim()) || /^data:image\/(?:png|jpeg|webp|gif);base64,[a-z\d+/=]+$/i.test(value.trim()) ? value.trim() : '';
   const inline = source => {
     const links = [];
-    let value = String(source).replace(/(!?)\[([^\]]*)\]\(([^)]+)\)/g, (match, image, label, url) => {
+    // Math first, from the raw text, so `<` and `&` inside a formula are escaped exactly once.
+    let value = MathSyntax.inlineMath(String(source), equation => {links.push(`<span class="equation inline-equation" data-equation="${escape(equation)}" contenteditable="false">${escape(equation)}</span>`);return `\u0001${links.length-1}\u0002`});
+    value = value.replace(/(!?)\[([^\]]*)\]\(([^)]+)\)/g, (match, image, label, url) => {
       const safe=safeURL(url);
       if(!safe)return match;
       links.push(image ? `<img src="${escape(safe)}" alt="${escape(label)}">` : `<a href="${escape(safe)}">${escape(label)}</a>`);
       return `\u0001${links.length-1}\u0002`;
     });
     value = escape(value);
-    value = value.replace(/\$([^$\n]+)\$/g, (_, source) => {links.push(`<span class="equation inline-equation" data-equation="${escape(source)}" contenteditable="false">${escape(source)}</span>`);return `\u0001${links.length-1}\u0002`});
     value = value.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/~~(.+?)~~/g, '<s>$1</s>');
     value = value.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>').replace(/`([^`\n]+)`/g, '<code>$1</code>');
     return value.replace(/\u0001(\d+)\u0002/g, (_, index) => links[Number(index)]);
@@ -53,17 +54,30 @@ const RichEditor = (() => {
       const line = lines[i];
       if (!line.trim()) { i++; continue; }
       if (/^```/.test(line)) {
-        const code = []; i++;
+        const info = line.slice(3).trim(), code = []; i++;
         while (i < lines.length && !/^```/.test(lines[i])) code.push(lines[i++]);
         if (i < lines.length) i++;
-        output.push(`<pre><code>${escape(code.join('\n'))}</code></pre>`); continue;
+        if (/^procedure\b/i.test(info)) output.push(`<div class="procedure" data-procedure="${escape(code.join('\n'))}"${/\bnumbered\b/i.test(info) ? ' data-numbered="1"' : ''} contenteditable="false"></div>`);
+        else output.push(`<pre><code>${escape(code.join('\n'))}</code></pre>`);
+        continue;
       }
-      if (line.trim()==='$$') {
-        const equation=[];i++;
-        while(i<lines.length && lines[i].trim()!=='$$') equation.push(lines[i++]);
-        if(i<lines.length)i++;
-        const source=equation.join('\n');
-        output.push(`<div class="equation display-equation" data-equation="${escape(source)}" contenteditable="false">${escape(source)}</div>`);continue;
+      if (/^:::columns\s*$/.test(line.trim())) {
+        const columns = []; let current = null; i++;
+        while (i < lines.length && lines[i].trim() !== ':::') {
+          if (/^:::col\s*$/.test(lines[i].trim())) { current = []; columns.push(current); }
+          else if (current) current.push(lines[i]);
+          i++;
+        }
+        if (i < lines.length) i++;
+        const made = columns.filter(col => col.join('').trim());
+        if (made.length >= 2) output.push(`<div class="cols" data-n="${Math.min(3, made.length)}">${made.slice(0, 3).map(col => `<div class="col">${fromMarkdown(col.join('\n'))}</div>`).join('')}</div>`);
+        else for (const col of made) output.push(fromMarkdown(col.join('\n')));
+        continue;
+      }
+      const display = MathSyntax.displayAt(lines, i);
+      if (display) {
+        output.push(`<div class="equation display-equation" data-equation="${escape(display.source)}" contenteditable="false">${escape(display.source)}</div>`);
+        i = display.next; continue;
       }
       const heading = line.match(/^(#{1,6})\s+(.+)$/);
       if (heading) { output.push(`<h${heading[1].length}>${inline(heading[2])}</h${heading[1].length}>`); i++; continue; }
@@ -108,6 +122,23 @@ const RichEditor = (() => {
           child.textContent=source;
           continue;
         }
+        // A procedure keeps only its steps; the box is drawn again from them when the note opens.
+        if(child.tagName==='DIV'&&child.classList.contains('procedure')) {
+          const steps=String(child.getAttribute('data-procedure')||'').slice(0,20000),numbered=child.getAttribute('data-numbered')==='1';
+          for(const attribute of [...child.attributes])child.removeAttribute(attribute.name);
+          child.className='procedure';child.dataset.procedure=steps;if(numbered)child.dataset.numbered='1';
+          child.setAttribute('contenteditable','false');child.textContent='';
+          continue;
+        }
+        // Lines set side by side: a group of two or three columns, each holding ordinary blocks.
+        if(child.tagName==='DIV'&&(child.classList.contains('cols')||child.classList.contains('col'))) {
+          const group=child.classList.contains('cols');
+          for(const attribute of [...child.attributes])child.removeAttribute(attribute.name);
+          child.className=group?'cols':'col';
+          clean(child);
+          if(group)child.dataset.n=String(Math.max(2,Math.min(3,[...child.children].filter(item=>item.classList.contains('col')).length)));
+          continue;
+        }
         const href=child.tagName==='A' ? safeURL(child.getAttribute('href')||'') : '';
         const src=child.tagName==='IMG' ? safeURL(child.getAttribute('src')||'') : '';
         const alt=child.tagName==='IMG' ? child.getAttribute('alt')||'' : '';
@@ -119,13 +150,14 @@ const RichEditor = (() => {
         const checked=child.tagName==='INPUT' && child.hasAttribute('checked');
         const widths=child.tagName==='TABLE'?child.getAttribute('data-widths')||'':'';
         const imageWidth=child.tagName==='IMG'?child.getAttribute('data-width')||'':'';
+        const imageAlign=child.tagName==='IMG'?child.getAttribute('data-align')||'':'';
         for (const attribute of [...child.attributes]) child.removeAttribute(attribute.name);
         if(/^\d+(\.\d+)?(,\d+(\.\d+)?)*$/.test(widths))child.dataset.widths=widths;
         if(['left','center','right','justify'].includes(alignment))child.style.textAlign=alignment;
         if (passageId && /^[a-zA-Z0-9_-]{1,100}$/.test(passageId)) child.dataset.passageId=passageId;
         if (flagId && /^[a-zA-Z0-9_-]{1,100}$/.test(flagId)) child.dataset.flag=flagId;
         if (child.tagName === 'A' && href) child.setAttribute('href',href);
-        if (child.tagName === 'IMG') { if(src){child.setAttribute('src',src);child.setAttribute('alt',alt);if(imageId&&/^[a-zA-Z0-9_-]{1,100}$/.test(imageId))child.dataset.imageId=imageId;if(/^\d{1,3}(\.\d)?$/.test(imageWidth)&&+imageWidth>=5&&+imageWidth<=100)child.dataset.width=imageWidth;} else {child.remove();continue;} }
+        if (child.tagName === 'IMG') { if(src){child.setAttribute('src',src);child.setAttribute('alt',alt);if(imageId&&/^[a-zA-Z0-9_-]{1,100}$/.test(imageId))child.dataset.imageId=imageId;if(/^\d{1,3}(\.\d)?$/.test(imageWidth)&&+imageWidth>=5&&+imageWidth<=100)child.dataset.width=imageWidth;if(['left','right','center'].includes(imageAlign))child.dataset.align=imageAlign;} else {child.remove();continue;} }
         if (child.tagName === 'INPUT') {child.setAttribute('type','checkbox'); child.setAttribute('contenteditable','false');if(checked)child.setAttribute('checked','');}
         if (task) {child.className='task-row';child.dataset.task=child.querySelector('input:checked')?'done':'open';}
         clean(child);
@@ -157,6 +189,10 @@ const RichEditor = (() => {
       const content = children(node), tag = node.tagName;
       if (tag==='BR') return '\n';
       if (node.classList.contains('equation'))return tag==='SPAN'?`$${node.dataset.equation||''}$`:`$$\n${node.dataset.equation||''}\n$$\n\n`;
+      // A procedure is a fenced block whose text is the steps as written, so it stays readable anywhere.
+      if (tag==='DIV' && node.classList.contains('procedure')) { const steps=String(node.dataset.procedure||'').replace(/^```/gm,' ```'); return steps.trim() ? `\`\`\`procedure${node.dataset.numbered==='1'?' numbered':''}\n${steps}\n\`\`\`\n\n` : ''; }
+      // Columns are written as marker lines with a blank line around each, so every reader of the text still sees plain paragraphs.
+      if (tag==='DIV' && node.classList.contains('cols')) return `:::columns\n\n${[...node.children].filter(col=>col.classList.contains('col')).map(col=>`:::col\n\n${toMarkdown(col)}\n\n`).join('')}:::\n\n`;
       if (tag==='STRONG'||tag==='B') return `**${content}**`;
       if (tag==='EM'||tag==='I') return `*${content}*`;
       if (tag==='S'||tag==='STRIKE') return `~~${content}~~`;
@@ -191,6 +227,7 @@ const RichEditor = (() => {
     ['code','Code block','Monospace block','code'],
     ['table','Table','Insert rows and columns','table'],
     ['equation','Equation','Write LaTeX','equation'],
+    ['procedure','Procedure','Pseudocode or steps, typeset like a paper','procedure'],
     ['inlineequation','Inline equation','LaTeX within a sentence','inlineequation'],
     ['wordcount','Word count','Show or hide a live word count for this block','wordcount'],
     ['link','Link','Link selected text','link'],
@@ -268,6 +305,7 @@ const RichEditor = (() => {
   };
   function renderMath(root) {
     for(const item of root.querySelectorAll('.equation:not(.editing)'))renderOne(item);
+    window.ProcedureBox?.render(root);
     for(const table of root.querySelectorAll('table'))applyTableWidths(table);
     for(const picture of root.querySelectorAll('img[data-width]'))picture.style.width=picture.dataset.width+'%';
   }
@@ -419,6 +457,7 @@ const RichEditor = (() => {
   }
   // A table must be a direct child of the note. If a block command wrapped one in a heading or paragraph, lift it out so it keeps its own styling.
   function hoistTables(editor) {
+    window.LineColumns?.tidy(editor);   // columns that emptied out or lost a partner stop being columns
     for(const table of editor.querySelectorAll('table')){
       let guard=0;
       while(table.parentElement!==editor&&guard++<8){
@@ -446,7 +485,7 @@ const RichEditor = (() => {
     if(focused?.editor===editor)focused.range=range.cloneRange();
   }
   function endsInMedia(element) {
-    if(['TABLE','IMG','HR'].includes(element.tagName)||element.classList.contains('equation'))return true;
+    if(['TABLE','IMG','HR'].includes(element.tagName)||element.classList.contains('equation')||element.classList.contains('cols')||element.classList.contains('procedure'))return true;
     if(!/^(P|DIV)$/.test(element.tagName))return false;
     const last=[...element.childNodes].reverse().find(node=>!(node.nodeType===Node.TEXT_NODE&&!node.textContent.trim())&&node.nodeName!=='BR');
     return last?.nodeName==='IMG'||(last?.nodeType===Node.ELEMENT_NODE&&last.classList.contains('inline-equation')&&false);
@@ -545,7 +584,7 @@ const RichEditor = (() => {
   function renderOne(item) {
     if(typeof katex==='undefined'){item.textContent=item.dataset.equation||'';return;}
     item.title='Click to select · Delete to remove · Double-click to edit';
-    try{katex.render(item.dataset.equation||'',item,{displayMode:item.classList.contains('display-equation'),throwOnError:false,trust:false,maxExpand:1000,maxSize:20});}
+    try{katex.render(MathSyntax.katexSource(item.dataset.equation||''),item,{displayMode:item.classList.contains('display-equation'),throwOnError:false,trust:false,maxExpand:1000,maxSize:20});}
     catch{item.textContent=item.dataset.equation||'';}
   }
   function editEquation(editor, {equation=null, display=false, source='', insert}) {
@@ -566,7 +605,7 @@ const RichEditor = (() => {
       preview.className='equation-preview';preview.textContent='';
       if(!field.value.trim()){preview.classList.add('empty');preview.textContent='Preview';return;}
       if(typeof katex==='undefined'){preview.textContent=field.value;return;}
-      try{katex.render(field.value,preview,{displayMode:display,throwOnError:false,trust:false,maxExpand:1000,maxSize:20});}catch{preview.textContent=field.value;}
+      try{katex.render(MathSyntax.katexSource(field.value),preview,{displayMode:display,throwOnError:false,trust:false,maxExpand:1000,maxSize:20});}catch{preview.textContent=field.value;}
       if(preview.querySelector('.katex-error'))preview.classList.add('invalid');
     };
     const finish=(commit,side='after')=>{
@@ -647,13 +686,24 @@ const RichEditor = (() => {
       handle.addEventListener('pointerenter',()=>clearTimeout(resizerTimer));handle.addEventListener('pointerleave',()=>hideResizer());
       handle.addEventListener('pointerdown',event=>startPictureResize(event,corner));resizer.append(handle);
     }
+    // Where the picture sits: in the line of text, or floated so the text flows beside it.
+    const bar=document.createElement('div');bar.className='image-align';bar.setAttribute('role','group');bar.setAttribute('aria-label','Picture position');
+    for(const [value,name,mark] of [['','In line with text','▤'],['left','Picture left, text wraps','◧'],['center','Picture centred','▥'],['right','Picture right, text wraps','◨']]){
+      const b=document.createElement('button');b.type='button';b.textContent=mark;b.title=name;b.setAttribute('aria-label',name);b.dataset.align=value;
+      b.onmousedown=e=>e.preventDefault();
+      b.onclick=()=>{const picture=pictureTarget;if(!picture?.isConnected)return;if(value)picture.dataset.align=value;else delete picture.dataset.align;markAlign(picture);placeResizer(picture);picture.closest('.rich-text')?.dispatchEvent(new Event('input',{bubbles:true}))};
+      bar.append(b);
+    }
+    bar.addEventListener('pointerenter',()=>clearTimeout(resizerTimer));bar.addEventListener('pointerleave',()=>hideResizer());
+    resizer.append(bar);
     document.body.append(resizer);
     const reposition=()=>{if(resizer.hidden)return;if(!pictureTarget?.isConnected){resizer.hidden=true;return}placeResizer(pictureTarget)};
     window.addEventListener('scroll',reposition,true);window.addEventListener('resize',reposition);
     return resizer;
   }
   function placeResizer(picture){const r=picture.getBoundingClientRect();Object.assign(resizer.style,{left:r.left+'px',top:r.top+'px',width:r.width+'px',height:r.height+'px'})}
-  function showResizer(picture){ensureResizer();clearTimeout(resizerTimer);pictureTarget=picture;placeResizer(picture);resizer.hidden=false}
+  function markAlign(picture){for(const b of resizer.querySelectorAll('.image-align button')){const on=b.dataset.align===(picture.dataset.align||'');b.classList.toggle('on',on);b.setAttribute('aria-pressed',String(on))}}
+  function showResizer(picture){ensureResizer();clearTimeout(resizerTimer);pictureTarget=picture;placeResizer(picture);markAlign(picture);resizer.hidden=false}
   function hideResizer(){clearTimeout(resizerTimer);resizerTimer=setTimeout(()=>{if(!resizing&&resizer){resizer.hidden=true;pictureTarget=null}},300)}
   function startPictureResize(event,corner){
     const picture=pictureTarget;if(!picture||event.button!==0)return;
@@ -729,6 +779,18 @@ const RichEditor = (() => {
     for(const type of ['keyup','mouseup','input','compositionend'])editor.addEventListener(type,remember);
     editor.onfocus=()=>{focused={editor,block,onChange};};
     editor.onblur=()=>{editor.querySelectorAll('.equation.selected').forEach(item=>item.classList.remove('selected'));if(focused?.editor===editor)focused.selectedEquation=null;};
+    // Clicking in the empty space after a line that ends with an inline equation puts the caret at the end of that line.
+    editor.addEventListener('mouseup',event=>{
+      if(event.button!==0||event.detail>1)return;
+      const selection=window.getSelection();if(!selection?.isCollapsed)return;
+      for(const equation of editor.querySelectorAll('.inline-equation:not(.editing)')){
+        const box=equation.getBoundingClientRect();
+        if(event.clientY<box.top-2||event.clientY>box.bottom+2||event.clientX<=box.right)continue;
+        let tail=equation.nextSibling;while(tail?.nodeType===Node.TEXT_NODE&&!tail.data.replace(/[\s\u00a0\u200b]/g,''))tail=tail.nextSibling;
+        if(tail&&tail.nodeName!=='BR')continue;
+        event.preventDefault();placeCaretByEquation(editor,equation,true);return;
+      }
+    });
     editor.oninput=()=>{editor.querySelectorAll('.equation.selected').forEach(item=>item.classList.remove('selected'));if(focused?.editor===editor)focused.selectedEquation=null;normalizeSpaces(editor);ensureEquationAnchors(editor);hoistTables(editor);block.html=cleanHTML(editor.innerHTML);block.text=toMarkdown(editor);onChange();updateSlash(editor);};
     editor.onbeforeinput=event=>{
       if(event.inputType==='insertText'&&event.data===' '&&convertListMarker(editor)){event.preventDefault();hideSlash();return;}
@@ -808,6 +870,23 @@ const RichEditor = (() => {
         const equation=focused?.editor===editor && focused.selectedEquation?.isConnected?focused.selectedEquation:equationAtCaret(editor,event.key);
         if(equation){event.preventDefault();hideSlash();deleteEquation(editor,equation);return;}
       }
+      // Each block is its own editor, so when the caret cannot move any further in this one (an equation can pin it there), carry on into the neighbouring block.
+      if((event.key==='ArrowDown'||event.key==='ArrowUp'||event.key==='ArrowRight'||event.key==='ArrowLeft')&&!event.shiftKey&&!event.metaKey&&!event.ctrlKey&&!event.altKey&&!slash?.editor&&editor.closest('#editor')){
+        const selection=window.getSelection(),down=event.key==='ArrowDown'||event.key==='ArrowRight';
+        if(selection?.isCollapsed&&selection.rangeCount&&!equationAtCaret(editor,event.key==='ArrowLeft'?'Backspace':'Delete')){
+          const anchor=selection.anchorNode,offset=selection.anchorOffset;
+          selection.modify('move',down?'forward':'backward',event.key.endsWith('Down')||event.key.endsWith('Up')?'line':'character');
+          const stuck=!editor.contains(selection.anchorNode)||(selection.anchorNode===anchor&&selection.anchorOffset===offset);
+          if(!stuck){event.preventDefault();return}
+          const editors=[...editor.closest('#editor').querySelectorAll('.rich-text')],next=editors[editors.indexOf(editor)+(down?1:-1)];
+          if(next){
+            event.preventDefault();next.focus({preventScroll:true});
+            const range=document.createRange();range.selectNodeContents(next);range.collapse(down);selection.removeAllRanges();selection.addRange(range);
+            next.scrollIntoView({block:'nearest'});
+          }
+          return;
+        }
+      }
       if(event.key==='ArrowLeft'||event.key==='ArrowRight'){
         const equation=equationAtCaret(editor,event.key==='ArrowLeft'?'Backspace':'Delete');
         if(equation){event.preventDefault();placeCaretByEquation(editor,equation,event.key==='ArrowRight');}
@@ -852,6 +931,7 @@ const RichEditor = (() => {
       const table=editor.querySelector(`[data-new-table="${marker}"]`);if(table){table.removeAttribute('data-new-table');applyTableWidths(table);const range=document.createRange();range.selectNodeContents(table.querySelector('td'));range.collapse(true);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);focused.range=range.cloneRange();}
     }
     else if(name==='task')document.execCommand('insertHTML',false,'<div class="task-row" data-task="open"><input type="checkbox" contenteditable="false"><span>Task</span></div><p><br></p>');
+    else if(name==='procedure'){window.ProcedureBox?.insert(editor);return;}
     else if(name==='equation'||name==='inlineequation'){
       const inline=name==='inlineequation',selection=window.getSelection(),picked=typeof value==='string'&&value?value:selection.rangeCount&&!selection.isCollapsed?selection.toString():'';
       editEquation(editor,{display:!inline,source:picked,insert:region=>{

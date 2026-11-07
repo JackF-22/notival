@@ -181,3 +181,35 @@ body .student-home-view.home-layout,body .student-home-view.overview-layout:has(
 .project-icon-picker .icon-filters>input,.project-icon-picker .icon-filters>select{min-width:0;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-size:12px}
 .project-icon-picker .expanded-icon-choices{max-height:260px}
 .project-icon-picker .icon-none{grid-column:1/-1;margin:8px 4px;font-size:12px;color:var(--muted)}
+.subject-add-menu>summary{display:inline-flex;align-items:center;gap:10px}
+.subject-add-menu>summary::after{content:'';margin:-3px 0 0;width:6px;height:6px;border:solid var(--muted);border-width:0 1.5px 1.5px 0;transform:rotate(45deg)}
+.subject-add-menu[open]>summary::after{margin:3px 0 0;transform:rotate(225deg)}
+.material-list .student-resource{gap:10px}
+.student-resource>.resource-title,.student-resource>.resource-kind,.student-resource>.resource-action,.student-resource select{font-size:12px;line-height:1.4}
+.student-resource>.resource-title{font-weight:600;color:var(--ink)}
+.student-resource>.resource-kind{min-width:34px;text-align:center;color:var(--muted);letter-spacing:.04em}
+.student-resource>.resource-action{color:var(--muted);padding:6px 8px;border:1px solid var(--line);border-radius:7px}
+.student-resource>.resource-action:hover{color:var(--ink);background:var(--soft)}
+.material-grip{cursor:grab;color:var(--muted);letter-spacing:-3px;font-size:14px;padding:4px 6px 4px 2px;user-select:none;touch-action:none}
+.material-reordering{opacity:.6;background:var(--soft)}
+.material-plus{margin-left:auto;width:32px;height:32px;border:1px solid var(--line);border-radius:50%;font-size:18px;line-height:1;color:var(--green);padding:0}
+.feature-heading .feature-total+.material-plus{margin-left:10px}
+/* Note attachments: quiet chips under the title instead of a filled bar. */
+html body #pdf-status{background:transparent;border:0;padding:0;gap:8px;flex-wrap:wrap;color:var(--muted);font-size:12px;margin:-14px 0 18px}
+html body #pdf-status>span{display:inline-flex;align-items:center;max-width:320px;padding:5px 11px;border:1px solid var(--line);border-radius:999px;background:var(--soft);color:var(--ink);font-weight:600}
+html body #pdf-status>button,html body #pdf-status .material-picker>summary{margin:0;padding:5px 11px;border:1px solid transparent;border-radius:999px;background:transparent;color:var(--muted);font-size:12px;cursor:pointer;list-style:none}
+html body #pdf-status>button:hover,html body #pdf-status .material-picker>summary:hover{background:var(--soft);color:var(--ink)}
+html body #pdf-status .material-picker>summary{border:1px dashed var(--line);color:var(--green);font-weight:600}
+html body #pdf-status .material-picker>summary::-webkit-details-marker{display:none}
+.material-picker{position:relative;z-index:6;margin-left:auto}
+.material-picker-options{position:absolute;right:0;top:calc(100% + 6px);width:300px;max-height:320px;overflow:auto;display:grid;gap:2px;padding:8px;background:var(--bg);border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 40px #0002}
+.material-picker-options button{display:flex;gap:9px;align-items:center;text-align:left;padding:8px 9px;border-radius:8px;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.material-picker-options button:hover{background:var(--soft)}
+.material-picker-icon{color:var(--muted)}
+.material-picker-label{padding:8px 9px 3px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+/* Home and Study share the width of New note, half each. */
+html body>aside .nav-pair{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+html body>aside .nav-pair #home-button,html body>aside .nav-pair #study-nav{width:100%;min-width:0;justify-content:center;flex:none;box-sizing:border-box}
+html body #pdf-status,html[data-appearance] body #pdf-status{background:transparent!important;border:0!important;box-shadow:none!important;padding:0!important;position:relative;z-index:130}
+html body #pdf-status>span{background:var(--soft)!important;border:1px solid var(--line)!important;padding:5px 11px!important}
+html body #pdf-status .material-picker-options button{margin:0;width:100%;justify-content:flex-start;color:var(--ink);font-size:12px;padding:8px 9px}
