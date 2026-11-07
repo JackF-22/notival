@@ -82,7 +82,8 @@ assert(!M.distractors(numbers[0],numbers).includes('word'));
 // Suggestions: bold terms, definitions, headings; never duplicates of existing items
 const study=note('Cells','# Mitochondria\n\nMitochondria are organelles that release energy from food through respiration in most cells. The **cristae** increase surface area for the reactions that make ATP.\n\nOsmosis is the movement of water across a selectively permeable membrane.');
 const sug=M.suggest(study,{});
-assert(sug.some(x=>x.type==='cloze'&&x.blank==='cristae'));assert(sug.some(x=>x.type==='qa'&&/What is Osmosis/.test(x.prompt)));assert(sug.some(x=>x.type==='explain'));
+assert(sug.some(x=>x.type==='cloze'&&x.blank==='cristae'));assert(sug.some(x=>x.type==='qa'&&/What is Osmosis/.test(x.prompt)));assert(sug.some(x=>/What are Mitochondria/.test(x.prompt)));
+assert(!sug.some(x=>x.type==='explain'));   // the paragraph under the heading already has a sharper question
 assert(sug.every(x=>M.validItem(x)||x.type==='explain'));
 const cris=sug.find(x=>x.blank==='cristae');
 assert(!M.suggest(study,{items:[{...cris}]}).some(x=>x.id===cris.id));
@@ -90,4 +91,26 @@ assert(!M.suggest(study,{items:[{...cris}]}).some(x=>x.id===cris.id));
 // Summary
 const summary=M.summarize([{item:bank[0],rating:'Good'},{item:{...bank[1],noteId:'N'},rating:'Again'},{item:{...bank[2],noteId:'N'},rating:'Again'},{item:bank[3],rating:'Easy'}]);
 assert.equal(summary.pct,50);assert.equal(summary.missed.length,2);assert.equal(JSON.stringify(summary.restudy),'[{"noteId":"N","count":2}]');
-console.log('PASS: markup items, stable ids, scoping, scheduler, queues, answer checking, multiple choice, suggestions, summary.');
+// Question quality: no auto-made passage cards, no nonsense prompts, one question per fact
+const prose=note('Prose',`# Mitochondria\n\nThe **mitochondrion** is the organelle that produces most of the cell's ATP. It has a double membrane.\n\nThis is why muscle cells have many of them. They are also involved in apoptosis, which is programmed cell death.\n\n# Nucleus\n\n- Contains the nucleolus\n- Surrounded by nuclear envelope\n\nLecture 3 notes: remember to read chapter 5 before Friday.\n\nATP is made mostly in mitochondria and is adenosine triphosphate.`);
+const dupe=note('Dupe',`# Mitochondria\n\nThe mitochondrion is the organelle that produces most of the cell's ATP.\n\n# Causes of WWI\n\nThe war began in 1914 after an assassination. Alliances turned a regional conflict into a world war.`);
+assert.equal(M.collect({notes:[prose,dupe]},{projectId:'p'}).length,0);   // plain paragraphs are never asked unprompted
+const drafts=M.suggestAll([prose,dupe],{notes:[prose,dupe]});
+const asked=drafts.map(d=>d.prompt||M.promptText(d));
+assert(!asked.some(p=>/\b(?:This|They|It)\b/.test(p)),'no pronoun subjects: '+asked);
+assert(!asked.some(p=>/key ideas|Lecture|Friday|chapter/i.test(p+JSON.stringify(drafts.map(d=>d.answer)))));
+assert.equal(asked.filter(p=>/mitochondri/i.test(p)).length,1,'same fact in two notes is asked once: '+asked);
+assert(asked.includes('What is the mitochondrion?'));assert(asked.includes('Explain Causes of WWI in your own words.'));
+assert(!drafts.some(d=>d.answer==='ATP is made mostly in mitochondria and is adenosine triphosphate.'));
+// Accepting a draft (or writing it by hand) silences repeats of the same fact
+const kept=drafts.map(d=>M.newItem(d));assert.equal(M.suggestAll([prose,dupe],{notes:[prose,dupe],items:kept}).length,0);
+const byHand=[M.newItem({type:'qa',prompt:'Which organelle makes ATP?',answer:'The mitochondrion is the organelle that produces most of the cell\'s ATP.',noteId:'Prose',projectId:'p'})];
+assert(!M.suggestAll([prose],{notes:[prose],items:byHand}).some(d=>/mitochondri/i.test(d.prompt)));
+// Lines set in columns are saved with ::: markers; they never leak into questions, and the sentences inside still count
+const cols=note('Cols',':::columns\n\n:::col\n\nThe **mitochondrion** is the organelle that produces most of the cell\'s ATP.\n\n:::col\n\nThe nucleus is a membrane-bound organelle that stores the cell\'s DNA.\n\n:::\n\nDone.');
+const colDrafts=M.suggestAll([cols],{notes:[cols]}),colAsked=colDrafts.map(d=>(d.prompt||M.promptText(d))+' '+d.answer);
+assert(colDrafts.length>=2&&!colAsked.some(t=>/:::/.test(t)),'no marker text in suggestions: '+colAsked);
+assert(colAsked.some(t=>/mitochondrion/.test(t))&&colAsked.some(t=>/nucleus/.test(t)),'both columns are read');
+// Questions a student wrote into the note still count
+assert.equal(M.collect({notes:[note('Q','Why does water move across a membrane?\nBecause of a concentration gradient across it.')]},{projectId:'p'}).length,1);
+console.log('PASS: markup items, stable ids, scoping, scheduler, queues, answer checking, multiple choice, suggestions, question quality, summary.');

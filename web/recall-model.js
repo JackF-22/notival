@@ -57,6 +57,8 @@ const RecallModel=(()=>{
    push({...item,origin:'made',projectId:owner,unitId:note?.unitId??item.unitId??null,answer:item.type==='cloze'?item.blank:item.answer});
   }
   for(const card of Knowledge.cards(scoped)){
+   // Only questions a person wrote. Cards auto-made from every paragraph were mostly noise, so they are no longer asked.
+   if(card.kind!=='authored'&&card.kind!=='question')continue;
    if(markupBlocks.has(card.blockId)&&card.kind!=='authored')continue;
    const note=all.find(n=>n.id===card.noteId);
    push({id:card.id,type:card.kind==='authored'||card.kind==='question'?'qa':'passage',prompt:state.reviewPrompts?.[card.id]||card.question,answer:card.answer,noteId:card.noteId,blockId:card.blockId,projectId:note?.projectId||null,unitId:note?.unitId||null,origin:card.kind==='authored'?'made':'legacy',kind:card.kind});
@@ -82,34 +84,77 @@ const RecallModel=(()=>{
  }
 
  // ── Suggestions: draft items from a note for the student to accept or edit ──
- function suggest(note,state={}){
-  const have=new Set(collectAll(state,{notes:[note]}).map(i=>i.id)),found=[],claimed=new Set();
-  let heading='',waiting=false;
+ // Precision over volume: a suggestion must stand on its own, read like a real question, and add something
+ // the student doesn't already have. One question per fact, however many ways the notes state it.
+ const OPENERS=/^(?:this|that|it|its|they|their|he|she|we|there|these|those|here|which|some|such|each|both|another|other|many|most|all|however|also|thus|therefore|so|but|and|or|then|for (?:example|instance)|in addition|moreover|finally|because|although|while|since|as|if|when)\b/i;
+ const CHORES=/\b(?:remember to|don'?t forget|todo|to-do|homework|assignment|deadline|due (?:on|by|date)|read (?:chapter|ch\.?|pages?)|office hours|e-?mail|submit|sign up)\b/i;
+ const GENERIC_HEADINGS=/^(?:notes?|summary|overview|intro(?:duction)?|review|key (?:terms|points|ideas|takeaways)|terms|vocab(?:ulary)?|questions?|examples?|agenda|todo|to-?do|homework|reading|references?|links?|misc(?:ellaneous)?|conclusion|recap|lecture \d+|week \d+|day \d+|untitled)$/i;
+ const SUBJECT_JUNK=/\b(?:that|which|who|because|when|if|why|how|what)\b|^(?:reason|way|fact|idea|result|main|key|first|second|third|number|type|kind|part|one|thing|point)\b/i;
+ // "X is made mostly in Y" states a fact about X; it doesn't define it.
+ const PREDICATE_JUNK=/^(?:\p{L}+(?:ed|ing)|not|also|often|usually|always|never|just|only|very|now|then|still|more|less|able|likely|made|done|seen|given|taken|known|shown|built|held|set|put|run|found)\b/iu;
+ const stem=w=>w.replace(/(?:ing|ed|es|s)$/,'');
+ const termSet=text=>new Set(Knowledge.terms(text).map(stem));
+ const dropArticle=t=>t.replace(/^(?:the|a|an)\s+/i,'');
+ // Is the shorter of two texts mostly contained in the other? (A sentence vs. the paragraph it came from.)
+ function overlaps(a,b){
+  if(!a.size||!b.size)return false;let shared=0;for(const w of a)if(b.has(w))shared++;
+  return shared/Math.min(a.size,b.size)>=.7&&shared>=2;
+ }
+ const sourceText=item=>item.type==='cloze'?item.text:item.type==='qa'?item.prompt+' '+item.answer:(item.answer||item.prompt);
+ const subjectKey=item=>item.type==='cloze'?normalize(item.blank):item.type==='explain'?normalize(item.prompt.replace(/^Explain\s+|\s+in your own words\.?$/gi,'')):normalize(dropArticle(item.prompt.replace(/^What (?:is|are)\s+|\?$/gi,'')));
+
+ function candidates(note){
+  const found=[];let heading='',waiting=false;
   for(const block of note.blocks||[]){
    if(block.type!=='text'||!block.text)continue;
    const base={noteId:note.id,blockId:block.id,projectId:note.projectId||null,unitId:note.unitId||null,origin:'made'};
-   const paragraphs=block.text.replace(/```[\s\S]*?```/g,'').split(/\n\s*\n/);
-   for(const raw of paragraphs){
+   for(const raw of block.text.replace(/```[\s\S]*?```/g,'').split(/\n\s*\n/)){
     const h=raw.match(/^#{1,6}\s+([^\n]+)/);
     if(h){heading=Knowledge.prose(h[1]);waiting=true}
-    const body=Knowledge.prose(raw.replace(/^#{1,6}[^\n]*\n?/,''));
-    if(waiting&&heading&&body.length>=70&&body.length<=1200){waiting=false;add({...base,type:'explain',prompt:'Explain '+heading.replace(/[?.:]+$/,'')+' in your own words.',answer:body,id:note.id+':'+block.id+':explain:'+hash(heading)},3)}
-    for(const sentence of sentences(raw.replace(/^#{1,6}[^\n]*\n?/,''))){
-     if(/^\s*Q(?:uestion)?\s*[:：]/i.test(sentence)||/\{\{/.test(sentence))continue;
-     const clean=Knowledge.prose(sentence);if(clean.length<35||clean.length>260)continue;
-     const bold=[...sentence.matchAll(/\*\*([^*]{2,60})\*\*/g)].map(m=>squash(m[1])).filter(w=>clean.includes(w));
-     const definition=clean.match(/^([\p{L}\d][\p{L}\d ()'-]{2,50}?)\s+(is defined as|refers to|is called|is|are)\s+(.{20,})$/u);
-     if(definition&&!/^(?:this|that|it|there|which|these|those|here)\b/i.test(definition[1])&&definition[1].split(' ').length<=6){
-      const verb=definition[2]==='are'?'are':'is',answer=definition[3].replace(/[.]+$/,'');
-      add({...base,type:'qa',prompt:'What '+verb+' '+definition[1]+'?',answer:definition[1]+' '+definition[2]+' '+answer+'.',id:note.id+':'+block.id+':qa:'+hash('What '+verb+' '+definition[1]+'?')},bold.length?4:2);
+    const rest=raw.replace(/^#{1,6}[^\n]*\n?/,''),body=Knowledge.prose(rest);
+    let covered=false;
+    if(!/^\s*(?:[-*+]\s+)?\[[ xX]\]/.test(rest))for(const sentence of sentences(rest)){
+     if(/^\s*(?:[-*+]\s+)?(?:\*\*)?Q(?:uestion)?(?:\*\*)?\s*[:：]/i.test(sentence)||/\{\{/.test(sentence))continue;
+     const clean=Knowledge.prose(sentence);
+     if(clean.length<35||clean.length>260||clean.split(' ').length<6||OPENERS.test(clean)||CHORES.test(clean))continue;
+     const bold=[...sentence.matchAll(/\*\*([^*]{3,60})\*\*/g)].map(m=>squash(m[1])).filter(w=>clean.includes(w)&&clean.split(w).length===2&&Knowledge.terms(w).length);
+     const m=clean.match(/^([\p{L}\d][\p{L}\d ()'-]{2,50}?)\s+(is defined as|refers to|is called|is|are)\s+(.{20,})$/u);
+     const subject=m&&dropArticle(m[1].trim()),usable=m&&subject.split(' ').length<=5&&Knowledge.terms(subject).length&&!SUBJECT_JUNK.test(subject)&&!OPENERS.test(subject)&&!PREDICATE_JUNK.test(m[3]);
+     if(usable){
+      const verb=m[2]==='are'?'are':'is',shown=/^(?:the|a|an)\s/i.test(m[1])?m[1].replace(/^(\w)/,c=>c.toLowerCase()):m[1],prompt='What '+verb+' '+shown+'?';
+      found.push({...base,type:'qa',prompt,answer:clean.replace(/[.]+$/,'')+'.',id:note.id+':'+block.id+':qa:'+hash(prompt),score:bold.length?5:4});covered=true;
+     }else if(bold.length){
+      const word=bold[0],mask=clean.replace(word,'\u0000');
+      found.push({...base,type:'cloze',text:clean,blank:word,hint:'',prompt:'',answer:word,id:note.id+':'+block.id+':cloze:'+hash(mask+'|'+word),score:3});covered=true;
      }
-     for(const word of bold.slice(0,2))if(!definition||!definition[1].includes(word)){const mask=clean.replace(word,'\u0000');add({...base,type:'cloze',text:clean,blank:word,hint:'',prompt:'',answer:word,id:note.id+':'+block.id+':cloze:'+hash(mask+'|'+word)},3)}
+    }
+    // A heading and its first paragraph make a good "explain it" prompt, unless a sharper question already covers that paragraph.
+    if(waiting&&heading&&body.length>=70&&body.length<=1200){
+     waiting=false;
+     const topic=heading.replace(/[?.:]+$/,'');
+     if(!covered&&!GENERIC_HEADINGS.test(topic)&&Knowledge.terms(topic).length&&!/^\s*(?:[-*+]|\d+[.)])\s/.test(rest)&&sentences(rest).length>=2){
+      found.push({...base,type:'explain',prompt:/\?$/.test(heading)?heading:'Explain '+topic+' in your own words.',answer:body,id:note.id+':'+block.id+':explain:'+hash(heading),score:2});
+     }
     }
    }
   }
-  function add(item,score){if(have.has(item.id)||claimed.has(item.id))return;claimed.add(item.id);found.push({...item,score})}
-  return found.sort((a,b)=>b.score-a.score).slice(0,16);
+  return found;
  }
+ // Best-first; a candidate is dropped when it repeats an earlier pick or something the student already has.
+ function pick(list,existing,limit){
+  const kept=[],seenKeys=new Set(existing.map(subjectKey)),seenText=existing.map(i=>termSet(sourceText(i)));
+  for(const item of list.slice().sort((a,b)=>b.score-a.score)){
+   const key=subjectKey(item),text=termSet(sourceText(item));
+   if(seenKeys.has(key)||seenText.some(t=>overlaps(t,text)))continue;
+   seenKeys.add(key);seenText.push(text);kept.push(item);if(kept.length>=limit)break;
+  }
+  return kept;
+ }
+ function suggestAll(notes,state={},limit=24){
+  const existing=collectAll(state,{notes}),have=new Set(existing.map(i=>i.id));
+  return pick(notes.flatMap(candidates).filter(c=>!have.has(c.id)),existing,limit);
+ }
+ const suggest=(note,state={},limit=8)=>suggestAll([note],state,limit);
 
  // ── Scheduling (SM-2 family) ────────────────────────────────────────────────
  // Review state per item: {due, interval (days), ease, reps, lapses, reviewedAt, rating}. Older records lack ease/reps.
@@ -219,5 +264,5 @@ const RecallModel=(()=>{
   return {total:results.length,correct,pct:results.length?Math.round(correct/results.length*100):0,missed:results.filter(r=>r.rating==='Again').map(r=>r.item),restudy:[...byNote].map(([noteId,count])=>({noteId,count})).sort((a,b)=>b.count-a.count)};
  }
 
- return {parseMarkup,noteItems,collect,collectAll,clozeParts,promptText,newItem,validItem,suggest,schedule,preview,retrievability,status,isDue,queue,stats,weakTopics,logReview,reviewedToday,check,checkable,suggestedGrade,coverage,distractors,format,summarize,normalize,sentences,GRADES};
+ return {parseMarkup,noteItems,collect,collectAll,clozeParts,promptText,newItem,validItem,suggest,suggestAll,schedule,preview,retrievability,status,isDue,queue,stats,weakTopics,logReview,reviewedToday,check,checkable,suggestedGrade,coverage,distractors,format,summarize,normalize,sentences,GRADES};
 })();

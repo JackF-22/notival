@@ -1,0 +1,23 @@
+/* Lines in columns, inside a text cell. */
+.rich-text .cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 38px;margin:6px 0;align-items:start}
+.rich-text .cols[data-n="3"]{grid-template-columns:repeat(3,minmax(0,1fr))}
+.rich-text .cols>.col{min-width:0;position:relative}
+.rich-text .cols>.col>:first-child{margin-top:0}
+.rich-text .cols>.col>:last-child{margin-bottom:0}
+/* a faint rule between columns, a little stronger while you are working in them */
+.rich-text .cols>.col+.col::before{content:"";position:absolute;left:-19px;top:3px;bottom:3px;border-left:1px solid color-mix(in srgb,var(--line,#ddd) 55%,transparent);transition:border-color .15s}
+.rich-text .cols:hover>.col+.col::before,.rich-text .cols:focus-within>.col+.col::before{border-left-color:var(--line,#ddd)}
+@media (max-width:640px){.rich-text .cols,.rich-text .cols[data-n="3"]{grid-template-columns:minmax(0,1fr)}.rich-text .cols>.col+.col::before{display:none}}
+
+/* The handle can be grabbed. */
+#block-handle{touch-action:none}
+body.line-dragging,body.line-dragging *{cursor:grabbing!important;user-select:none!important}
+.line-moving{opacity:.35}
+.line-ghost{position:fixed;z-index:1050;max-width:280px;padding:5px 10px;border-radius:8px;background:var(--bg,#fff);border:1px solid var(--accent);color:var(--ink,#333);font-size:13px;box-shadow:0 6px 20px #0003;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.line-drop{position:fixed;z-index:1049;border-radius:3px;background:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 20%,transparent);pointer-events:none}
+.line-drop.is-refused{background:#d4584a;box-shadow:0 0 0 3px #d4584a33}
+.line-drop.is-refused::after{content:attr(data-note);position:absolute;left:0;top:8px;white-space:nowrap;padding:3px 8px;border-radius:6px;background:#d4584a;color:#fff;font-size:12px}
+.block-menu-rule{height:1px;margin:5px 8px;background:var(--line,#ddd)}
+
+/* Pointing at a line's handle shows what travels with it: the line and the bullets right under it. */
+.rich-text .line-with{background:color-mix(in srgb,var(--accent) 9%,transparent);border-radius:4px;box-shadow:-6px 0 0 color-mix(in srgb,var(--accent) 9%,transparent),6px 0 0 color-mix(in srgb,var(--accent) 9%,transparent)}

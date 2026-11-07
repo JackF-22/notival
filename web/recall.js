@@ -258,9 +258,9 @@
  // ── Suggestions ─────────────────────────────────────────────────────────────
  function suggestions(){
   const notes=ctx.notes||state.notes.filter(n=>(!ctx.project||n.projectId===ctx.project.id)&&(!ctx.unitId||n.unitId===ctx.unitId));
-  const found=notes.flatMap(n=>M.suggest(n,state).map(s=>({...s,note:n}))).slice(0,40);
+  const byId=new Map(notes.map(n=>[n.id,n])),found=M.suggestAll(notes,state).map(s=>({...s,note:byId.get(s.noteId)}));
   frame('Suggested questions','Drafted from your notes — keep the good ones',()=>hub());
-  if(!found.length){dialog.append(el('p','Nothing obvious to ask about yet. Questions are drafted from bold terms, “X is …” definitions, and headings followed by an explanation.','recall-note'),btn('Back',()=>hub()));return}
+  if(!found.length){dialog.append(el('p','Nothing clear enough to turn into a question yet. Suggestions come from bold terms, plain “X is …” definitions, and headings followed by an explanation, and skip anything you already have a question for.','recall-note'),btn('Back',()=>hub()));return}
   dialog.append(el('p','Reword anything you like before adding. Writing the question yourself is half the learning.','recall-note'));
   const list=el('div',undefined,'recall-suggestions'),rows=[];dialog.append(list);
   const add=btn('',()=>{

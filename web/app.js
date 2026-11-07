@@ -61,7 +61,7 @@ function removeBlock(note,block){
  queueMicrotask(focusEnd);
  offerUndo('Cell deleted',()=>{note.blocks.splice(index,0,block);persist();render();$('#editor').children[index]?.querySelector('.rich-text,textarea')?.focus()});
 }
-function render(){RichEditor.reset();list();const n=current();$('article').hidden=!n;$('#pin').disabled=$('#delete').disabled=!n;if(!n)return;$('#title').value=n.title;$('#crumb').textContent=n.title||'Untitled thought';$('#date').textContent=new Date(n.updated).toLocaleDateString(undefined,{month:'long',day:'numeric'});$('#pin').textContent=n.pinned?'★':'☆';$('#pin').title=n.pinned?'Unstar this note':'Star this note';$('#pin').setAttribute('aria-label',$('#pin').title);$('#pin').setAttribute('aria-pressed',String(!!n.pinned));$('#pin').setAttribute('aria-pressed',String(!!n.pinned));words();renderPDFStatus(n);$('#editor').replaceChildren();n.blocks.forEach(block=>{const wrap=document.createElement('section');wrap.className='block '+(block.type==='code'?'code':'')+(block.pdfRef?' pdf-note':'');const tools=document.createElement('div');tools.className='block-tools';if(block.type==='code'){const lang=document.createElement('select');lang.setAttribute('aria-label','Code language');for(const language of ['javascript','typescript','python','swift','html','css','shell','text']){const option=document.createElement('option');option.value=option.textContent=language;lang.append(option)}if(![...lang.options].some(o=>o.value===block.language)){const option=document.createElement('option');option.value=option.textContent=block.language;lang.append(option)}lang.value=block.language;lang.onchange=()=>{block.language=lang.value;persist();render()};tools.append(lang);const copy=document.createElement('button');copy.textContent='Copy';copy.onclick=async()=>{if(bridge)bridge.postMessage({type:'copy',text:block.text});else try{await navigator.clipboard.writeText(block.text);toast('Snippet copied')}catch{toast('Select the snippet and copy it manually.')}};tools.append(copy);labTools(tools,block,n)}const remove=document.createElement('button');remove.textContent='✕  Delete cell';remove.className='remove';remove.title='Delete cell (⌘⌫)';remove.setAttribute('aria-label','Delete cell');remove.setAttribute('aria-keyshortcuts','Meta+Backspace');remove.onclick=()=>removeBlock(n,block);tools.append(remove);if(block.type==='code'){
+function render(){RichEditor.reset();list();const n=current();$('article').hidden=!n;$('#pin').disabled=$('#delete').disabled=!n;if(!n)return;$('#title').value=n.title;$('#crumb').textContent=n.title||'Untitled thought';$('#date').textContent=new Date(n.updated).toLocaleDateString(undefined,{month:'long',day:'numeric'});$('#pin').textContent=n.pinned?'★':'☆';$('#pin').title=n.pinned?'Unstar this note':'Star this note';$('#pin').setAttribute('aria-label',$('#pin').title);$('#pin').setAttribute('aria-pressed',String(!!n.pinned));$('#pin').setAttribute('aria-pressed',String(!!n.pinned));words();renderPDFStatus(n);$('#editor').replaceChildren();LayoutModel.tidy(n.blocks,uid);const rowSize=new Map();for(const b of n.blocks)if(b.row)rowSize.set(b.row,(rowSize.get(b.row)||0)+1);let rowBox=null,rowKey=null;n.blocks.forEach(block=>{const wrap=document.createElement('section');wrap.className='block '+(block.type==='code'?'code':'')+(block.pdfRef?' pdf-note':'');const tools=document.createElement('div');tools.className='block-tools';if(block.type==='code'){const lang=document.createElement('select');lang.setAttribute('aria-label','Code language');for(const language of ['javascript','typescript','python','swift','html','css','shell','text']){const option=document.createElement('option');option.value=option.textContent=language;lang.append(option)}if(![...lang.options].some(o=>o.value===block.language)){const option=document.createElement('option');option.value=option.textContent=block.language;lang.append(option)}lang.value=block.language;lang.onchange=()=>{block.language=lang.value;persist();render()};tools.append(lang);const copy=document.createElement('button');copy.textContent='Copy';copy.onclick=async()=>{if(bridge)bridge.postMessage({type:'copy',text:block.text});else try{await navigator.clipboard.writeText(block.text);toast('Snippet copied')}catch{toast('Select the snippet and copy it manually.')}};tools.append(copy);labTools(tools,block,n)}const remove=document.createElement('button');remove.textContent='✕  Delete cell';remove.className='remove';remove.title='Delete cell (⌘⌫)';remove.setAttribute('aria-label','Delete cell');remove.setAttribute('aria-keyshortcuts','Meta+Backspace');remove.onclick=()=>removeBlock(n,block);tools.append(LayoutDrag.grip(n,block),sideControl(n,block));tools.append(remove);if(block.type==='code'){
  const input=document.createElement('textarea');input.value=block.text;input.setAttribute('aria-label','Code snippet');input.spellcheck=false;
  const size=()=>{input.style.height='auto';input.style.height=Math.max(130,input.scrollHeight)+'px'};
  input.oninput=()=>{block.text=input.value;size();words();persist();refreshResults()};
@@ -71,7 +71,26 @@ function render(){RichEditor.reset();list();const n=current();$('article').hidde
  wrap.append(tools);RichEditor.mount(block,wrap,()=>{words();persist();});
 }
 if(block.source){const source=document.createElement('div');source.className='source';const reveal=document.createElement('button');reveal.textContent=block.source.name+':'+(block.source.start+1)+' ↗';reveal.onclick=()=>native({type:'reveal',source:block.source});const comment=document.createElement('button');comment.textContent='Comment in VS Code';comment.onclick=()=>{const text=prompt('Comment on these lines:');if(text)native({type:'comment',source:block.source,text})};source.append(reveal,comment);wrap.append(source)}
-if(block.pdfRef){const source=document.createElement('div');source.className='pdf-reference';if(block.pdfRef.quote&&!block.text.trim().startsWith('>')){const excerpt=document.createElement('q');excerpt.textContent=block.pdfRef.quote;excerpt.title=block.pdfRef.quote;source.append(excerpt)}const jump=document.createElement('button');jump.textContent=`▧ ${block.pdfRef.name} · page ${block.pdfRef.page} ↗`;jump.title='Jump to this passage in the PDF';jump.onclick=()=>{openPDFPath=block.pdfRef.path;native({type:'jumpPDF',path:block.pdfRef.path,page:block.pdfRef.page,bounds:block.pdfRef.bounds});renderPDFStatus(n)};source.append(jump);wrap.append(source)}$('#editor').append(wrap)});setMode(mode)}
+if(block.pdfRef){const source=document.createElement('div');source.className='pdf-reference';if(block.pdfRef.quote&&!block.text.trim().startsWith('>')){const excerpt=document.createElement('q');excerpt.textContent=block.pdfRef.quote;excerpt.title=block.pdfRef.quote;source.append(excerpt)}const jump=document.createElement('button');jump.textContent=`▧ ${block.pdfRef.name} · page ${block.pdfRef.page} ↗`;jump.title='Jump to this passage in the PDF';jump.onclick=()=>{openPDFPath=block.pdfRef.path;native({type:'jumpPDF',path:block.pdfRef.path,page:block.pdfRef.page,bounds:block.pdfRef.bounds});renderPDFStatus(n)};source.append(jump);wrap.append(source)}
+if(block.row&&rowSize.get(block.row)>1){if(block.row!==rowKey){rowBox=document.createElement('div');rowBox.className='block-row';rowBox.style.setProperty('--cols',String(Math.min(3,rowSize.get(block.row))));rowKey=block.row;$('#editor').append(rowBox)}rowBox.append(wrap)}else{rowBox=null;rowKey=null;$('#editor').append(wrap)}});setMode(mode)}
+// Cells can sit side by side (see layout-model.js). This is the click alternative to dragging a cell by its grip.
+function sideControl(n,block){
+ const button=document.createElement('button'),row=LayoutModel.rowOf(n.blocks,block.id),together=row.cells.length>1;
+ button.className='beside';
+ if(together){
+  button.textContent='▤  Stack';button.title='Move this cell out of the row, back to full width';
+  button.onclick=()=>{LayoutModel.move(n.blocks,block.id,row.cells.find(b=>b.id!==block.id).id,'below',uid);persist();render()};
+ }else{
+  const before=n.blocks[n.blocks.indexOf(block)-1];
+  button.textContent='◫  Beside previous';button.title='Put this cell next to the cell above it';button.disabled=!before;
+  button.onclick=()=>{
+   const out=LayoutModel.move(n.blocks,block.id,before.id,'right',uid);
+   if(!out.ok){toast('A row holds up to '+LayoutModel.MAX_COLUMNS+' cells.');return}
+   persist();render();
+  };
+ }
+ button.setAttribute('aria-label',button.title);return button;
+}
 function native(message){if(bridge)bridge.postMessage(message);else toast('This action is available in the desktop app.')}
 function setMode(next){mode=next;$('#editor').hidden=mode!=='write';$('#run-all').hidden=mode!=='write'||!current()?.blocks.some(b=>b.type==='code'&&b.language==='javascript');$('#add-bar').hidden=mode!=='write';$('#format-bar').hidden=mode!=='write';$('#map').hidden=mode!=='map';$('#write-tab').classList.toggle('selected',mode==='write');$('#map-tab').classList.toggle('selected',mode==='map');renderLinks();if(mode==='map')drawMap()}
 function renderLinks(){
@@ -84,12 +103,15 @@ function renderLinks(){
 function renderPDFStatus(note){
  requestAnimationFrame(renderNoteRail);
  const bar=$('#pdf-status');bar.replaceChildren();bar.hidden=!note.pdfPath;
- if(!note.pdfPath){if(openPDFPath){native({type:'closePDF'});openPDFPath=null}return}
+ const attachMaterial=m=>{if(/\.pdf$/i.test(m.name)){note.pdfPath=m.path;note.pdfName=m.name;if(bridge){native({type:'showPDF',path:m.path});openPDFPath=m.path;collapseSidebarForPDF()}}else{note.linkedFiles=[...(note.linkedFiles||[]),m.path];note.linkedFileNames={...(note.linkedFileNames||{}),[m.path]:m.name}}persist();render()};
+ const picker=window.marginNoteMaterialPicker?.(note,attachMaterial);
+ if(picker){bar.hidden=false;0}else bar.classList.remove('picker-only');
+ if(!note.pdfPath){if(picker)bar.append(picker);if(openPDFPath){native({type:'closePDF'});openPDFPath=null}return}
  if(openPDFPath&&openPDFPath!==note.pdfPath){native({type:'showPDF',path:note.pdfPath});openPDFPath=note.pdfPath;collapseSidebarForPDF()}
  const label=document.createElement('span');label.textContent=`▧ ${note.pdfName||note.pdfPath.split('/').pop()}`;
  const open=document.createElement('button');open.textContent=openPDFPath===note.pdfPath?'PDF open':'Open beside note';open.onclick=()=>{native({type:'showPDF',path:note.pdfPath});openPDFPath=note.pdfPath;collapseSidebarForPDF();renderPDFStatus(note)};
  const detach=document.createElement('button');detach.textContent='Detach';detach.onclick=()=>{note.pdfPath=null;note.pdfName=null;if(openPDFPath){native({type:'closePDF'});openPDFPath=null}persist();render()};
- bar.append(label,open);const unitPDF=window.marginNotePDFControl?.(note,()=>renderPDFStatus(note));if(unitPDF)bar.append(unitPDF);bar.append(detach);
+ bar.append(label,open);const unitPDF=window.marginNotePDFControl?.(note,()=>renderPDFStatus(note));if(unitPDF)bar.append(unitPDF);bar.append(detach);if(picker)bar.append(picker);
  renderPDFSelection();
  if(bridge&&openPDFPath===note.pdfPath)syncPDFHighlights(note);
 }
@@ -171,14 +193,14 @@ function repairLatex(source){
 }
 function latexRenders(source,display=true){
  if(typeof katex==='undefined')return true;
- try{katex.renderToString(source,{displayMode:display,throwOnError:true,trust:false,maxExpand:1000,maxSize:20});return true}catch{return false}
+ try{katex.renderToString(MathSyntax.katexSource(source),{displayMode:display,throwOnError:true,trust:false,maxExpand:1000,maxSize:20});return true}catch{return false}
 }
 // An equation traced out of the PDF arrives as LaTeX, opened in the live equation editor to check and accept.
 window.marginPDFEquation=async data=>{
  const note=current();if(!note)return;
  if(typeof data?.latex==='string'&&data.latex.trim()){
   // Take the first reading that renders (after repair); otherwise repair the best one and let the writer fix the rest.
-  const readings=[...new Set([data.latex,...(Array.isArray(data.candidates)?data.candidates:[])].map(text=>String(text).trim()).filter(Boolean))];
+  const readings=[...new Set([data.latex,...(Array.isArray(data.candidates)?data.candidates:[])].map(text=>MathSyntax.tidyLatex(String(text).trim())).filter(Boolean))];
   let best=null;
   for(const reading of readings){const repaired=repairLatex(reading);if(latexRenders(repaired,!data.inline)){best=repaired;break}}
   const renders=!!best;if(!best)best=repairLatex(readings[0]);

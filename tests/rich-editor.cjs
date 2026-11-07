@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 
 let range;
 const context={document:{addEventListener(){}},Node:{TEXT_NODE:3,ELEMENT_NODE:1},window:{getSelection:()=>({rangeCount:1,getRangeAt:()=>range})}};
-const editor = runInNewContext(readFileSync('web/rich-editor.js','utf8')+'\nRichEditor',context);
+const editor = runInNewContext(readFileSync('web/math-syntax.js','utf8')+'\n'+readFileSync('web/rich-editor.js','utf8')+'\nRichEditor',context);
 const imported = editor.fromMarkdown('# **Biology**\n\n- [ ] Review\n\n| Name | Value |\n| --- | --- |\n| Alpha | Beta |\n\n$$\nx^2 + y^2\n$$');
 assert.match(imported, /<h1><strong>Biology<\/strong><\/h1>/);
 assert.match(imported, /class="task-row"/);

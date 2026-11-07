@@ -2,6 +2,22 @@
 (() => {
  const editor=document.querySelector('#editor'),scroller=document.querySelector('article');
  const bar=document.querySelector('#format-bar'),ns='http://www.w3.org/2000/svg';
+ // Connection colours follow the person's palette and day/night mode. The passage being pointed at gets a partner
+ // colour, teal or amber, whichever sits further from the palette so the two never look alike.
+ const swatch=document.createElement('span');swatch.style.cssText='position:absolute;visibility:hidden;pointer-events:none';
+ const hueOf=([r,g,b])=>{r/=255;g/=255;b/=255;const max=Math.max(r,g,b),d=max-Math.min(r,g,b);if(!d)return 0;const h=max===r?((g-b)/d+(g<b?6:0)):max===g?(b-r)/d+2:(r-g)/d+4;return h*60};
+ const hueGap=(a,b)=>{const d=Math.abs(a-b)%360;return d>180?360-d:d};
+ function colors(){
+  if(!swatch.isConnected)document.body.append(swatch);
+  swatch.style.color='var(--green)';
+  const raw=getComputedStyle(swatch).color,found=(raw.match(/-?[\d.]+/g)||[]).slice(0,3).map(Number);
+  const rgb=found.length===3?found.map(n=>/^color\(/.test(raw)?Math.round(n*255):Math.round(n)):[99,90,214];
+  const partnerRgb=[[18,191,164],[227,154,27]].sort((a,b)=>hueGap(hueOf(b),hueOf(rgb))-hueGap(hueOf(a),hueOf(rgb)))[0];
+  const tone=(c,alpha)=>alpha==null?`rgb(${c.join()})`:`rgba(${c.join()},${alpha})`;
+  document.documentElement.style.setProperty('--accent-partner',tone(partnerRgb));   // so the dialog's "to" marker matches the canvas
+  return {accent:tone(rgb),fill:tone(rgb,.16),glow:tone(rgb,.19),partner:tone(partnerRgb),partnerFill:tone(partnerRgb,.16)};
+ }
+ window.marginConnectionColors=colors;
  const toggle=document.createElement('button');
  toggle.id='connect-passages';toggle.textContent='Connect';toggle.title='Connect passages: draw a line between two parts of this note';toggle.setAttribute('aria-pressed','false');
  toggle.title='Draw between text lines, images, equations or cells · Escape exits';bar.append(toggle);
@@ -77,7 +93,7 @@
   if(!dirty&&cacheScroll===scroller.scrollTop)return;
   targets=[];cacheScroll=scroller.scrollTop;dirty=false;
   const note=current();if(!note)return;
-  [...editor.children].forEach((wrap,index)=>{
+  [...editor.querySelectorAll(".block")].forEach((wrap,index)=>{
    const block=note.blocks[index];if(!block)return;
    const rich=wrap.querySelector('.rich-text');
    if(!rich){const el=wrap.querySelector('textarea');if(el&&el.value.trim())targets.push({el,block,text:el.value.trim(),kind:'Code'});return}
@@ -130,21 +146,22 @@
   const ratio=devicePixelRatio||1;ctx.setTransform(ratio,0,0,ratio,0,0);ctx.clearRect(0,0,canvas.width/ratio,canvas.height/ratio);
   if(!enabled)return;
   // Outline the glyphs' own boxes (one per line) rather than a padded block, so long lines never reach past the text.
-  function highlight(item,color){
+  const c=colors();
+  function highlight(item,color,fill){
    if(!item)return;
    const rects=item.range?[...item.range.getClientRects()].filter(r=>r.width>0&&r.height>0):[bounds(item)];
-   ctx.fillStyle=color+'28';ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.lineJoin='round';
+   ctx.fillStyle=fill;ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.lineJoin='round';
    for(const r of rects){const x=r.left-area.left-1,y=r.top-area.top-0.5,w=r.width+2,h=r.height+1;ctx.beginPath();ctx.roundRect?ctx.roundRect(x,y,w,h,3):ctx.rect(x,y,w,h);ctx.fill();ctx.stroke()}
   }
-  highlight(source,'#986cff');if(!same(source,hover))highlight(hover,'#12bfa4');
+  highlight(source,c.accent,c.fill);if(!same(source,hover))highlight(hover,c.partner,c.partnerFill);
   let line=points.map(p=>({x:p.x-area.left,y:p.y-scroller.scrollTop-area.top}));
   if(source&&pointer&&!drag){const r=bounds(source);line=[{x:r.left-area.left+Math.min(r.width/2,16),y:Math.max(9,Math.min(area.height-9,r.top+r.height/2-area.top))},{x:pointer.x-area.left,y:pointer.y-area.top}]}
   if(line.length){
    ctx.beginPath();ctx.moveTo(line[0].x,line[0].y);for(const p of line.slice(1))ctx.lineTo(p.x,p.y);
-   ctx.lineWidth=8;ctx.strokeStyle='#986cff30';ctx.lineCap=ctx.lineJoin='round';ctx.stroke();ctx.lineWidth=3.5;ctx.strokeStyle='#986cff';ctx.stroke();
-   for(const p of [line[0],line[line.length-1]]){ctx.beginPath();ctx.arc(p.x,p.y,5,0,Math.PI*2);ctx.fillStyle='#986cff';ctx.fill()}
+   ctx.lineWidth=8;ctx.strokeStyle=c.glow;ctx.lineCap=ctx.lineJoin='round';ctx.stroke();ctx.lineWidth=3.5;ctx.strokeStyle=c.accent;ctx.stroke();
+   for(const p of [line[0],line[line.length-1]]){ctx.beginPath();ctx.arc(p.x,p.y,5,0,Math.PI*2);ctx.fillStyle=c.accent;ctx.fill()}
   }
-  if(pointer){const x=pointer.x-area.left,y=pointer.y-area.top;ctx.beginPath();ctx.arc(x,y,hover?10:7,0,Math.PI*2);ctx.strokeStyle=hover?'#12bfa4':'#986cff';ctx.lineWidth=2;ctx.stroke();ctx.fillStyle='#986cff';ctx.fillRect(x-2,y-2,4,4)}
+  if(pointer){const x=pointer.x-area.left,y=pointer.y-area.top;ctx.beginPath();ctx.arc(x,y,hover?10:7,0,Math.PI*2);ctx.strokeStyle=hover?c.partner:c.accent;ctx.lineWidth=2;ctx.stroke();ctx.fillStyle=c.accent;ctx.fillRect(x-2,y-2,4,4)}
  }
  function move(x,y){
   pointer={x,y};hover=nearby(x,y);
@@ -228,7 +245,7 @@
  };
  editor.addEventListener('input',()=>{
   const seen=new Set();for(const el of editor.querySelectorAll('[data-passage-id]')){if(seen.has(el.dataset.passageId))el.dataset.passageId=uid();seen.add(el.dataset.passageId)}
-  const note=current();if(note)[...editor.children].forEach((wrap,i)=>{const rich=wrap.querySelector('.rich-text');if(rich&&note.blocks[i])note.blocks[i].html=RichEditor.cleanHTML(rich.innerHTML)});
+  const note=current();if(note)[...editor.querySelectorAll(".block")].forEach((wrap,i)=>{const rich=wrap.querySelector('.rich-text');if(rich&&note.blocks[i])note.blocks[i].html=RichEditor.cleanHTML(rich.innerHTML)});
  });
  const baseRender=render;render=function(...args){enable(false);return baseRender(...args)};
  const baseMode=setMode;setMode=function(next){if(next!=='write'&&enabled)enable(false);return baseMode(next)};
@@ -459,7 +476,7 @@
    const route=document.createElement('strong');route.textContent=nodeText(note,link.from)+'  →  '+nodeText(note,link.to);
    const body=document.createElement('div');body.className='connection-card-body';
    body.innerHTML=RichEditor.cleanHTML(link.html||RichEditor.fromMarkdown(link.label));
-   if(typeof katex!=='undefined')for(const item of body.querySelectorAll('.equation')){try{katex.render(item.dataset.equation||'',item,{displayMode:item.classList.contains('display-equation'),throwOnError:false,trust:false})}catch{}}
+   if(typeof katex!=='undefined')for(const item of body.querySelectorAll('.equation')){try{katex.render(MathSyntax.katexSource(item.dataset.equation||''),item,{displayMode:item.classList.contains('display-equation'),throwOnError:false,trust:false})}catch{}}
    card.append(route,body);list.append(card);
   }
  }

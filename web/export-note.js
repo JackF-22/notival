@@ -18,6 +18,8 @@
   code{font-family:Menlo,Monaco,Courier,monospace;font-size:.9em}
   .task-row{margin:0 0 3pt}
   .display-equation{margin:8pt 0;text-align:center}
+  .procedure{margin:10pt 0;font:11pt/1.5 'Times New Roman',Times,serif;border-top:1.6pt solid #000;border-bottom:.8pt solid #000;page-break-inside:avoid}.procedure b{font-weight:700}.procedure .proc-title{padding:2pt 0 3pt;border-bottom:.6pt solid #000}.procedure .proc-head{padding:4pt 0 2pt}.procedure .proc-body{padding:3pt 0 5pt}.procedure .proc-block{margin-left:5pt;padding-left:13pt;border-left:.6pt solid #000}.procedure .proc-comment{font:9pt/1.4 Menlo,Courier,monospace;margin-left:4pt}.procedure .proc-no{display:inline-block;width:16pt;color:#666;font-size:8.5pt}.procedure .proc-edit{display:none}
+  .cols{display:flex;gap:22pt;margin:6pt 0;align-items:flex-start}.cols>.col{flex:1 1 0;min-width:0}.cols>.col>:first-child{margin-top:0}.cols>.col>:last-child{margin-bottom:0}
   .cell{margin:0 0 10pt}
   .cell.pdf-note{padding-left:10pt;border-left:2.5pt solid #b8aef0}
   h1.guide-note-title{margin:30pt 0 8pt;padding-top:14pt;border-top:1pt solid #c9ccd6;font-size:19pt}
@@ -25,6 +27,7 @@
   .source{margin:0 0 6pt;color:#6b7080;font:9pt -apple-system,"Helvetica Neue",Helvetica,Arial,sans-serif}
  `;
  // One block of the note, cleaned up for reading rather than editing.
+ let procedures=0;   // "Algorithm 1, 2, …" run through the whole note
  function cell(block,format){
   if(block.type==='code'){
    const pre=document.createElement('pre');pre.textContent=block.text||'';
@@ -35,9 +38,13 @@
   box.querySelectorAll('.equation').forEach(item=>{
    const source=item.dataset.equation||'',display=item.classList.contains('display-equation');
    if(format==='pdf'&&typeof katex!=='undefined'){
-    try{item.innerHTML=katex.renderToString(source,{displayMode:display,throwOnError:false,trust:false,output:'html'});return}catch{}
+    try{item.innerHTML=katex.renderToString(MathSyntax.katexSource(source),{displayMode:display,throwOnError:false,trust:false,output:'html'});return}catch{}
    }
    item.textContent=display?source:source;item.style.fontStyle='italic';
+  });
+  box.querySelectorAll('.procedure').forEach(item=>{
+   procedures++;item.removeAttribute('contenteditable');
+   item.innerHTML=ProcedureModel.html(item.dataset.procedure||'',{number:procedures,numbered:item.dataset.numbered==='1',katex:typeof katex!=='undefined'?katex:null});
   });
   box.querySelectorAll('.task-row').forEach(row=>{
    const done=row.dataset.task==='done'||!!row.querySelector('input:checked');
@@ -52,7 +59,7 @@
   const date=new Date(note.updated||Date.now()).toLocaleDateString(undefined,{year:'numeric',month:'long',day:'numeric'});
   const meta=[project?.name,date].filter(Boolean).join('  ·  ');
   const body=document.createElement('div');
-  note.blocks.forEach(block=>body.append(cell(block,format)));
+  procedures=0;note.blocks.forEach(block=>body.append(cell(block,format)));
   const title=note.title?.trim()||'Untitled note';
   const katexCSS=format==='pdf'?'<link rel="stylesheet" href="math/katex.min.css">':'';
   return {title,html:`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title>${katexCSS}<style>${css}</style></head><body><header class="note-head"><h1 class="note-title">${esc(title)}</h1><p class="note-meta">${esc(meta)}</p></header>${body.innerHTML}</body></html>`};
@@ -62,7 +69,7 @@
   const body=document.createElement('div');
   for(const note of notes){
    const heading=document.createElement('h1');heading.className='guide-note-title';heading.textContent=note.title?.trim()||'Untitled note';body.append(heading);
-   note.blocks.forEach(block=>body.append(cell(block,'pdf')));
+   procedures=0;note.blocks.forEach(block=>body.append(cell(block,'pdf')));
   }
   const list=pdfNames.length?`<h2>Attached PDFs</h2><ul class="guide-pdfs">${pdfNames.map(name=>`<li>${esc(name)}</li>`).join('')}</ul>`:'';
   const name=title?.trim()||'Study guide';

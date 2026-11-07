@@ -8,6 +8,7 @@
    const source=item.dataset.equation||'';
    item.replaceWith(document.createTextNode(item.classList.contains('display-equation')?`\n$$ ${source} $$\n`:`$${source}$`));
   });
+  copy.querySelectorAll('.procedure').forEach(item=>item.replaceWith(document.createTextNode('\n'+(item.dataset.procedure||'')+'\n')));
   copy.querySelectorAll('input').forEach(item=>item.remove());
   copy.querySelectorAll('li').forEach(item=>{const depth=[...(function*(n){for(;n&&n!==copy;n=n.parentElement)if(n.tagName==='UL'||n.tagName==='OL')yield n})(item.parentElement)].length;item.prepend(document.createTextNode('  '.repeat(Math.max(0,depth-1))+(item.parentElement.tagName==='OL'?(Array.prototype.indexOf.call(item.parentElement.children,item)+1)+'. ':'• ')))});
   copy.querySelectorAll('li>ul,li>ol').forEach(list=>list.prepend('\n'));
