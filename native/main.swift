@@ -246,7 +246,7 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
   split.addArrangedSubview(pdfPane); split.addArrangedSubview(web); pdfPane.isHidden = true
   window = NSWindow(contentRect: NSRect(x: 0,y: 0,width: 1120,height: 790),styleMask: [.titled,.closable,.miniaturizable,.resizable],backing: .buffered,defer: false)
   window.acceptsMouseMovedEvents = true
-  window.title = "Notival"; window.minSize = NSSize(width: 720,height: 520); window.contentView = split; window.center(); window.setFrameAutosaveName("MarginMain"); window.isReleasedWhenClosed = false
+  window.title = "Notival"; window.minSize = NSSize(width: 720,height: 520); window.contentView = split; window.center(); window.setFrameAutosaveName("MarginMain"); window.isReleasedWhenClosed = false; window.collectionBehavior.insert(.fullScreenPrimary)
   let url = Bundle.main.resourceURL!.appendingPathComponent("web/index.html")
   web.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent()); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
   registerQuickNoteKey()
@@ -322,6 +322,10 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
   // Class mode needs to know whether Notival itself is the active app, so reading the PDF pane doesn't look like leaving.
   for (name,active) in [(NSApplication.didBecomeActiveNotification,true),(NSApplication.didResignActiveNotification,false)] {
    NotificationCenter.default.addObserver(forName:name,object:nil,queue:.main){[weak self] _ in self?.web.evaluateJavaScript("window.notivalAppActive&&window.notivalAppActive(\(active))",completionHandler:nil)}
+  }
+  // ...and whether the window is full screen, which can also change by the person's own hand (Esc, ⌃⌘F).
+  for (name,on) in [(NSWindow.didEnterFullScreenNotification,true),(NSWindow.didExitFullScreenNotification,false)] {
+   NotificationCenter.default.addObserver(forName:name,object:nil,queue:.main){[weak self] _ in self?.web.evaluateJavaScript("window.notivalFullscreen&&window.notivalFullscreen(\(on))",completionHandler:nil)}
   }
  }
  @objc func schedulePDFPositionSave(){
@@ -777,6 +781,10 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
      try FileManager.default.copyItem(at: storage, to: backup)
     }
     try data.write(to: storage,options: .atomic); web.evaluateJavaScript("window.marginSaved()",completionHandler: nil)
+   case "fullscreen":
+    // Class mode asks for a whole-screen window and gives it back when the class ends.
+    let wanted = body["on"] as? Bool ?? false
+    if wanted != window.styleMask.contains(.fullScreen) { window.toggleFullScreen(nil) }
    case "copy": NSPasteboard.general.clearContents(); NSPasteboard.general.setString(body["text"] as? String ?? "",forType: .string); js("toast","Snippet copied")
    case "runCode": if body["language"] as? String == "c" { runC(body) } else if body["language"] as? String == "python" { runPython(body) }
    case "revealFile":

@@ -45,6 +45,17 @@ const record=F.finish(s,now+3*S);
 assert.equal(record.subjectId,'bio');assert.equal(record.awayCount,1);assert.equal(record.focusedMs,603*S);assert.equal(record.awayMs,45*S);
 assert.equal(record.ratio,+(603/648).toFixed(3));assert.equal(record.endedAt,now+3*S);
 
+// A planned class length counts down on the wall clock, whether or not you are here
+s=F.start({id:'f',now:t0,plannedMs:50*MIN});
+assert.equal(F.remaining(s,t0),50*MIN);assert.equal(F.remaining(s,t0+20*MIN),30*MIN);
+assert.equal(F.progress(s,t0+25*MIN),.5);assert.equal(F.progress(s,t0+90*MIN),1,'progress stops at full');
+run(s,[[60,false]]);assert.equal(F.remaining(s,t0+60*S),50*MIN-60*S,'time away does not pause the class');
+assert(F.remaining(s,t0+55*MIN)<0,'negative once it runs over');
+F.extend(s,10*MIN);assert.equal(s.plannedMs,60*MIN);assert.equal(F.remaining(s,t0+55*MIN),5*MIN);
+const open=F.start({id:'g',now:t0});assert.equal(F.remaining(open,t0+5*MIN),null,'no timer, no countdown');assert.equal(F.progress(open,t0+5*MIN),0);
+F.extend(open,15*MIN);assert.equal(open.plannedMs,15*MIN,'extending an open-ended class sets a limit from now');
+s.wordsAdded=212;const planned=F.finish(s,t0+50*MIN);assert.equal(planned.plannedMs,60*MIN);assert.equal(planned.wordsAdded,212);
+
 // Growth and stages
 assert.equal(F.growth(0),0);assert.equal(F.growth(60*MIN),1);
 assert(F.growth(5*MIN)>0.2,'early minutes show visible growth');

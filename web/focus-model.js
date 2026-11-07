@@ -10,8 +10,10 @@ const FocusModel=(()=>{
  const LOOKUP_WINDOW=3*MINUTE;   // how long "I'm looking something up" covers
  const FULL_GROWTH=50*MINUTE;    // focused time for a tree to reach full size
 
- function start({id,subjectId=null,noteId=null,now=Date.now(),seed=Math.floor(Math.random()*2**31)}){
-  return {id:id||'class-'+now.toString(36),subjectId,noteId,startedAt:now,last:now,seed,
+ // plannedMs is how long the class is meant to run (0 = open-ended). The clock for it is the wall clock:
+ // a class doesn't pause while you are looking something up.
+ function start({id,subjectId=null,noteId=null,now=Date.now(),seed=Math.floor(Math.random()*2**31),plannedMs=0,wordsAtStart=0}){
+  return {id:id||'class-'+now.toString(36),subjectId,noteId,startedAt:now,last:now,seed,plannedMs,wordsAtStart,wordsAdded:0,
    focusedMs:0,awayMs:0,lookupMs:0,unobservedMs:0,awayCount:0,lookups:0,
    away:null,lastEpisode:null,lookupUntil:0,parked:[]};
  }
@@ -54,6 +56,12 @@ const FocusModel=(()=>{
   return true;
  }
 
+ const elapsed=(s,now)=>Math.max(0,now-s.startedAt);
+ // Time left in the planned class, or null when the class has no set length. Negative once it has run over.
+ const remaining=(s,now)=>s.plannedMs?s.plannedMs-elapsed(s,now):null;
+ const extend=(s,ms)=>{s.plannedMs=(s.plannedMs||elapsed(s,s.last))+ms;return s};
+ const progress=(s,now)=>s.plannedMs?Math.min(1,elapsed(s,now)/s.plannedMs):0;
+
  const ratio=s=>{const total=s.focusedMs+s.awayMs;return total?s.focusedMs/total:1};
 
  // How big the tree is, 0..1. Quick early growth so the first minutes show something.
@@ -70,7 +78,7 @@ const FocusModel=(()=>{
  function finish(s,now){
   advance(s,now,true);                // ending a class means you are here, so the last stretch is focus
   endAway(s);
-  return {id:s.id,subjectId:s.subjectId,noteId:s.noteId,startedAt:s.startedAt,endedAt:now,seed:s.seed,
+  return {id:s.id,subjectId:s.subjectId,noteId:s.noteId,startedAt:s.startedAt,endedAt:now,seed:s.seed,plannedMs:s.plannedMs||0,wordsAdded:s.wordsAdded||0,
    focusedMs:s.focusedMs,awayMs:s.awayMs,lookupMs:s.lookupMs,awayCount:s.awayCount,lookups:s.lookups,
    ratio:+ratio(s).toFixed(3),parked:s.parked.slice()};
  }
@@ -103,6 +111,6 @@ const FocusModel=(()=>{
   return {weekFocusedMs:week,weekCount,subjects,total:sessions.length};
  }
 
- return {SECOND,MINUTE,GAP,AWAY_MIN,LOOKUP_WINDOW,start,advance,beginLookup,reclassify,ratio,growth,stage,density,finish,duration,minutesLabel,verdict,gardenStats};
+ return {SECOND,MINUTE,GAP,AWAY_MIN,LOOKUP_WINDOW,elapsed,remaining,extend,progress,start,advance,beginLookup,reclassify,ratio,growth,stage,density,finish,duration,minutesLabel,verdict,gardenStats};
 })();
 if(typeof module!=='undefined')module.exports=FocusModel;
