@@ -1,0 +1,8 @@
+/* Interactive highlights (connections, drag bars and labels, picture frames) use the person's own palette.
+   --green is the Appearance accent (a historical name) and changes with the chosen palette and day or night. */
+:root{--accent:var(--green,#635ad6);--on-accent:#fff}
+html[data-appearance=night]{--on-accent:#16151f}
+
+/* The picture resize frame, drawn in editor-surface.css, takes the palette too. */
+.image-resizer{border-color:var(--accent)}
+.image-handle{border-color:var(--accent)}
