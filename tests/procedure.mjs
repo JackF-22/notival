@@ -125,16 +125,22 @@ while True do
   await field('');
   const plain=await pasteInto('just some words with \\alpha in it');
   assert.equal(plain.prevented,false,'a normal paste is not touched');
-  // an untouched starting example is replaced by the paste
+  // pasting into a brand-new box
   await evaluate(`[...document.querySelectorAll('.procedure-dialog button')].find(b=>b.textContent==='Cancel').click()`);await wait(200);
   await evaluate(`document.querySelector('.rich-text').focus();RichEditor.command('procedure')`);await wait(250);
   const replaced=await pasteInto('\\State only this');
-  assert.equal(replaced.value,'only this','the starter text is replaced, not added to');
+  assert.equal(replaced.value,'only this','pasting into a new, empty box');
   await evaluate(`[...document.querySelectorAll('.procedure-dialog button')].find(b=>b.textContent==='Cancel').click()`);await wait(200);
 
   // ── New box, written and finished with ⌘↵ ──
   await evaluate(`document.querySelector('.rich-text').focus();document.querySelector('#insert-procedure').click()`);await wait(250);
-  assert.equal(await evaluate(`document.querySelector('.proc-source').value.startsWith('Algorithm: Name')`),true,'a starting point to edit');
+  assert.equal(await evaluate(`document.querySelector('.proc-source').value`),'','a new procedure starts empty, no template');
+  assert.match(await evaluate(`document.querySelector('.proc-source').placeholder`),/Write each step on its own line/,'just a hint');
+  // a long step wraps inside the box instead of running past it, and the preview sits underneath
+  await field('foreach hypothesis in the current beam, extend it with every token in the vocabulary and keep the running log probability score alongside it so the best ones survive');
+  const shape=await evaluate(`(()=>{const f=document.querySelector('.proc-source'),p=document.querySelector('.proc-preview');return {wrap:getComputedStyle(f).whiteSpace,sideways:f.scrollWidth>f.clientWidth+1,below:p.getBoundingClientRect().top>=f.getBoundingClientRect().bottom,full:Math.abs(p.getBoundingClientRect().width-f.getBoundingClientRect().width)<40}})()`);
+  assert.deepEqual(shape,{wrap:'pre-wrap',sideways:false,below:true,full:true});
+  await shot('wrapping');
   await field('Algorithm: Sum\nInput: a list\nOutput: its total\n\ntotal <- 0\nforeach x ∈ list do\n  total <- total + x\nreturn total');
   await key('Enter',{metaKey:true});await wait(250);
   assert.equal(await text('#editor .procedure .proc-title'),'Algorithm 1 Sum');

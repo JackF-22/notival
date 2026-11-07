@@ -96,7 +96,6 @@ assert.equal(P.nextIndent('while True do'),'  ');
 assert.equal(P.nextIndent('    foreach y ∈ Σ do  // loop'),'      ');
 assert.equal(P.nextIndent('  if x then'),'    ');assert.equal(P.nextIndent('else'),'  ');assert.equal(P.nextIndent('repeat'),'  ');
 assert.equal(P.nextIndent('  x <- 1'),'  ');assert.equal(P.nextIndent('Input: a thing:'),'');assert.equal(P.nextIndent('Algorithm: Do'),'');
-assert.deepEqual(P.parse(P.starter).headers.length,2);
 
 // ── LaTeX written without dollar signs ──
 const bare=line('beam \\leftarrow \\{(\\epsilon, 0)\\}',katex);

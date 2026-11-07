@@ -49,7 +49,9 @@ const ProcedureBox=(()=>{
   document.querySelector('dialog.procedure-dialog')?.remove();
   const dlg=make('dialog','procedure-dialog');dlg.setAttribute('aria-label','Write a procedure');
   const head=make('div','proc-dialog-head');head.append(make('h2','',isNew?'New procedure':'Edit procedure'));
-  const field=make('textarea','proc-source');field.value=before.source||(isNew?M.starter:'');field.spellcheck=false;field.setAttribute('aria-label','Procedure steps');field.placeholder='Algorithm: Name\nInput: …\nOutput: …\n\nsteps, indented to nest';
+  const field=make('textarea','proc-source');field.value=before.source;field.spellcheck=false;field.setAttribute('aria-label','Procedure steps');
+  // a new procedure starts empty; the hint fades as soon as you type
+  field.placeholder='Write each step on its own line. Indent a step to put it inside the one above.\n\nOptional, at the top:\nAlgorithm: Name\nInput: …\nOutput: …';
   const preview=make('div','procedure proc-preview');preview.setAttribute('aria-live','polite');
   const options=make('label','proc-option'),numbered=make('input');numbered.type='checkbox';numbered.checked=before.numbered;options.append(numbered,' Number the lines');
   const help=make('details','proc-help'),summary=make('summary','','How to write one');
@@ -93,7 +95,6 @@ const ProcedureBox=(()=>{
    if(!M.looksLikeLatex(pasted))return;
    const converted=M.fromLatex(pasted);if(!converted.trim())return;
    event.preventDefault();
-   if(field.value===M.starter)field.select();             // an untouched starting example is replaced, not added to
    if(!document.execCommand('insertText',false,converted)){field.setRangeText(converted,field.selectionStart,field.selectionEnd,'end');}
    paint();note.textContent='Converted from a LaTeX algorithm. ⌘Z undoes it.';
   });
