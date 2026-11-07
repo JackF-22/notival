@@ -969,7 +969,8 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
   window?.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps:true)
  }
  @objc func formatNoteText(_ sender:NSMenuItem){js("window.notivalFormat",sender.representedObject as? String ?? "bold")}
- func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { window.makeKeyAndOrderFront(nil);web.evaluateJavaScript("requestAnimationFrame(()=>window.notivalReplayLaunch?.())",completionHandler:nil); return true }
+ // Coming back to an app that's already running just brings the window forward; the launch animation is only for starting up.
+ func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { window.makeKeyAndOrderFront(nil); return true }
  func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) { decisionHandler(navigationAction.request.url?.isFileURL == true ? .allow : .cancel) }
 }
 if CommandLine.arguments.contains("--check-foliose-import") {
