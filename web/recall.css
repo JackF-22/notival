@@ -118,3 +118,6 @@
 .recall-switch button{border:0!important;background:none!important;padding:0!important;color:var(--green)!important;font-size:12px!important;text-decoration:underline;text-underline-offset:3px}
 .recall-check{display:flex!important;grid-template-columns:none;align-items:center;gap:10px;font-size:12.5px!important;color:var(--ink)!important}
 .recall-check input{accent-color:var(--green);width:15px;height:15px;margin:0}
+
+.recall-math{display:inline-block;max-width:100%;overflow-x:auto;overflow-y:hidden;vertical-align:middle}
+.recall-math.is-display{display:block;margin:.5em 0;text-align:center}

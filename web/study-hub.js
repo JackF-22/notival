@@ -49,14 +49,14 @@
  }
 
  function recallCard(){
-  const reviews=state.reviews||{},hidden=hiddenIds(),all=M.collect(state,{exclude:hidden}),stats=M.stats(all,reviews),box=card('Recall',{count:stats.ready||null});
+  const reviews=state.reviews||{},hidden=hiddenIds(),all=M.collect(state,{exclude:hidden}),stats=M.stats(all,reviews,Date.now(),M.allowance(state)),box=card('Recall',{count:stats.ready||null});
   if(!all.length){
    box.append(el('p','Questions you write, or import from an AI, show up here for review.','hub-lead'));
   }else{
    box.append(el('p',stats.ready?plural(stats.ready,'question')+' ready to answer.':'All caught up.','hub-lead'));
    for(const subject of shown()){
     const items=M.collect(state,{projectId:subject.id});if(!items.length)continue;
-    const ready=M.stats(items,reviews).ready,row=el('div',undefined,'hub-row'),info=el('div');
+    const ready=M.stats(items,reviews,Date.now(),M.allowance(state)).ready,row=el('div',undefined,'hub-row'),info=el('div');
     info.append(el('strong',(subject.icon||'')+' '+subject.name),el('small',ready?ready+' ready':'caught up'));
     row.append(info,btn(ready?'Start':'Open',()=>{window.marginRecall.setScope({project:subject});ready?window.marginRecall.start('due',15):window.marginRecall.hub({project:subject})}));box.append(row);
    }

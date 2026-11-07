@@ -10,7 +10,7 @@ const StudyHubModel=(()=>{
    for(const note of live){const key=note.unitId&&(subject.units||[]).some(u=>u.id===note.unitId)?note.unitId:'';(groups.get(key)||groups.set(key,[]).get(key)).push(note)}
    for(const [unitId,notes] of groups){
     const unit=(subject.units||[]).find(u=>u.id===unitId),items=RecallModel.collect(state,{notes});
-    const stats=RecallModel.stats(items,reviews,now),flags=notes.reduce((s,n)=>s+FlagsModel.openCount(n),0);
+    const stats=RecallModel.stats(items,reviews,now,RecallModel.allowance(state,now)),flags=notes.reduce((s,n)=>s+FlagsModel.openCount(n),0);
     const last=items.reduce((m,i)=>Math.max(m,reviews[i.id]?.reviewedAt||0),0),idle=last?Math.floor((now-last)/DAY):null;
     const shaky=items.length?(stats.weak+.5*stats.due)/items.length:0;
     const score=shaky*3+Math.min(flags,4)*.6+(items.length&&idle!==null?Math.min(idle,14)/14*1.5:0)+(items.length&&idle===null?1:0)+(!items.length?.8:0);
