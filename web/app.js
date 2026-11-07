@@ -193,14 +193,14 @@ function repairLatex(source){
 }
 function latexRenders(source,display=true){
  if(typeof katex==='undefined')return true;
- try{katex.renderToString(source,{displayMode:display,throwOnError:true,trust:false,maxExpand:1000,maxSize:20});return true}catch{return false}
+ try{katex.renderToString(MathSyntax.katexSource(source),{displayMode:display,throwOnError:true,trust:false,maxExpand:1000,maxSize:20});return true}catch{return false}
 }
 // An equation traced out of the PDF arrives as LaTeX, opened in the live equation editor to check and accept.
 window.marginPDFEquation=async data=>{
  const note=current();if(!note)return;
  if(typeof data?.latex==='string'&&data.latex.trim()){
   // Take the first reading that renders (after repair); otherwise repair the best one and let the writer fix the rest.
-  const readings=[...new Set([data.latex,...(Array.isArray(data.candidates)?data.candidates:[])].map(text=>String(text).trim()).filter(Boolean))];
+  const readings=[...new Set([data.latex,...(Array.isArray(data.candidates)?data.candidates:[])].map(text=>MathSyntax.tidyLatex(String(text).trim())).filter(Boolean))];
   let best=null;
   for(const reading of readings){const repaired=repairLatex(reading);if(latexRenders(repaired,!data.inline)){best=repaired;break}}
   const renders=!!best;if(!best)best=repairLatex(readings[0]);

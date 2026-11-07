@@ -1,0 +1,2 @@
+/* Display equations are part of the page: no box, and close to the lines above and below. */
+.rich-text li>.display-equation{margin:2px 0 4px;padding:1px 0;font-size:.92em;background:transparent;border:0;border-radius:6px}

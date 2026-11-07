@@ -35,7 +35,7 @@
   box.querySelectorAll('.equation').forEach(item=>{
    const source=item.dataset.equation||'',display=item.classList.contains('display-equation');
    if(format==='pdf'&&typeof katex!=='undefined'){
-    try{item.innerHTML=katex.renderToString(source,{displayMode:display,throwOnError:false,trust:false,output:'html'});return}catch{}
+    try{item.innerHTML=katex.renderToString(MathSyntax.katexSource(source),{displayMode:display,throwOnError:false,trust:false,output:'html'});return}catch{}
    }
    item.textContent=display?source:source;item.style.fontStyle='italic';
   });

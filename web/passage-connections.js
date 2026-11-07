@@ -459,7 +459,7 @@
    const route=document.createElement('strong');route.textContent=nodeText(note,link.from)+'  →  '+nodeText(note,link.to);
    const body=document.createElement('div');body.className='connection-card-body';
    body.innerHTML=RichEditor.cleanHTML(link.html||RichEditor.fromMarkdown(link.label));
-   if(typeof katex!=='undefined')for(const item of body.querySelectorAll('.equation')){try{katex.render(item.dataset.equation||'',item,{displayMode:item.classList.contains('display-equation'),throwOnError:false,trust:false})}catch{}}
+   if(typeof katex!=='undefined')for(const item of body.querySelectorAll('.equation')){try{katex.render(MathSyntax.katexSource(item.dataset.equation||''),item,{displayMode:item.classList.contains('display-equation'),throwOnError:false,trust:false})}catch{}}
    card.append(route,body);list.append(card);
   }
  }

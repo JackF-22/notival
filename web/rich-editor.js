@@ -5,14 +5,15 @@ const RichEditor = (() => {
   const safeURL = value => /^(https?:|file:|mailto:)/i.test(value.trim()) || /^data:image\/(?:png|jpeg|webp|gif);base64,[a-z\d+/=]+$/i.test(value.trim()) ? value.trim() : '';
   const inline = source => {
     const links = [];
-    let value = String(source).replace(/(!?)\[([^\]]*)\]\(([^)]+)\)/g, (match, image, label, url) => {
+    // Math first, from the raw text, so `<` and `&` inside a formula are escaped exactly once.
+    let value = MathSyntax.inlineMath(String(source), equation => {links.push(`<span class="equation inline-equation" data-equation="${escape(equation)}" contenteditable="false">${escape(equation)}</span>`);return `\u0001${links.length-1}\u0002`});
+    value = value.replace(/(!?)\[([^\]]*)\]\(([^)]+)\)/g, (match, image, label, url) => {
       const safe=safeURL(url);
       if(!safe)return match;
       links.push(image ? `<img src="${escape(safe)}" alt="${escape(label)}">` : `<a href="${escape(safe)}">${escape(label)}</a>`);
       return `\u0001${links.length-1}\u0002`;
     });
     value = escape(value);
-    value = value.replace(/\$([^$\n]+)\$/g, (_, source) => {links.push(`<span class="equation inline-equation" data-equation="${escape(source)}" contenteditable="false">${escape(source)}</span>`);return `\u0001${links.length-1}\u0002`});
     value = value.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/~~(.+?)~~/g, '<s>$1</s>');
     value = value.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>').replace(/`([^`\n]+)`/g, '<code>$1</code>');
     return value.replace(/\u0001(\d+)\u0002/g, (_, index) => links[Number(index)]);
@@ -58,12 +59,10 @@ const RichEditor = (() => {
         if (i < lines.length) i++;
         output.push(`<pre><code>${escape(code.join('\n'))}</code></pre>`); continue;
       }
-      if (line.trim()==='$$') {
-        const equation=[];i++;
-        while(i<lines.length && lines[i].trim()!=='$$') equation.push(lines[i++]);
-        if(i<lines.length)i++;
-        const source=equation.join('\n');
-        output.push(`<div class="equation display-equation" data-equation="${escape(source)}" contenteditable="false">${escape(source)}</div>`);continue;
+      const display = MathSyntax.displayAt(lines, i);
+      if (display) {
+        output.push(`<div class="equation display-equation" data-equation="${escape(display.source)}" contenteditable="false">${escape(display.source)}</div>`);
+        i = display.next; continue;
       }
       const heading = line.match(/^(#{1,6})\s+(.+)$/);
       if (heading) { output.push(`<h${heading[1].length}>${inline(heading[2])}</h${heading[1].length}>`); i++; continue; }
@@ -546,7 +545,7 @@ const RichEditor = (() => {
   function renderOne(item) {
     if(typeof katex==='undefined'){item.textContent=item.dataset.equation||'';return;}
     item.title='Click to select · Delete to remove · Double-click to edit';
-    try{katex.render(item.dataset.equation||'',item,{displayMode:item.classList.contains('display-equation'),throwOnError:false,trust:false,maxExpand:1000,maxSize:20});}
+    try{katex.render(MathSyntax.katexSource(item.dataset.equation||''),item,{displayMode:item.classList.contains('display-equation'),throwOnError:false,trust:false,maxExpand:1000,maxSize:20});}
     catch{item.textContent=item.dataset.equation||'';}
   }
   function editEquation(editor, {equation=null, display=false, source='', insert}) {
@@ -567,7 +566,7 @@ const RichEditor = (() => {
       preview.className='equation-preview';preview.textContent='';
       if(!field.value.trim()){preview.classList.add('empty');preview.textContent='Preview';return;}
       if(typeof katex==='undefined'){preview.textContent=field.value;return;}
-      try{katex.render(field.value,preview,{displayMode:display,throwOnError:false,trust:false,maxExpand:1000,maxSize:20});}catch{preview.textContent=field.value;}
+      try{katex.render(MathSyntax.katexSource(field.value),preview,{displayMode:display,throwOnError:false,trust:false,maxExpand:1000,maxSize:20});}catch{preview.textContent=field.value;}
       if(preview.querySelector('.katex-error'))preview.classList.add('invalid');
     };
     const finish=(commit,side='after')=>{
@@ -741,6 +740,18 @@ const RichEditor = (() => {
     for(const type of ['keyup','mouseup','input','compositionend'])editor.addEventListener(type,remember);
     editor.onfocus=()=>{focused={editor,block,onChange};};
     editor.onblur=()=>{editor.querySelectorAll('.equation.selected').forEach(item=>item.classList.remove('selected'));if(focused?.editor===editor)focused.selectedEquation=null;};
+    // Clicking in the empty space after a line that ends with an inline equation puts the caret at the end of that line.
+    editor.addEventListener('mouseup',event=>{
+      if(event.button!==0||event.detail>1)return;
+      const selection=window.getSelection();if(!selection?.isCollapsed)return;
+      for(const equation of editor.querySelectorAll('.inline-equation:not(.editing)')){
+        const box=equation.getBoundingClientRect();
+        if(event.clientY<box.top-2||event.clientY>box.bottom+2||event.clientX<=box.right)continue;
+        let tail=equation.nextSibling;while(tail?.nodeType===Node.TEXT_NODE&&!tail.data.replace(/[\s\u00a0\u200b]/g,''))tail=tail.nextSibling;
+        if(tail&&tail.nodeName!=='BR')continue;
+        event.preventDefault();placeCaretByEquation(editor,equation,true);return;
+      }
+    });
     editor.oninput=()=>{editor.querySelectorAll('.equation.selected').forEach(item=>item.classList.remove('selected'));if(focused?.editor===editor)focused.selectedEquation=null;normalizeSpaces(editor);ensureEquationAnchors(editor);hoistTables(editor);block.html=cleanHTML(editor.innerHTML);block.text=toMarkdown(editor);onChange();updateSlash(editor);};
     editor.onbeforeinput=event=>{
       if(event.inputType==='insertText'&&event.data===' '&&convertListMarker(editor)){event.preventDefault();hideSlash();return;}
@@ -819,6 +830,23 @@ const RichEditor = (() => {
       if((event.key==='Backspace'||event.key==='Delete') && !event.metaKey && !event.ctrlKey && !event.altKey){
         const equation=focused?.editor===editor && focused.selectedEquation?.isConnected?focused.selectedEquation:equationAtCaret(editor,event.key);
         if(equation){event.preventDefault();hideSlash();deleteEquation(editor,equation);return;}
+      }
+      // Each block is its own editor, so when the caret cannot move any further in this one (an equation can pin it there), carry on into the neighbouring block.
+      if((event.key==='ArrowDown'||event.key==='ArrowUp'||event.key==='ArrowRight'||event.key==='ArrowLeft')&&!event.shiftKey&&!event.metaKey&&!event.ctrlKey&&!event.altKey&&!slash?.editor&&editor.closest('#editor')){
+        const selection=window.getSelection(),down=event.key==='ArrowDown'||event.key==='ArrowRight';
+        if(selection?.isCollapsed&&selection.rangeCount&&!equationAtCaret(editor,event.key==='ArrowLeft'?'Backspace':'Delete')){
+          const anchor=selection.anchorNode,offset=selection.anchorOffset;
+          selection.modify('move',down?'forward':'backward',event.key.endsWith('Down')||event.key.endsWith('Up')?'line':'character');
+          const stuck=!editor.contains(selection.anchorNode)||(selection.anchorNode===anchor&&selection.anchorOffset===offset);
+          if(!stuck){event.preventDefault();return}
+          const editors=[...editor.closest('#editor').querySelectorAll('.rich-text')],next=editors[editors.indexOf(editor)+(down?1:-1)];
+          if(next){
+            event.preventDefault();next.focus({preventScroll:true});
+            const range=document.createRange();range.selectNodeContents(next);range.collapse(down);selection.removeAllRanges();selection.addRange(range);
+            next.scrollIntoView({block:'nearest'});
+          }
+          return;
+        }
       }
       if(event.key==='ArrowLeft'||event.key==='ArrowRight'){
         const equation=equationAtCaret(editor,event.key==='ArrowLeft'?'Backspace':'Delete');
