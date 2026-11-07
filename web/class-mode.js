@@ -78,7 +78,8 @@
   const item=(name,hint,action)=>{const b=el('button','focus-item');b.type='button';b.setAttribute('role','menuitem');b.append(el('b','',name),el('small','',hint));b.onclick=()=>{closeFocusMenu();action()};return b};
   focusPopover.append(
    item('Quiet page','Hide everything but your note',()=>focusToggle?.click()),
-   item('Start a class…','Full screen, a timer, and live stats',()=>classButton.click())
+   item('Start a class…','Full screen, a timer, and live stats',()=>classButton.click()),
+   ...(window.marginFocusMenuExtras?.()||[]).map(extra=>item(extra.name,extra.hint,extra.action))
   );
   document.body.append(focusPopover);
   const box=focusMenu.getBoundingClientRect();
@@ -264,39 +265,59 @@
   const box=el('dialog','class-dialog '+cls);box.setAttribute('aria-label',heading);
   box.addEventListener('close',()=>box.remove());document.body.append(box);return box;
  }
+ // A few minutes right after class, while it is fresh: sum it up, say what is still unclear, keep the thoughts you
+ // parked, and pick the questions worth recalling later. Saving writes an "After class" section into the note and
+ // leaves the caret there, so the student can keep fleshing it out.
  function summary(record){
-  const box=dialog('class-summary','Class finished'),subject=subjectOf(record.subjectId);
+  const box=dialog('class-summary','Class finished'),subject=subjectOf(record.subjectId),note=state.notes.find(n=>n.id===record.noteId);
+  const total=record.endedAt-record.startedAt,planned=record.plannedMs?Math.round(record.plannedMs/M.MINUTE):0;
   const head=el('div','summary-head');
   head.append(el('small','',(subject?.name||'Class')+' · '+new Date(record.endedAt).toLocaleDateString(undefined,{weekday:'long'})),el('h2','','Class finished'),el('p','',M.verdict(record)));
-  const art=el('div','summary-tree');art.innerHTML=treeFor(record,110,'Your tree: '+M.stage(record.focusedMs).toLowerCase());
-  const top=el('div','summary-top');top.append(head,art);
-  const facts=el('dl','summary-facts');
-  const fact=(name,value)=>{facts.append(el('dt','',name),el('dd','',value))};
-  const total=record.endedAt-record.startedAt;
-  fact('Class length',M.duration(total)+(record.plannedMs?' of '+Math.round(record.plannedMs/M.MINUTE)+' min planned':''));
-  fact('Focused',M.duration(record.focusedMs)+' · '+Math.round(record.ratio*100)+'% of the time you were here or away');
-  fact('Away',record.awayCount?record.awayCount+(record.awayCount===1?' time · ':' times · ')+M.duration(record.awayMs):'not once');
-  if(record.lookups)fact('Lookups',record.lookups+' · '+M.duration(record.lookupMs)+', not counted against you');
-  fact('Written','+'+record.wordsAdded+' words');
-  box.append(top,facts);
-  let add=null;
-  if(record.parked.length){
-   const parked=el('div','summary-parked');parked.append(el('h3','','Parked during class'));
-   const list=el('ul');for(const item of record.parked)list.append(el('li','',item.text));parked.append(list);
-   const label=el('label','summary-add');add=el('input');add.type='checkbox';add.checked=true;label.append(add,' Add these to the note');parked.append(label);box.append(parked);
+  const stats=[M.duration(total)+(planned?' of '+planned+' min':''),Math.round(record.ratio*100)+'% here',record.awayCount?'away '+record.awayCount+'×':'never away',record.lookups?record.lookups+(record.lookups===1?' lookup':' lookups'):'','+'+record.wordsAdded+' words'].filter(Boolean);
+  box.append(head,el('p','summary-stats',stats.join(' · ')));
+  const section=(title,hint)=>{const part=el('section','wrap-section');part.append(el('h3','',title));if(hint)part.append(el('p','wrap-hint',hint));box.append(part);return part};
+  const field=(rows,placeholder,label)=>{const area=el('textarea');area.rows=rows;area.placeholder=placeholder;area.setAttribute('aria-label',label);return area};
+  const sum=field(2,'What was today\'s class about? A sentence or two, in your own words.','Summary of the class');
+  section('Sum it up').append(sum);
+  const unclear=field(2,'One per line','What is still unclear');
+  section('Still unclear','Anything you\'d ask the teacher. These go in the note so you can chase them.').append(unclear);
+  const ticks=(part,items,label)=>items.map(item=>{const row=el('label','wrap-pick'),box=el('input');box.type='checkbox';box.checked=true;row.append(box,el('span','',label(item)));part.append(row);return {item,box}});
+  const parked=record.parked.length?ticks(section('Parked during class'),record.parked,item=>item.text):[];
+  let questions=[];
+  if(note&&typeof RecallModel!=='undefined'){
+   const found=RecallModel.suggestAll([note],state,4);
+   if(found.length)questions=ticks(section('Questions to keep','For Recall, to test yourself later. Untick any that aren\'t worth it.'),found,item=>item.type==='cloze'?RecallModel.promptText(item):item.prompt);
   }
-  // However the dialog closes (Done, Escape, the garden link), parked thoughts the writer kept ticked go into the note.
-  box.addEventListener('close',()=>finishSummary(record,add));
-  const actions=el('div','summary-actions');
-  actions.append(button('Done',()=>box.close(),'primary'));
-  box.append(actions);box.showModal();actions.lastChild.focus();
+  const save=button('Save to note',()=>{saveWrapUp(record,note,{summary:sum.value,unclear:unclear.value.split('\n'),parked:parked.filter(p=>p.box.checked).map(p=>p.item.text),questions:questions.filter(q=>q.box.checked).map(q=>q.item)});box.close()},'primary');
+  const actions=el('div','summary-actions');actions.append(button('Skip',()=>box.close()),save);box.append(actions);
+  box.addEventListener('keydown',event=>{if((event.metaKey||event.ctrlKey)&&event.key==='Enter'){event.preventDefault();save.click()}});
+  box.showModal();sum.focus();
  }
- function finishSummary(record,add){
-  if(!add?.checked||!record.parked.length)return;
-  const note=state.notes.find(n=>n.id===record.noteId);if(!note)return;
-  const markdown='## Parked in class\n\n'+record.parked.map(p=>'- '+p.text).join('\n');
-  note.blocks.push({id:uid(),type:'text',text:markdown,html:RichEditor.fromMarkdown(markdown)});
-  note.updated=Date.now();persist();if(current()?.id===note.id)render();
+ function saveWrapUp(record,note,{summary,unclear,parked,questions}){
+  if(!note)return;
+  const markdown=M.wrapUp({date:new Date(record.endedAt).toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'}),summary,unclear,parked});
+  let block=null;
+  if(markdown){block={id:uid(),type:'text',text:markdown,html:RichEditor.fromMarkdown(markdown)};note.blocks.push(block)}
+  if(questions.length){
+   state.items??=[];
+   for(const s of questions){
+    const fields=s.type==='cloze'?{type:'cloze',text:s.text,blank:s.blank}:{type:s.type,prompt:s.prompt,answer:s.answer};
+    state.items.push(RecallModel.newItem({...fields,id:s.id,noteId:s.noteId,blockId:s.blockId,projectId:s.projectId,unitId:s.unitId}));
+   }
+  }
+  if(!block&&!questions.length)return;
+  note.updated=Date.now();persist();
+  toast([block?'Saved to the note':'',questions.length?questions.length+(questions.length===1?' question':' questions')+' added to Recall':''].filter(Boolean).join(' · '));
+  if(!block)return;
+  // open the note at the new section, caret at its end, ready to keep writing
+  if(current()?.id!==note.id){active=note.id;setMode?.('write')}
+  render();
+  requestAnimationFrame(()=>{
+   const cell=document.querySelectorAll('#editor .block')[note.blocks.indexOf(block)],rich=cell?.querySelector('.rich-text');if(!rich)return;
+   cell.scrollIntoView({block:'center'});rich.focus();
+   let end=rich;while(end.lastElementChild&&!/^(BR|IMG)$/.test(end.lastElementChild.tagName))end=end.lastElementChild;
+   const range=document.createRange();range.selectNodeContents(end);range.collapse(false);const selection=getSelection();selection.removeAllRanges();selection.addRange(range);
+  });
  }
 
  // ── The garden ─────────────────────────────────────────────────────────────

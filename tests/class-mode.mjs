@@ -40,7 +40,7 @@ try{
   await shot('header');
   // the Focus menu offers the quiet page or a class
   await evaluate(`document.querySelector('#focus-menu').click()`);await wait(80);
-  assert.deepEqual(await evaluate(`[...document.querySelectorAll('.focus-popover .focus-item b')].map(b=>b.textContent)`),['Quiet page','Start a class…']);
+  assert.deepEqual(await evaluate(`[...document.querySelectorAll('.focus-popover .focus-item b')].map(b=>b.textContent)`),['Quiet page','Start a class…','Class schedule…']);
   assert.equal(await evaluate(`document.querySelector('#focus-menu').getAttribute('aria-expanded')`),'true');
   await evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}))`);await wait(60);
   assert.equal(await count('.focus-popover'),0,'Escape closes it');
@@ -176,13 +176,17 @@ try{
   assert.equal(await evaluate(`document.querySelector('.class-summary')?.open`),true);
   assert.equal(await text('.class-summary h2'),'Class finished');
   const summary=await text('.class-summary');
-  assert.match(summary,/Class length/);assert.match(summary,/50 min planned/);assert.match(summary,/Written\+4 words/);assert.match(summary,/look up the ATP synthase diagram/);
+  assert.match(summary,/of 50 min/);assert.match(summary,/\+4 words/);assert.match(summary,/look up the ATP synthase diagram/);
+  assert.deepEqual(await evaluate(`[...document.querySelectorAll('.class-summary .wrap-section h3')].map(h=>h.textContent)`).then(list=>list.slice(0,3)),['Sum it up','Still unclear','Parked during class']);
+  assert.equal(await evaluate(`document.activeElement===document.querySelector('.class-summary textarea')`),true,'ready to type the summary');
   await shot('summary');
   const record=await evaluate(`state.focusSessions.at(-1)`);
   assert.equal(record.subjectId,'bio');assert.equal(record.awayCount,1);assert.equal(record.lookups,2);assert.equal(record.awayMs,60000);
   assert.equal(record.plannedMs,50*60000);assert.equal(record.wordsAdded,4);assert(record.ratio>.95,String(record.ratio));assert(record.focusedMs>=2800000);
-  await evaluate(`[...document.querySelectorAll('.class-summary button')].find(b=>b.textContent==='Done').click()`);await wait(250);
-  assert.equal(await evaluate(`state.notes[0].blocks.at(-1).text`),'## Parked in class\n\n- look up the ATP synthase diagram');
+  await evaluate(`(()=>{const [sum,open]=document.querySelectorAll('.class-summary textarea');sum.value='Mitochondria make ATP.';open.value='why two membranes?'})()`);
+  await evaluate(`[...document.querySelectorAll('.class-summary button')].find(b=>b.textContent==='Save to note').click()`);await wait(300);
+  assert.match(await evaluate(`state.notes[0].blocks.at(-1).text`),/^## After class · .+\n\n\*\*Summary:\*\* Mitochondria make ATP\.\n\n\*\*Still unclear\*\*\n\n- why two membranes\?\n\n\*\*To look into\*\*\n\n- look up the ATP synthase diagram$/);
+  assert.equal(await evaluate(`document.activeElement?.closest?.('.block')===[...document.querySelectorAll('#editor .block')].at(-1)`),true,'the caret is in the new section, to keep writing');
 
   // ── No timer ──
   await evaluate(`document.querySelector('#focus-menu').click();[...document.querySelectorAll('.focus-item')].find(b=>/Start a class/.test(b.textContent)).click()`);await wait(100);

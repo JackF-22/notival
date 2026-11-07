@@ -102,3 +102,36 @@ body.class-mode #editor{padding-top:6px}
 .garden-tile{margin:0;display:flex;flex-direction:column;align-items:center;text-align:center}
 .garden-tile figcaption{font-size:11px;color:var(--muted,#888);line-height:1.3;max-width:130px}
 @media (max-width:640px){.summary-top{flex-direction:column-reverse;text-align:center}.garden-subject{grid-template-columns:90px 1fr}.garden-pct{display:none}}
+
+/* "Biology starts at 10am" */
+#class-due{position:fixed;z-index:1004;top:84px;right:20px;width:min(380px,calc(100vw - 40px));display:grid;gap:10px;padding:14px 16px;background:var(--bg,#fff);border:1px solid var(--line,#ddd);border-left:4px solid var(--accent,var(--green,#4a6452));border-radius:12px;box-shadow:0 10px 30px #0003;color:var(--ink,#333)}
+#class-due .due-text{display:grid;gap:2px}#class-due strong{font-size:14px}#class-due small{color:var(--muted,#888);font-size:12px}
+#class-due .due-actions{display:flex;gap:8px;justify-content:flex-end}
+#class-due button{border:1px solid var(--line,#ddd);background:transparent;color:inherit;border-radius:8px;padding:6px 12px;font-size:12.5px;cursor:pointer}
+#class-due button.primary{background:var(--accent,var(--green,#4a6452));border-color:var(--accent,var(--green,#4a6452));color:var(--on-accent,#fff)}
+body.class-mode #class-due{display:none}
+
+/* The timetable */
+.schedule-dialog{width:min(720px,calc(100vw - 32px))}
+.schedule-sub,.schedule-next,.schedule-empty{color:var(--muted,#888);font-size:13px;margin:4px 0 14px}
+.schedule-list{display:grid;gap:8px}
+.schedule-row{display:grid;grid-template-columns:minmax(120px,1fr) auto auto auto auto;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line,#ddd);border-radius:10px}
+.schedule-row.is-invalid{border-color:#d4584a}
+.schedule-row select,.schedule-row input{font:inherit;font-size:13px;padding:5px 8px;border:1px solid var(--line,#ddd);border-radius:7px;background:var(--bg,#fff);color:var(--ink,#333);min-width:0}
+.schedule-length{display:flex;align-items:center;gap:4px;font-size:12.5px;color:var(--muted,#888)}.schedule-length input{width:64px}
+.schedule-days{display:flex;gap:3px}
+.class-dialog .schedule-day{width:30px;padding:5px 0;font-size:11.5px;border-radius:7px}
+.class-dialog .schedule-day[aria-pressed=true]{background:var(--accent,var(--green,#4a6452));border-color:var(--accent,var(--green,#4a6452));color:var(--on-accent,#fff)}
+.class-dialog .schedule-remove{padding:4px 9px;color:var(--muted,#888)}
+.class-dialog .schedule-add{margin-top:10px}
+@media (max-width:700px){.schedule-row{grid-template-columns:1fr auto;}.schedule-days{grid-column:1/-1}}
+
+/* The wrap-up after class */
+.summary-stats{color:var(--muted,#888);font-size:12.5px;margin:6px 0 4px}
+.wrap-section{margin-top:14px}
+.wrap-section h3{margin:0 0 4px;font-size:13px}
+.wrap-hint{margin:0 0 6px;color:var(--muted,#888);font-size:12px}
+.wrap-section textarea{width:100%;box-sizing:border-box;resize:vertical;padding:8px 10px;border:1px solid var(--line,#ddd);border-radius:8px;background:var(--bg,#fff);color:var(--ink,#333);font:inherit;font-size:13.5px;line-height:1.45}
+.wrap-section textarea:focus-visible{outline:2px solid var(--accent,var(--green,#4a6452));outline-offset:1px}
+.wrap-pick{display:flex;gap:8px;align-items:flex-start;padding:4px 0;font-size:13px;line-height:1.4}
+.wrap-pick input{margin-top:2px}

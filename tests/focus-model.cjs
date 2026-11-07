@@ -67,8 +67,15 @@ assert(F.density(1)>F.density(.5)&&F.density(.5)>F.density(0));assert(F.density(
 for(const [r,focused] of [[.95,50],[.8,50],[.5,50],[.2,50],[1,0.5]]){
  const text=F.verdict({ratio:r,focusedMs:focused*MIN,awayCount:2});assert(text.length>10&&!/fail|bad|lazy|distract/i.test(text),text);
 }
-assert.match(F.verdict({ratio:1,focusedMs:30*S,awayCount:0}),/seed/i);
+assert.match(F.verdict({ratio:1,focusedMs:30*S,awayCount:0}),/short one/i);
 assert.equal(F.duration(754*S),'12:34');assert.equal(F.duration(3725*S),'1:02:05');assert.equal(F.minutesLabel(95*MIN),'1 h 35 min');
+
+// The "After class" section: only what was filled in
+assert.equal(F.wrapUp({date:'Friday, Nov 6',summary:'  Cells make ATP\nin mitochondria. ',unclear:['why a double membrane?','',' '],parked:['look up ATP synthase']}),
+ '## After class · Friday, Nov 6\n\n**Summary:** Cells make ATP in mitochondria.\n\n**Still unclear**\n\n- why a double membrane?\n\n**To look into**\n\n- look up ATP synthase');
+assert.equal(F.wrapUp({date:'Mon',summary:'Only this'}),'## After class · Mon\n\n**Summary:** Only this');
+assert.equal(F.wrapUp({date:'Mon',unclear:['a','b']}),'## After class · Mon\n\n**Still unclear**\n\n- a\n- b');
+assert.equal(F.wrapUp({date:'Mon',summary:'  ',unclear:['',''],parked:[]}),'','nothing written, nothing added');
 
 // Garden totals
 const sessions=[

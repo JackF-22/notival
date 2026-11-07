@@ -91,12 +91,24 @@ const FocusModel=(()=>{
 
  // A sentence about how it went. Descriptive, never scolding.
  function verdict(record){
-  if(record.focusedMs<MINUTE)return 'A seed. Plant a longer class to see it grow.';
+  if(record.focusedMs<MINUTE)return 'A short one. The numbers mean more over a full class.';
   const pct=Math.round(record.ratio*100);
   if(record.ratio>=.9)return 'Rooted: you stayed with it '+pct+'% of the time.';
   if(record.ratio>=.7)return 'Steady: with it '+pct+'% of the time'+(record.awayCount?', away '+record.awayCount+(record.awayCount===1?' time.':' times.'):'.');
   if(record.ratio>=.45)return 'Patchy: '+pct+'% of the time. It happens. The tree remembers the part you were there for.';
   return 'Windswept: '+pct+'% this time. A shorter session may be an easier place to start.';
+ }
+
+ // The "After class" section the wrap-up adds to the note. Only what was filled in appears; nothing at all → ''.
+ function wrapUp({date='',summary='',unclear=[],parked=[]}={}){
+  const lines=list=>list.map(item=>String(item).replace(/\s+/g,' ').trim()).filter(Boolean);
+  const sum=String(summary).replace(/\s+/g,' ').trim(),open=lines(unclear),later=lines(parked);
+  if(!sum&&!open.length&&!later.length)return '';
+  const parts=['## After class'+(date?' · '+date:'')];
+  if(sum)parts.push('**Summary:** '+sum);
+  if(open.length)parts.push('**Still unclear**',open.map(item=>'- '+item).join('\n'));
+  if(later.length)parts.push('**To look into**',later.map(item=>'- '+item).join('\n'));
+  return parts.join('\n\n');
  }
 
  // Totals for the garden: this week, and how each subject is going.
@@ -111,6 +123,6 @@ const FocusModel=(()=>{
   return {weekFocusedMs:week,weekCount,subjects,total:sessions.length};
  }
 
- return {SECOND,MINUTE,GAP,AWAY_MIN,LOOKUP_WINDOW,elapsed,remaining,extend,progress,start,advance,beginLookup,reclassify,ratio,growth,stage,density,finish,duration,minutesLabel,verdict,gardenStats};
+ return {SECOND,MINUTE,GAP,AWAY_MIN,LOOKUP_WINDOW,elapsed,remaining,extend,progress,start,advance,beginLookup,reclassify,ratio,growth,stage,density,finish,duration,minutesLabel,verdict,wrapUp,gardenStats};
 })();
 if(typeof module!=='undefined')module.exports=FocusModel;
