@@ -10,7 +10,7 @@ body.class-mode article{max-width:860px;margin-left:auto;margin-right:auto;paddi
 body.class-mode #editor{padding-top:6px}
 
 /* The strip: time on the left, how it's going in the middle, the few things you can do on the right. */
-#class-hud{position:fixed;z-index:60;top:12px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:20px;padding:10px 16px;background:var(--bg,#fff);border:1px solid var(--line,#ddd);border-radius:16px;box-shadow:0 6px 24px #0002;max-width:calc(100vw - 24px);font-size:12px;color:var(--ink,#333)}
+#class-hud{position:fixed;z-index:1000;top:12px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:20px;padding:10px 16px;background:var(--bg,#fff);border:1px solid var(--line,#ddd);border-radius:16px;box-shadow:0 6px 24px #0002;max-width:calc(100vw - 24px);font-size:12px;color:var(--ink,#333)}
 #class-hud .hud-clock{display:flex;flex-direction:column;gap:2px;min-width:150px}
 #class-hud .hud-left{font-size:30px;line-height:1;font-weight:650;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
 #class-hud .hud-label{color:var(--muted,#888);font-size:11px}
@@ -32,14 +32,14 @@ body.class-mode #editor{padding-top:6px}
 @media (max-width:1000px){#class-hud .hud-actions{flex-wrap:wrap}#class-hud{gap:12px;flex-wrap:wrap;justify-content:center}#class-hud .hud-stats{border:0}body.class-mode article{padding-top:150px}}
 
 /* Time's up */
-#class-timeup{position:fixed;z-index:63;left:50%;top:50%;transform:translate(-50%,-50%);width:min(440px,calc(100vw - 32px));padding:20px 22px;background:var(--bg,#fff);border:1px solid var(--line,#ddd);border-radius:16px;box-shadow:0 14px 48px #0004;display:grid;gap:6px;color:var(--ink,#333)}
+#class-timeup{position:fixed;z-index:1003;left:50%;top:50%;transform:translate(-50%,-50%);width:min(440px,calc(100vw - 32px));padding:20px 22px;background:var(--bg,#fff);border:1px solid var(--line,#ddd);border-radius:16px;box-shadow:0 14px 48px #0004;display:grid;gap:6px;color:var(--ink,#333)}
 #class-timeup strong{font-size:17px}#class-timeup span{color:var(--muted,#888);font-size:13px;line-height:1.4}
 #class-timeup .cue-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
 #class-timeup button{border:1px solid var(--line,#ddd);background:transparent;color:inherit;border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer}
 #class-timeup button.primary{background:var(--green,#4a6452);border-color:var(--green,#4a6452);color:#fff}
 
 /* Coming back */
-#class-cue{position:fixed;z-index:61;left:50%;bottom:28px;transform:translateX(-50%);width:min(460px,calc(100vw - 32px));padding:14px 16px;background:var(--bg,#fff);border:1px solid var(--line,#ddd);border-radius:14px;box-shadow:0 8px 28px #0003;display:grid;gap:4px;font-size:13px;color:var(--ink,#333)}
+#class-cue{position:fixed;z-index:1001;left:50%;bottom:28px;transform:translateX(-50%);width:min(460px,calc(100vw - 32px));padding:14px 16px;background:var(--bg,#fff);border:1px solid var(--line,#ddd);border-radius:14px;box-shadow:0 8px 28px #0003;display:grid;gap:4px;font-size:13px;color:var(--ink,#333)}
 #class-cue strong{font-size:14px}
 #class-cue .cue-away{color:var(--muted,#888);font-size:12px}
 #class-cue small{margin-top:6px;color:var(--muted,#888);font-size:11px;letter-spacing:.03em;text-transform:uppercase}
@@ -52,7 +52,7 @@ body.class-mode #editor{padding-top:6px}
 @media (prefers-reduced-motion:reduce){.block.resume-flash{animation:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--green,#4a6452) 55%,transparent)}#class-hud .hud-bar i{transition:none}}
 
 /* Parking a thought */
-#class-park{position:fixed;z-index:62;left:50%;top:104px;transform:translateX(-50%);width:min(520px,calc(100vw - 32px));display:flex;gap:8px;padding:10px;background:var(--bg,#fff);border:1px solid var(--line,#ddd);border-radius:12px;box-shadow:0 8px 28px #0003}
+#class-park{position:fixed;z-index:1002;left:50%;top:104px;transform:translateX(-50%);width:min(520px,calc(100vw - 32px));display:flex;gap:8px;padding:10px;background:var(--bg,#fff);border:1px solid var(--line,#ddd);border-radius:12px;box-shadow:0 8px 28px #0003}
 #class-park input{flex:1;border:1px solid var(--line,#ddd);border-radius:8px;padding:8px 10px;font:inherit;background:transparent;color:var(--ink,#333)}
 #class-park button{border:1px solid var(--line,#ddd);background:transparent;color:inherit;border-radius:8px;padding:6px 14px;cursor:pointer}
 #class-park button.primary{background:var(--green,#4a6452);border-color:var(--green,#4a6452);color:#fff}

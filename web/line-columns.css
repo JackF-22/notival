@@ -13,8 +13,8 @@
 #block-handle{touch-action:none}
 body.line-dragging,body.line-dragging *{cursor:grabbing!important;user-select:none!important}
 .line-moving{opacity:.35}
-.line-ghost{position:fixed;z-index:90;max-width:280px;padding:5px 10px;border-radius:8px;background:var(--bg,#fff);border:1px solid var(--accent);color:var(--ink,#333);font-size:13px;box-shadow:0 6px 20px #0003;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.line-drop{position:fixed;z-index:89;border-radius:3px;background:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 20%,transparent);pointer-events:none}
+.line-ghost{position:fixed;z-index:1050;max-width:280px;padding:5px 10px;border-radius:8px;background:var(--bg,#fff);border:1px solid var(--accent);color:var(--ink,#333);font-size:13px;box-shadow:0 6px 20px #0003;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.line-drop{position:fixed;z-index:1049;border-radius:3px;background:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 20%,transparent);pointer-events:none}
 .line-drop.is-refused{background:#d4584a;box-shadow:0 0 0 3px #d4584a33}
 .line-drop.is-refused::after{content:attr(data-note);position:absolute;left:0;top:8px;white-space:nowrap;padding:3px 8px;border-radius:6px;background:#d4584a;color:#fff;font-size:12px}
 .block-menu-rule{height:1px;margin:5px 8px;background:var(--line,#ddd)}

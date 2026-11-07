@@ -6,3 +6,6 @@ html[data-appearance=night]{--on-accent:#16151f}
 /* The picture resize frame, drawn in editor-surface.css, takes the palette too. */
 .image-resizer{border-color:var(--accent)}
 .image-handle{border-color:var(--accent)}
+
+/* The picture resize frame sits above the sticky formatting bar, so scrolling a picture to the top of the page doesn't hide it. */
+.image-resizer{z-index:150}
