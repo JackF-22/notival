@@ -215,9 +215,13 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
  var quickNoteHandler: EventHandlerRef?
  let storage = ProcessInfo.processInfo.environment["MARGIN_DATA_DIR"].map { URL(fileURLWithPath: $0).appendingPathComponent("notes.json") }
   ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Margin/notes.json")
+ lazy var updater = Updater(tell: { [weak self] name, value in self?.js(name, value) })
+ var updateTimer: Timer?
+ @objc func checkForUpdates() { updater.check(manual: true) }
  func applicationDidFinishLaunching(_ notification: Notification) {
   let menu = NSMenu(); let item = NSMenuItem(); menu.addItem(item)
   let appMenu = NSMenu(); appMenu.addItem(withTitle: "About Notival", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+  let updateItem = appMenu.addItem(withTitle: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: ""); updateItem.target = self
   appMenu.addItem(.separator()); appMenu.addItem(withTitle: "Quit Notival", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"); item.submenu = appMenu
   let fileItem=NSMenuItem();menu.addItem(fileItem);let fileMenu=NSMenu(title:"File");fileItem.submenu=fileMenu
   let openPDFItem=fileMenu.addItem(withTitle:"Open PDF…",action:#selector(choosePDF),keyEquivalent:"o");openPDFItem.target=self
@@ -765,6 +769,8 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
     let data = try? Data(contentsOf: storage); let state = data.flatMap { try? JSONSerialization.jsonObject(with: $0) }
     if data != nil && state == nil { js("window.marginError", "Notes could not be read. Original file preserved."); return }
     js("window.marginLoad", state ?? NSNull()); ready = true
+    // A quiet look for a newer release shortly after opening, and every few hours while Notival stays open.
+    if updateTimer == nil { DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in self?.updater.check() }; updateTimer = Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { [weak self] _ in self?.updater.check() } }
     web.evaluateJavaScript("requestAnimationFrame(()=>requestAnimationFrame(()=>window.notivalReplayLaunch?.()))",completionHandler:nil)
     web.evaluateJavaScript("window.notivalAppActive&&window.notivalAppActive(\(NSApp.isActive))",completionHandler:nil)
     let importScan = FolioseImporter.notes()
@@ -781,6 +787,9 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
      try FileManager.default.copyItem(at: storage, to: backup)
     }
     try data.write(to: storage,options: .atomic); web.evaluateJavaScript("window.marginSaved()",completionHandler: nil)
+   case "installUpdate": updater.install()
+   case "openUpdatePage": updater.openReleasePage()
+   case "checkUpdates": updater.check(manual: true)
    case "fullscreen":
     // Class mode asks for a whole-screen window and gives it back when the class ends.
     let wanted = body["on"] as? Bool ?? false

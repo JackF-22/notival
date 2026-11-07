@@ -1,14 +1,27 @@
 # Notival
 A local macOS study notebook for subjects, units, notes, materials, test packs, and synthesis. Native AppKit window + system WebKit, with no bundled browser, server, account, or runtime dependency.
 
-## Run
+## Install
+1. Download **Notival.zip** from the [latest release](https://github.com/JackF-22/notival/releases/latest) and open it.
+2. Drag **Notival** into **Applications**.
+3. The first time you open it, macOS says it can't check the developer: go to **System Settings → Privacy & Security** and click **Open Anyway** next to Notival. Once only.
+
+Notival then keeps itself up to date. A few seconds after it opens (and every few hours) it checks for a newer release and offers it; **Update and restart** downloads it, checks it, swaps the app and reopens. **Notival → Check for Updates…** checks on demand. Notes live outside the app, so updates never touch them.
+
+Requires macOS 13+. The app is ad hoc signed, not notarized, which is why step 3 is needed.
+
+## Build from source
 ```sh
 zsh scripts/build.sh
 open dist/Notival.app
 ```
-Quit Notival before copying `dist/Notival.app` to Applications.
-Choose Replace if a Notival copy already exists.
-Requires macOS 13+ and Xcode command line tools to build. The app is locally ad hoc signed, not notarized for distribution.
+Quit Notival before copying `dist/Notival.app` to Applications. Choose Replace if a Notival copy already exists.
+Building needs the Xcode command line tools. `zsh scripts/test-all.sh` runs every test.
+
+## Publish an update
+1. Raise the number in `VERSION` (1.0.0 → 1.0.1 for fixes, 1.1.0 for new features).
+2. Write what changed in `release-notes/<version>.md`.
+3. Commit both, then run `zsh scripts/release.sh`. It builds the app, zips it, tags the commit and creates the GitHub Release; installed copies offer it the next time they open.
 
 Notes save atomically to `~/Library/Application Support/Margin/notes.json`, with
 the previous save kept as `notes.json.bak`. Use the arrows at the bottom of the

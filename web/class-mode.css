@@ -135,3 +135,15 @@ body.class-mode #class-due{display:none}
 .wrap-section textarea:focus-visible{outline:2px solid var(--accent,var(--green,#4a6452));outline-offset:1px}
 .wrap-pick{display:flex;gap:8px;align-items:flex-start;padding:4px 0;font-size:13px;line-height:1.4}
 .wrap-pick input{margin-top:2px}
+
+/* "Notival 1.1 is ready" */
+#update-card{position:fixed;z-index:1004;left:20px;bottom:20px;width:min(360px,calc(100vw - 40px));display:grid;gap:10px;padding:14px 16px;background:var(--bg,#fff);border:1px solid var(--line,#ddd);border-radius:12px;box-shadow:0 10px 30px #0003;color:var(--ink,#333);font-size:13px}
+#update-card .update-head{display:grid;gap:2px}#update-card strong{font-size:14px}#update-card small{color:var(--muted,#888);font-size:12px}
+#update-card .update-notes summary{cursor:pointer;color:var(--muted,#888);font-size:12px;width:max-content}
+#update-card .update-notes ul{margin:6px 0 0;padding-left:18px;display:grid;gap:2px;font-size:12.5px}
+#update-card .update-status{margin:0;font-size:12px;color:var(--muted,#888)}#update-card .update-status.is-error{color:#b3402f}
+#update-card .update-actions{display:flex;gap:8px;justify-content:flex-end}
+#update-card button{border:1px solid var(--line,#ddd);background:transparent;color:inherit;border-radius:8px;padding:6px 12px;font-size:12.5px;cursor:pointer}
+#update-card button.primary{background:var(--accent,var(--green,#4a6452));border-color:var(--accent,var(--green,#4a6452));color:var(--on-accent,#fff)}
+#update-card button:disabled{opacity:.6;cursor:default}
+body.class-mode #update-card{display:none}
