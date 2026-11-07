@@ -20,3 +20,13 @@
  .block-row>.block:not(:first-child){border-left:0;padding-left:0}
 }
 .block-tools .beside{font-size:12px}
+
+/* Dragging a cell: a ghost follows the pointer and a bar shows where it will land. */
+.block-tools .grip{cursor:grab;touch-action:none}
+body.cell-dragging,body.cell-dragging *{cursor:grabbing!important;user-select:none!important}
+.block.is-dragging{opacity:.38}
+.layout-ghost{position:fixed;z-index:90;max-width:260px;padding:6px 10px;border-radius:8px;background:var(--bg,#fff);border:1px solid #986cff;color:var(--ink,#333);font-size:13px;box-shadow:0 6px 20px #0003;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.layout-drop{position:fixed;z-index:89;border-radius:3px;background:#986cff;box-shadow:0 0 0 3px #986cff33;pointer-events:none}
+.layout-drop.is-refused{background:#d4584a;box-shadow:0 0 0 3px #d4584a33}
+.layout-drop.is-refused::after{content:attr(data-note);position:absolute;left:0;top:8px;white-space:nowrap;padding:3px 8px;border-radius:6px;background:#d4584a;color:#fff;font-size:12px}
+@media (prefers-reduced-motion:no-preference){.layout-drop{transition:left .08s,top .08s,width .08s,height .08s}}

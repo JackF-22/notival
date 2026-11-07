@@ -53,9 +53,9 @@ try{
   // Passage tools still pair each cell with its own note block
   assert.equal(await evaluate(`[...document.querySelectorAll('#editor .block')].map(w=>w.querySelector('.rich-text').textContent).join('|')`),'First cell|Second cell|Third cell|Fourth cell');
 
-  // Stacking the middle cell out leaves the others sharing the row
+  // Stacking the middle cell out drops it below the row; the others keep sharing it
   await evaluate(`document.querySelectorAll('#editor .block')[1].querySelector('.beside').click()`);await wait(80);
-  assert.equal(await evaluate(`current().blocks[1].row||null`),null);
+  assert.equal(await evaluate(`current().blocks.map(b=>b.id+(b.row?'*':'')).join('')`),'a*c*bd');
 
   // Narrow windows stack the row
   await call('Emulation.setDeviceMetricsOverride',{width:600,height:900,deviceScaleFactor:1,mobile:false},sessionId);await wait(120);
@@ -65,6 +65,56 @@ try{
   // A row with a single cell left dissolves
   const stacked=await evaluate(`(()=>{const n=current();n.blocks.forEach(b=>delete b.row);n.blocks[0].row='r';n.blocks[1].row='r';render();document.querySelectorAll('#editor .block')[1].querySelector('.beside').click();return document.querySelectorAll('.block-row').length+','+n.blocks.some(b=>b.row)})()`);
   assert.equal(stacked,'0,false');
+
+  // Dragging: grab a cell by its grip and drop it on another cell's edge
+  const mouse=(type,x,y)=>call('Input.dispatchMouseEvent',{type,x,y,button:type==='mouseMoved'?'none':'left',buttons:type==='mouseReleased'?0:1,clickCount:1},sessionId);
+  const grip=index=>evaluate(`(()=>{const r=document.querySelectorAll('#editor .block')[${index}].querySelector('.grip').getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2]})()`);
+  const edge=(index,fx,fy)=>evaluate(`(()=>{const r=document.querySelectorAll('#editor .block')[${index}].getBoundingClientRect();return [r.left+r.width*${fx},r.top+r.height*${fy}]})()`);
+  const dragCell=async(from,to,fx,fy,{release=true}={})=>{
+    const [gx,gy]=await grip(from),[tx,ty]=await edge(to,fx,fy);
+    await mouse('mousePressed',gx,gy);
+    for(let i=1;i<=8;i++)await mouse('mouseMoved',gx+(tx-gx)*i/8,gy+(ty-gy)*i/8);
+    await wait(60);
+    if(release){await mouse('mouseReleased',tx,ty);await wait(120)}
+    return [tx,ty];
+  };
+  const layout=()=>evaluate(`LayoutModel.rows(current().blocks).map(r=>r.cells.map(c=>c.id).join('+')).join(' / ')`);
+  await evaluate(`(()=>{const n=current();n.blocks.forEach(b=>delete b.row);n.blocks=n.blocks.slice(0,4).sort((x,y)=>x.id<y.id?-1:1);render()})()`);await wait(120);
+  assert.equal(await layout(),'a / b / c / d');
+  // While dragging, an indicator shows where it will land and the cell being moved is dimmed
+  await dragCell(2,0,0.95,0.5,{release:false});
+  assert.equal(await evaluate(`!document.querySelector('.layout-drop').hidden`),true,'drop indicator visible');
+  assert.equal(await evaluate(`document.querySelectorAll('#editor .block')[2].classList.contains('is-dragging')`),true);
+  const bar=await evaluate(`(()=>{const m=document.querySelector('.layout-drop').getBoundingClientRect(),c=document.querySelectorAll('#editor .block')[0].getBoundingClientRect();return m.height>=c.height-1&&m.left>=c.right-1})()`);
+  assert.equal(bar,true,'right-edge drop shows a vertical bar to the right of the target');
+  await shot('dragging');
+  await mouse('mouseReleased',0,0);await wait(150);
+  assert.equal(await layout(),'a+c / b / d');
+  assert.equal(await evaluate(`document.querySelector('.layout-ghost')||document.querySelector('.layout-drop')||document.body.classList.contains('cell-dragging')`),false,'drag state cleaned up');
+  // Drop on the left edge of another row's cell joins that row, ahead of it
+  await dragCell(3,0,0.04,0.5);
+  assert.equal(await layout(),'d+a+c / b');
+  // Full row refuses a fourth cell and says so
+  await dragCell(3,0,0.95,0.5,{release:false});
+  assert.equal(await evaluate(`document.querySelector('.layout-drop').classList.contains('is-refused')`),true);
+  await mouse('mouseReleased',0,0);await wait(120);
+  assert.equal(await layout(),'d+a+c / b');
+  // Top/bottom edges stack outside the row
+  await dragCell(3,0,0.5,0.9);
+  assert.equal(await layout(),'d+a+c / b');   // dropping onto its own row's bottom: nothing to do beyond staying put
+  await dragCell(3,0,0.5,0.1);                   // b above the row
+  assert.equal(await layout(),'b / d+a+c');
+  // Escape cancels
+  await dragCell(0,2,0.5,0.9,{release:false});await call('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27},sessionId);
+  await mouse('mouseReleased',0,0);await wait(100);
+  assert.equal(await layout(),'b / d+a+c');
+  // Keyboard: the grip takes arrow keys and focus stays with the cell
+  await evaluate(`document.querySelectorAll('#editor .block')[0].querySelector('.grip').focus()`);
+  await call('Input.dispatchKeyEvent',{type:'keyDown',key:'ArrowDown',code:'ArrowDown',windowsVirtualKeyCode:40},sessionId);await wait(150);
+  assert.equal(await layout(),'d+a+c / b');
+  assert.equal(await evaluate(`document.activeElement.classList.contains('grip')&&document.activeElement.closest('.block')===document.querySelectorAll('#editor .block')[3]`),true,'focus follows the moved cell');
+  // Everything is saved with the note and reloads the same way
+  assert.equal(await evaluate(`JSON.stringify(JSON.parse(JSON.stringify(current().blocks)).map(b=>b.row?1:0))`),'[1,1,1,0]');
 
   // Pictures: position buttons float the image, and the choice survives the sanitiser and a re-render
   await evaluate(`(()=>{const n=current();n.blocks.forEach(b=>delete b.row);n.blocks[0]={id:'a',type:'text',text:'Words that should flow beside the picture. '.repeat(12),html:'<p><img src="${pixel}" alt="dot" data-width="30"> '+${JSON.stringify('Words that should flow beside the picture. '.repeat(12))}+'</p>'};render()})()`);
