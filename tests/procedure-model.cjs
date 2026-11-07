@@ -110,6 +110,15 @@ assert.match(line('x <- 1 // uses \\epsilon',katex),/proc-comment">\/\/ uses <sp
 assert.match(P.html('Algorithm: T\nInput: all \\Sigma\n\nx <- 1',{katex}),/<b>Input:<\/b> all <span class="katex">/,'in the header too');
 assert(!P.html('Algorithm: Fine\nx \\gets y \\cup \\{z\\}',{katex}).includes('katex-error'));
 
+// ── Subscripts and powers without dollar signs ──
+const katexCount=html=>(html.match(/class="katex"/g)||[]).length;
+assert.equal(katexCount(line('x_i <- x_i + 1',katex)),2);
+assert.equal(katexCount(line('cost <- p_{LM}(y | x) + 10^9',katex)),2);
+assert.equal(katexCount(line('h <- log_2 n',katex)),1);
+assert.equal(line('max_len <- 3',katex),'max_len ← 3','snake_case stays a word');
+assert.equal(line('price $5 and then $10',katex),'price $5 and then $10');
+assert.equal(line('x_i <- 1'),'x_i ← 1','without a maths engine nothing changes');
+
 // ── Pasting a LaTeX algorithm ──
 const euclid=`\\begin{algorithm}
 \\caption{Euclid}
