@@ -55,9 +55,38 @@
  // ── Buttons in the header ──────────────────────────────────────────────────
  const classButton=button('Class',()=>live?null:openStart(),'','Start a class: full screen, a timer, and a page with nothing else on it');
  classButton.id='class-mode-toggle';
- const gardenButton=button('Garden',()=>openGarden(),'','Your trees, class by class');gardenButton.id='garden-open';
- const anchor=$('#focus-writing-toggle')||$('#sidebar-toggle');
- if(anchor)anchor.after(classButton,gardenButton);else document.querySelector('header')?.append(classButton,gardenButton);
+ // One "Focus" entry in the header instead of three buttons. The original Focus and Class buttons stay in the page
+ // (hidden) as the things the menu presses, so their behaviour lives in one place each.
+ const focusToggle=$('#focus-writing-toggle'),anchor=focusToggle||$('#sidebar-toggle');
+ const focusMenu=button('Focus',()=>toggleFocusMenu(),'','Focus: a quiet page, or start a class');
+ focusMenu.id='focus-menu';focusMenu.setAttribute('aria-haspopup','menu');focusMenu.setAttribute('aria-expanded','false');
+ if(anchor)anchor.after(classButton,focusMenu);else document.querySelector('header')?.append(classButton,focusMenu);
+ let focusPopover=null;
+ function closeFocusMenu(refocus){
+  if(!focusPopover)return;
+  focusPopover.remove();focusPopover=null;focusMenu.setAttribute('aria-expanded','false');
+  document.removeEventListener('pointerdown',outsideFocusMenu,true);document.removeEventListener('keydown',keyFocusMenu,true);
+  if(refocus)focusMenu.focus();
+ }
+ const outsideFocusMenu=event=>{if(!focusPopover?.contains(event.target)&&!focusMenu.contains(event.target))closeFocusMenu()};
+ const keyFocusMenu=event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();closeFocusMenu(true)}};
+ function toggleFocusMenu(){
+  // While the quiet page is on, the button simply turns it off.
+  if(document.body.classList.contains('focus-writing')){focusToggle?.click();return}
+  if(focusPopover){closeFocusMenu(true);return}
+  focusPopover=el('div','focus-popover');focusPopover.setAttribute('role','menu');
+  const item=(name,hint,action)=>{const b=el('button','focus-item');b.type='button';b.setAttribute('role','menuitem');b.append(el('b','',name),el('small','',hint));b.onclick=()=>{closeFocusMenu();action()};return b};
+  focusPopover.append(
+   item('Quiet page','Hide everything but your note',()=>focusToggle?.click()),
+   item('Start a class…','Full screen, a timer, and live stats',()=>classButton.click())
+  );
+  document.body.append(focusPopover);
+  const box=focusMenu.getBoundingClientRect();
+  focusPopover.style.top=Math.round(box.bottom+6)+'px';focusPopover.style.left=Math.round(Math.max(8,Math.min(box.left,innerWidth-focusPopover.offsetWidth-8)))+'px';
+  focusMenu.setAttribute('aria-expanded','true');
+  focusPopover.querySelector('button').focus();
+  document.addEventListener('pointerdown',outsideFocusMenu,true);document.addEventListener('keydown',keyFocusMenu,true);
+ }
 
  // ── Starting: how long is the class? ───────────────────────────────────────
  function openStart(){
@@ -123,7 +152,9 @@
  setInterval(()=>{if(!live)tick()},TICK*5);
  function syncButtons(){
   const show=!!current()&&document.body.dataset.view==='note'&&!live;
-  classButton.hidden=!show;gardenButton.hidden=!!live||!current();
+  classButton.hidden=!show;focusMenu.hidden=!show;
+  focusMenu.textContent=document.body.classList.contains('focus-writing')?'Exit focus':'Focus ▾';
+  if(!show)closeFocusMenu();
  }
  // A class that was running when the app closed still counts: end it where the clock last ran.
  function recoverInterrupted(){
@@ -257,7 +288,7 @@
   // However the dialog closes (Done, Escape, the garden link), parked thoughts the writer kept ticked go into the note.
   box.addEventListener('close',()=>finishSummary(record,add));
   const actions=el('div','summary-actions');
-  actions.append(button('See my garden',()=>{box.close();openGarden()}),button('Done',()=>box.close(),'primary'));
+  actions.append(button('Done',()=>box.close(),'primary'));
   box.append(actions);box.showModal();actions.lastChild.focus();
  }
  function finishSummary(record,add){
@@ -299,6 +330,6 @@
  }
 
  window.marginClass={begin,end,openStart,tick,openGarden,session:()=>live,setProbe:fn=>{probeOverride=fn},isLive:()=>!!live,fullscreenLog,showTimeUp};
- new MutationObserver(syncButtons).observe(document.body,{attributes:true,attributeFilter:['data-view']});   // opening or leaving a note
+ new MutationObserver(syncButtons).observe(document.body,{attributes:true,attributeFilter:['data-view','class']});   // opening or leaving a note, or the quiet page turning on
  setInterval(syncButtons,TICK*2);syncButtons();
 })();

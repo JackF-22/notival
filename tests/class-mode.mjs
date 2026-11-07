@@ -29,9 +29,29 @@ try{
   })()`);
   await wait(250);
 
-  // ── "Class" opens a start dialog: how long is it? ──
-  assert.equal(await evaluate(`!document.querySelector('#class-mode-toggle').hidden`),true);
-  await evaluate(`document.querySelector('#class-mode-toggle').click()`);await wait(150);
+  // ── A calm header: one Focus menu, no Garden, small icons for Share and Delete ──
+  assert.equal(await evaluate(`document.querySelector('#garden-open')`),null,'no Garden button');
+  assert.equal(await evaluate(`['#focus-writing-toggle','#class-mode-toggle'].map(s=>getComputedStyle(document.querySelector(s)).display).join()`),'none,none','the old Focus and Class buttons step aside');
+  assert.equal(await evaluate(`document.querySelector('#focus-menu').textContent`),'Focus ▾');
+  const header=await evaluate(`(()=>{const q=s=>document.querySelector(s).getBoundingClientRect();const visible=[...document.querySelectorAll('main>header button')].filter(b=>b.offsetParent);return {count:visible.length,furthest:Math.max(...visible.map(b=>b.getBoundingClientRect().right)),deleteWidth:Math.round(q('#delete').width),savedHeight:Math.round(q('#saved').height),home:getComputedStyle(document.querySelector('.student-home')).display,deleteName:document.querySelector('#delete').textContent.trim()}})()`);
+  assert(header.count<=9,'a short list of controls: '+header.count);assert(header.furthest<=1200,'nothing runs off the edge');
+  assert(header.deleteWidth<=40,'Delete is an icon: '+header.deleteWidth);assert(header.savedHeight<=20,'the saved note is one line');
+  assert.equal(header.home,'none','Home lives in the sidebar while it is open');assert.equal(header.deleteName,'Delete note','icons keep their names for screen readers');
+  await shot('header');
+  // the Focus menu offers the quiet page or a class
+  await evaluate(`document.querySelector('#focus-menu').click()`);await wait(80);
+  assert.deepEqual(await evaluate(`[...document.querySelectorAll('.focus-popover .focus-item b')].map(b=>b.textContent)`),['Quiet page','Start a class…']);
+  assert.equal(await evaluate(`document.querySelector('#focus-menu').getAttribute('aria-expanded')`),'true');
+  await evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}))`);await wait(60);
+  assert.equal(await count('.focus-popover'),0,'Escape closes it');
+  await evaluate(`document.querySelector('#focus-menu').click();[...document.querySelectorAll('.focus-item')].find(b=>/Quiet page/.test(b.textContent)).click()`);await wait(100);
+  assert.equal(await evaluate(`document.body.classList.contains('focus-writing')`),true);
+  assert.equal(await evaluate(`document.querySelector('#focus-menu').textContent`),'Exit focus','the button turns the quiet page back off');
+  await evaluate(`document.querySelector('#focus-menu').click()`);await wait(100);
+  assert.equal(await evaluate(`document.body.classList.contains('focus-writing')`),false);
+
+  // ── "Start a class…" opens a start dialog: how long is it? ──
+  await evaluate(`document.querySelector('#focus-menu').click();[...document.querySelectorAll('.focus-item')].find(b=>/Start a class/.test(b.textContent)).click()`);await wait(150);
   assert.equal(await evaluate(`document.querySelector('.class-start')?.open`),true);
   assert.equal(await evaluate(`document.body.classList.contains('class-mode')`),false,'nothing starts until you say');
   assert.match(await text('.class-start-sub'),/Biology · Cells/);
@@ -165,7 +185,7 @@ try{
   assert.equal(await evaluate(`state.notes[0].blocks.at(-1).text`),'## Parked in class\n\n- look up the ATP synthase diagram');
 
   // ── No timer ──
-  await evaluate(`document.querySelector('#class-mode-toggle').click()`);await wait(100);
+  await evaluate(`document.querySelector('#focus-menu').click();[...document.querySelectorAll('.focus-item')].find(b=>/Start a class/.test(b.textContent)).click()`);await wait(100);
   assert.equal(await evaluate(`document.querySelector('.length-custom').value`),'40','the last length you used is waiting for you');
   await evaluate(`[...document.querySelectorAll('.length-chip')].find(c=>c.textContent==='No timer').click()`);
   await evaluate(`document.querySelector('.class-start-fs input').click()`);                         // no full screen this time
@@ -187,7 +207,7 @@ try{
   assert.equal(await evaluate(`state.focusSessions.length`),1,'recovered into the garden');assert.equal(await evaluate(`'focusLive' in state`),false);
 
   // ── Garden ──
-  await evaluate(`document.querySelector('#garden-open').click()`);await wait(150);
+  await evaluate(`marginClass.openGarden()`);await wait(150);   // no button for now; the sessions are still kept
   assert.equal(await evaluate(`document.querySelector('.garden-dialog').open`),true);
   assert.equal(await count('.garden-tile svg'),1);
   await shot('garden');
