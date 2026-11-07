@@ -190,7 +190,10 @@ body .student-home-view.home-layout,body .student-home-view.overview-layout:has(
 .student-resource>.resource-kind{min-width:34px;text-align:center;color:var(--muted);letter-spacing:.04em}
 .student-resource>.resource-action{color:var(--muted);padding:6px 8px;border:1px solid var(--line);border-radius:7px}
 .student-resource>.resource-action:hover{color:var(--ink);background:var(--soft)}
-.material-grip{cursor:grab;color:var(--muted);letter-spacing:-3px;font-size:14px;padding:4px 6px 4px 2px;user-select:none;touch-action:none}
+.material-grip{cursor:grab;color:var(--muted);letter-spacing:-3px;font-size:15px;padding:6px 8px 6px 4px;border:0;background:transparent;border-radius:6px;user-select:none;touch-action:none}
+.material-grip:hover,.material-grip:focus-visible{color:var(--ink);background:var(--soft)}
+.material-grip:focus-visible{outline:2px solid var(--accent,var(--green));outline-offset:1px}
+.material-order{min-width:1.4em;text-align:right;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
 .material-reordering{opacity:.6;background:var(--soft)}
 .material-plus{margin-left:auto;width:32px;height:32px;border:1px solid var(--line);border-radius:50%;font-size:18px;line-height:1;color:var(--green);padding:0}
 .feature-heading .feature-total+.material-plus{margin-left:10px}
