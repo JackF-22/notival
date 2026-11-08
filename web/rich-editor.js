@@ -529,6 +529,24 @@ const RichEditor = (() => {
     });
     return true;
   }
+  // A bullet with nothing written in it, even if it still holds leftovers you can't see (a stray invisible character,
+  // empty bold, the shell of a flag). The browser would count those as text and keep the list going.
+  const blankItem = item => !item.textContent.replace(/[\s\u200b\u00a0]/g,'') && !item.querySelector('img,.equation,li,input,table');
+  // Enter (or Backspace) on an empty top-level bullet ends the list there: the bullet becomes a plain line, and any
+  // bullets after it carry on below as their own list, keeping their numbers.
+  function leaveList(item) {
+    const list=item.parentElement,line=document.createElement('p');line.append(document.createElement('br'));
+    const later=[];for(let next=item.nextElementSibling;next;next=next.nextElementSibling)later.push(next);
+    list.after(line);
+    if(later.length){
+      const rest=document.createElement(list.tagName);
+      if(list.tagName==='OL'){const number=(Number(list.getAttribute('start'))||1)+[...list.children].filter(child=>child.tagName==='LI').indexOf(item);if(number>1)rest.setAttribute('start',String(number));}
+      rest.append(...later);line.after(rest);
+    }
+    item.remove();if(!list.querySelector('li'))list.remove();
+    selectionAt(line,0);
+    return line;
+  }
   const listItemAt = editor => { const node=window.getSelection()?.anchorNode; const item=(node?.nodeType===Node.ELEMENT_NODE?node:node?.parentElement)?.closest('li'); return item&&editor.contains(item)?item:null; };
 
   // ---- Tables ----
@@ -977,12 +995,14 @@ const RichEditor = (() => {
         const selection=window.getSelection(),item=listItemAt(editor);
         if(item&&selection.isCollapsed&&item.parentElement.parentElement?.tagName==='LI'){
           const probe=document.createRange();probe.selectNodeContents(item);probe.setEnd(selection.anchorNode,selection.anchorOffset);
-          if(!probe.toString().length&&!probe.cloneContents().querySelector('img,.equation')&&outdentItem(item)){event.preventDefault();editor.dispatchEvent(new Event('input',{bubbles:true}));return;}
+          if(!probe.toString().replace(/[\u200b]/g,'').length&&!probe.cloneContents().querySelector('img,.equation')&&outdentItem(item)){event.preventDefault();editor.dispatchEvent(new Event('input',{bubbles:true}));return;}
         }
+        if(item&&selection.isCollapsed&&item.parentElement.parentElement?.tagName!=='LI'&&blankItem(item)){event.preventDefault();hideSlash();leaveList(item);editor.dispatchEvent(new Event('input',{bubbles:true}));return;}
       }
       if(event.key==='Enter'&&!event.shiftKey&&!event.metaKey&&!event.ctrlKey){
         const item=listItemAt(editor);
-        if(item&&item.parentElement.parentElement?.tagName==='LI'&&!item.textContent.trim()&&!item.querySelector('img,.equation,li')&&outdentItem(item)){event.preventDefault();editor.dispatchEvent(new Event('input',{bubbles:true}));return;}
+        if(item&&item.parentElement.parentElement?.tagName==='LI'&&blankItem(item)&&outdentItem(item)){event.preventDefault();editor.dispatchEvent(new Event('input',{bubbles:true}));return;}
+        if(item&&!slash&&item.parentElement.parentElement?.tagName!=='LI'&&blankItem(item)){event.preventDefault();leaveList(item);editor.dispatchEvent(new Event('input',{bubbles:true}));return;}
       }
       if((event.key==='Backspace'||event.key==='Delete') && !event.metaKey && !event.ctrlKey && !event.altKey){
         if(event.key==='Backspace'&&unbulletAtStart(editor)){event.preventDefault();hideSlash();editor.dispatchEvent(new Event('input',{bubbles:true}));return;}
