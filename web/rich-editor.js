@@ -149,10 +149,12 @@ const RichEditor = (() => {
         const alignment=/^(P|DIV|H[1-6]|LI|TD|TH|BLOCKQUOTE|PRE)$/.test(child.tagName)?(child.style.textAlign||child.getAttribute('align')||''):'';
         const checked=child.tagName==='INPUT' && child.hasAttribute('checked');
         const widths=child.tagName==='TABLE'?child.getAttribute('data-widths')||'':'';
+        const indent=/^(P|DIV|H[1-6]|BLOCKQUOTE)$/.test(child.tagName)?child.getAttribute('data-indent')||'':'';
         const imageWidth=child.tagName==='IMG'?child.getAttribute('data-width')||'':'';
         const imageAlign=child.tagName==='IMG'?child.getAttribute('data-align')||'':'';
         for (const attribute of [...child.attributes]) child.removeAttribute(attribute.name);
         if(/^\d+(\.\d+)?(,\d+(\.\d+)?)*$/.test(widths))child.dataset.widths=widths;
+        if(/^[1-6]$/.test(indent))child.dataset.indent=indent;
         if(['left','center','right','justify'].includes(alignment))child.style.textAlign=alignment;
         if (passageId && /^[a-zA-Z0-9_-]{1,100}$/.test(passageId)) child.dataset.passageId=passageId;
         if (flagId && /^[a-zA-Z0-9_-]{1,100}$/.test(flagId)) child.dataset.flag=flagId;
@@ -343,6 +345,24 @@ const RichEditor = (() => {
     const after=document.createRange();after.selectNodeContents(item);after.setStart(selection.anchorNode,selection.anchorOffset);
     if(after.toString().replace(/[\u200b]/g,'')!==''||after.cloneContents().querySelector('img,.equation,li'))return null;
     return next;
+  }
+  // Tab on an ordinary line (not a bullet) indents the whole line, as in a word processor, and Shift-Tab brings it
+  // back. The depth lives on the line itself, so pressing Enter carries it on to the next line.
+  const maxIndent=6;
+  function indentableLines(editor) {
+    const selection=window.getSelection();if(!selection?.rangeCount)return [];
+    const range=selection.getRangeAt(0);
+    const lineOf=node=>{let line=node?.nodeType===Node.ELEMENT_NODE?node:node?.parentElement;while(line&&line!==editor&&line.parentElement!==editor&&!line.parentElement?.classList.contains('col'))line=line.parentElement;return line&&line!==editor&&editor.contains(line)?line:null};
+    const first=lineOf(range.startContainer),last=lineOf(range.endContainer);if(!first)return [];
+    const lines=[first];
+    if(last&&last!==first&&last.parentElement===first.parentElement)for(let line=first.nextElementSibling;line;line=line.nextElementSibling){lines.push(line);if(line===last)break;}
+    return lines.filter(line=>/^(P|DIV|H[1-6]|BLOCKQUOTE)$/.test(line.tagName)&&!line.matches('.equation,.procedure,.cols,.col,.task-row'));
+  }
+  function shiftIndent(line,step) {
+    const depth=Math.max(0,Math.min(maxIndent,(Number(line.dataset.indent)||0)+step));
+    if(depth===(Number(line.dataset.indent)||0))return false;
+    if(depth)line.dataset.indent=String(depth);else delete line.dataset.indent;
+    return true;
   }
   // `info` (optional) learns whether the caret had to leave its own line to reach the equation, and which line that was.
   function equationAtCaret(editor, key, info) {
@@ -906,6 +926,22 @@ const RichEditor = (() => {
           event.preventDefault();
           if(event.shiftKey?outdentItem(item):indentItem(item))editor.dispatchEvent(new Event('input',{bubbles:true}));
           return;
+        }
+        const anchor=window.getSelection()?.anchorNode,inCode=(anchor?.nodeType===Node.ELEMENT_NODE?anchor:anchor?.parentElement)?.closest?.('pre');
+        if(inCode&&editor.contains(inCode)){event.preventDefault();if(!event.shiftKey)document.execCommand('insertText',false,'    ');return;}
+        const lines=indentableLines(editor);
+        if(lines.length){
+          event.preventDefault();
+          if(lines.map(line=>shiftIndent(line,event.shiftKey?-1:1)).some(Boolean))editor.dispatchEvent(new Event('input',{bubbles:true}));
+          return;
+        }
+      }
+      // Backspace at the very start of an indented line steps it back out before it joins the line above.
+      if(event.key==='Backspace'&&!event.metaKey&&!event.ctrlKey&&!event.altKey&&!event.shiftKey&&window.getSelection()?.isCollapsed){
+        const selection=window.getSelection(),[line]=indentableLines(editor);
+        if(line?.dataset.indent){
+          const probe=document.createRange();probe.selectNodeContents(line);probe.setEnd(selection.anchorNode,selection.anchorOffset);
+          if(!probe.toString().replace(/[\u200b]/g,'').length&&!probe.cloneContents().querySelector('img,.equation')){event.preventDefault();shiftIndent(line,-1);editor.dispatchEvent(new Event('input',{bubbles:true}));return;}
         }
       }
       if(event.key==='Backspace'&&!event.metaKey&&!event.ctrlKey&&!event.altKey){
