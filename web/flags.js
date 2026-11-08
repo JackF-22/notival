@@ -33,8 +33,9 @@
   for(const s of spans(id)){parents.add(s.closest('.rich-text'));s.replaceWith(...s.childNodes)}
   for(const rich of parents)if(rich){rich.normalize();rich.dispatchEvent(new Event('input',{bubbles:true}))}
  }
- // A flag covers exactly what was selected. Typing at either edge of it, or pressing Enter there, would let the browser
- // carry the flag on into the new text or the next bullet; whatever is written there is moved back outside the flag.
+ // A flag (or linked words, see line-links.js) covers exactly what was chosen. Typing at either edge of it, or pressing
+ // Enter there, would let the browser carry it on into the new text or the next bullet; whatever is written there is
+ // moved back outside.
  let edge=null;
  const textBefore=(span,node,offset)=>{const r=document.createRange();r.selectNodeContents(span);r.setEnd(node,offset);return r.toString().length};
  function pointAt(span,chars){
@@ -46,17 +47,18 @@
   edge=null;
   if(!e.inputType.startsWith('insert')||!e.target.closest?.('#editor .rich-text'))return;
   const selection=getSelection();if(!selection?.rangeCount||!selection.isCollapsed)return;
-  let node=selection.anchorNode,offset=selection.anchorOffset,span=(node?.nodeType===Node.ELEMENT_NODE?node:node?.parentElement)?.closest('[data-flag]');
-  if(!span&&node?.nodeType===Node.ELEMENT_NODE){const before=node.childNodes[offset-1];if(before?.matches?.('[data-flag]')){span=before;node=span;offset=span.childNodes.length}}
+  let node=selection.anchorNode,offset=selection.anchorOffset,span=(node?.nodeType===Node.ELEMENT_NODE?node:node?.parentElement)?.closest('[data-flag],[data-line-link]');
+  if(!span&&node?.nodeType===Node.ELEMENT_NODE){const before=node.childNodes[offset-1];if(before?.matches?.('[data-flag],[data-line-link]')){span=before;node=span;offset=span.childNodes.length}}
   if(!span||!e.target.contains(span))return;
   const text=span.textContent,at=textBefore(span,node,offset);
-  if(at===text.length)edge={span,id:span.dataset.flag,text,side:'end'};else if(at===0)edge={span,id:span.dataset.flag,text,side:'start'};
+  const kind=span.dataset.flag?'flag':'line-link',id=span.getAttribute('data-'+kind);
+  if(at===text.length)edge={span,kind,id,text,side:'end'};else if(at===0)edge={span,kind,id,text,side:'start'};
  },true);
  document.addEventListener('input',e=>{
   const was=edge;edge=null;if(!was||!e.target.closest?.('#editor .rich-text'))return;
   // Enter: the copy of the flag the browser put on the new line is dropped; it keeps whatever text it held.
-  const copies=spans(was.id).filter(s=>!s.textContent.trim()&&!s.querySelector('img'));
-  if(copies.length&&copies.length<spans(was.id).length)for(const s of copies)s.replaceWith(...s.childNodes);
+  const all=[...document.querySelectorAll('#editor [data-'+was.kind+']')].filter(s=>s.getAttribute('data-'+was.kind)===was.id),copies=all.filter(s=>!s.textContent.trim()&&!s.querySelector('img'));
+  if(copies.length&&copies.length<all.length)for(const s of copies)s.replaceWith(...s.childNodes);
   const span=was.span;if(!span.isConnected)return;
   const now=span.textContent;if(now===was.text)return;
   const range=document.createRange();let moved;

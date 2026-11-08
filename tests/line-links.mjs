@@ -27,89 +27,105 @@ try{
   const depths=()=>evaluate(`[...document.querySelector('.rich-text').children].map(line=>line.dataset.indent||'0').join(',')`);
   const saved=()=>evaluate(`current().blocks[0].html`);
 
-  const mouse=(type,x,y)=>call('Input.dispatchMouseEvent',{type,x,y,button:type==='mouseMoved'?'none':'left',buttons:type==='mousePressed'?1:0,clickCount:1},sessionId);
-  const click=async(x,y)=>{await mouse('mouseMoved',x,y);await wait(40);await mouse('mousePressed',x,y);await mouse('mouseReleased',x,y);await wait(120)};
+  const mouse=(type,x,y,modifiers=0)=>call('Input.dispatchMouseEvent',{type,x,y,modifiers,button:type==='mouseMoved'?'none':'left',buttons:type==='mousePressed'?1:0,clickCount:1},sessionId);
+  const click=async(x,y,modifiers=0)=>{await mouse('mouseMoved',x,y);await wait(40);await mouse('mousePressed',x,y,modifiers);await mouse('mouseReleased',x,y,modifiers);await wait(120)};
   const centre=selector=>evaluate(`(()=>{const n=document.querySelector(${JSON.stringify(selector)});if(!n)throw Error('missing '+${JSON.stringify(selector)});const b=n.getBoundingClientRect();return [b.left+Math.min(b.width/2,60),b.top+b.height/2]})()`);
   const shots=process.env.LINK_SHOTS;
   const shot=async name=>{if(!shots)return;const {data}=await call('Page.captureScreenshot',{format:'png'},sessionId);(await import('node:fs')).writeFileSync(shots+'/'+name+'.png',Buffer.from(data,'base64'))};
+  const select=(needle,within='.rich-text')=>evaluate(`(()=>{const rich=document.querySelector('#editor .rich-text');rich.focus();const walker=document.createTreeWalker(document.querySelector('#editor '+${JSON.stringify(within)}),NodeFilter.SHOW_TEXT);let n;while(n=walker.nextNode()){const i=n.data.indexOf(${JSON.stringify(needle)});if(i>=0){const r=document.createRange();r.setStart(n,i);r.setEnd(n,i+${needle.length});getSelection().removeAllRanges();getSelection().addRange(r);document.dispatchEvent(new Event('selectionchange'));return true}}throw Error('no '+${JSON.stringify(needle)})})()`).then(()=>wait(150));
   const filler=Array.from({length:6},(_,i)=>`<p>Filler paragraph ${i+1} about the derivation.</p>`).join('');
   await open('<h2>Energy</h2><div class="equation display-equation" data-equation="E=mc^2" contenteditable="false">E=mc^2</div>'+filler+'<p>This is why mass and energy trade off.</p><ul><li>Bullet one</li></ul>');
   const links=()=>evaluate(`current().lineLinks?.length||0`);
-  const markers=()=>evaluate(`document.querySelectorAll('.line-link-marker').length`);
+  const linked=()=>evaluate(`[...document.querySelectorAll('#editor [data-line-link]')].map(s=>s.textContent).join('|')`);
+  const savedHTML=()=>evaluate(`current().blocks[0].html`);
 
-  // From the line's handle menu: "Link to another line…", then click the equation far above.
-  const [lx,ly]=await centre('.rich-text p:nth-last-of-type(1)');
-  await mouse('mouseMoved',lx,ly);await wait(150);
-  assert.equal(await evaluate(`!document.querySelector('#block-handle').hidden`),true,'the line handle shows');
-  await click(...await centre('#block-handle'));
-  assert.ok(await evaluate(`[...document.querySelectorAll('.block-menu button')].some(b=>b.textContent.includes('Link to another line'))`),'the menu offers linking');
-  await evaluate(`[...document.querySelectorAll('.block-menu button')].find(b=>b.textContent.includes('Link to another line')).click()`);await wait(80);
+  // Choose the words, then "Link to…" in the selection toolbar, then click the equation far above.
+  await select('mass and energy');
+  assert.equal(await evaluate(`!!document.querySelector('#selection-tools #selection-link')&&!document.querySelector('#selection-tools').hidden`),true,'the selection toolbar offers Link to…');
+  await evaluate(`document.querySelector('#selection-link').click()`);await wait(80);
   assert.equal(await evaluate(`document.body.classList.contains('linking-lines')`),true);
-  assert.equal(await evaluate(`!document.querySelector('.line-link-banner').hidden`),true,'a banner says what to do');
+  assert.match(await evaluate(`document.querySelector('.line-link-banner').textContent`),/“mass and energy” refers to/);
+  assert.equal(await evaluate(`document.querySelector('#editor span.line-link-source')?.textContent`),'mass and energy','the chosen words stay marked while you pick');
   await mouse('mouseMoved',...await centre('.rich-text .display-equation'));await wait(80);
-  assert.equal(await evaluate(`document.querySelector('.rich-text .display-equation').classList.contains('line-link-candidate')`),true,'hovering shows what would be linked');
+  assert.equal(await evaluate(`document.querySelector('.rich-text .display-equation').classList.contains('line-link-candidate')`),true);
   await shot('picking');
   await click(...await centre('.rich-text .display-equation'));
   assert.equal(await links(),1);
+  assert.equal(await linked(),'mass and energy','the words become the link');
   assert.equal(await evaluate(`document.querySelector('.rich-text .display-equation').classList.contains('editing')`),false,'clicking to link does not open the equation');
-  assert.equal(await evaluate(`document.body.classList.contains('linking-lines')`),false);
+  assert.match(await savedHTML(),/<span data-line-link="[^"]+">mass and energy<\/span>/,'the linked words are saved');
+  assert.match(await savedHTML(),/class="equation display-equation"[^>]*data-passage-id|data-passage-id="[^"]+"[^>]*>E=mc\^2|data-passage-id/,'the equation keeps an id to point at');
   assert.equal(await evaluate(`state.notes[0].nodes.length`),0,'nothing is added to the mind map');
-  await wait(100);
-  assert.equal(await markers(),2,'a marker beside each end');
-  const html=await evaluate(`current().blocks[0].html`);
-  assert.equal((html.match(/data-passage-id=/g)||[]).length,2,'both ends are saved with their ids');
 
-  // Hovering a marker lights up both ends and draws the curve between them.
-  const marker=await evaluate(`(()=>{const m=[...document.querySelectorAll('.line-link-marker')].sort((a,b)=>b.getBoundingClientRect().top-a.getBoundingClientRect().top)[0].getBoundingClientRect();return [m.left+m.width/2,m.top+m.height/2]})()`);
-  await mouse('mouseMoved',...marker);await wait(80);
-  assert.equal(await evaluate(`document.querySelectorAll('#editor .line-link-lit').length`),2);
-  assert.equal(await evaluate(`document.querySelectorAll('.line-link-curve path').length`),1);
-  await wait(250);await shot('hover');
-  assert.equal(await evaluate(`getComputedStyle(document.querySelector('.line-link-curve')).opacity`),'1','the curve is actually shown');
+  // Hovering the words previews the equation, typeset, and lights up both ends.
+  const wordsAt=await centre('#editor [data-line-link]');
+  await mouse('mouseMoved',wordsAt[0]-30,wordsAt[1]-40);await wait(50);
+  await mouse('mouseMoved',...wordsAt);await wait(450);
+  assert.equal(await evaluate(`!document.querySelector('.line-link-pop').hidden`),true,'a preview appears on hover');
+  assert.equal(await evaluate(`!!document.querySelector('.line-link-pop .line-link-math .katex')`),true,'the equation is shown typeset');
+  assert.match(await evaluate(`document.querySelector('.line-link-pop .line-link-label').textContent`),/↑ Equation above/);
+  assert.equal(await evaluate(`document.querySelector('.rich-text .display-equation').classList.contains('line-link-lit')`),true);
+  assert.equal(await evaluate(`getComputedStyle(document.querySelector('.line-link-curve')).opacity`),'1');
+  await shot('hover');
+  // Moving onto the preview keeps it; moving away closes it.
+  await mouse('mouseMoved',...await centre('.line-link-pop .line-link-unlink'));await wait(350);
+  assert.equal(await evaluate(`!document.querySelector('.line-link-pop').hidden`),true,'the preview stays while you move onto it');
+  await mouse('mouseMoved',150,850);await wait(350);
+  assert.equal(await evaluate(`document.querySelector('.line-link-pop').hidden`),true,'and goes when you move away');
 
-  // Clicking it lists the other end; choosing it goes there.
-  await click(...marker);
-  assert.match(await evaluate(`document.querySelector('.line-link-pop').textContent`),/↑EquationE=mc\^2/);
-  await shot('pop');
-  await evaluate(`document.querySelector('.line-link-go').click()`);await wait(80);
+  // A click on the words goes to the equation, with a way back.
+  await click(...wordsAt);await wait(80);
   assert.equal(await evaluate(`document.querySelector('.rich-text .display-equation').classList.contains('line-link-pulse')`),true,'the equation flashes when you arrive');
-  assert.equal(await evaluate(`document.querySelector('.line-link-pop').hidden`),true);
+  assert.match(await evaluate(`(()=>{const b=document.querySelector('.line-link-back');return b.hidden?'hidden':b.textContent})()`),/↩ Back to “mass and energy”/);
+  await shot('back');
+  await evaluate(`document.querySelector('.line-link-back').click()`);await wait(60);
+  assert.equal(await evaluate(`document.querySelector('#editor [data-line-link]').classList.contains('line-link-pulse')`),true);
 
-  // Enter at the end of a linked line: the new line is not linked.
-  await evaluate(`(()=>{const p=[...document.querySelectorAll('.rich-text p')].at(-1);p.closest('.rich-text').focus();const r=document.createRange();r.setStart(p.firstChild,p.firstChild.length);r.collapse(true);getSelection().removeAllRanges();getSelection().addRange(r)})()`);
-  await press('Enter');await call('Input.insertText',{text:'A new thought'},sessionId);await wait(150);
-  assert.equal(await markers(),2,'still exactly two linked lines');
-  assert.equal((await evaluate(`current().blocks[0].html`)).match(/data-passage-id=/g).length,2);
+  // ⌥-click puts the caret in the words instead, so they can be edited.
+  await wait(700);
+  const again=await centre('#editor [data-line-link]');
+  await click(again[0],again[1],1);
+  assert.equal(await evaluate(`document.querySelector('.line-link-back').hidden`),true,'no jump');
+  assert.equal(await evaluate(`!!getSelection().anchorNode?.parentElement?.closest('[data-line-link]')`),true);
+  // Typing right after the linked words stays outside the link.
+  await evaluate(`(()=>{const t=document.querySelector('#editor [data-line-link]').firstChild;const r=document.createRange();r.setStart(t,t.length);r.collapse(true);getSelection().removeAllRanges();getSelection().addRange(r)})()`);
+  await call('Input.insertText',{text:' together'},sessionId);await wait(120);
+  assert.equal(await linked(),'mass and energy');
+  assert.match(await evaluate(`document.querySelector('.rich-text p:nth-last-of-type(1)').textContent`),/mass and energy together trade off/);
 
-  // ⌘⇧L links the line the caret is on; Esc backs out without linking.
+  // The equation has a marker leading back to the words; Unlink there removes the link and keeps the words.
+  await evaluate(`document.querySelector('article').scrollTop=0`);await wait(120);
+  assert.equal(await evaluate(`document.querySelectorAll('.line-link-marker').length`),1,'only the line pointed at gets a marker');
+  await click(...await centre('.line-link-marker'));
+  assert.match(await evaluate(`document.querySelector('.line-link-pop').textContent`),/Referred to from.*“mass and energy”/);
+  await shot('backlinks');
+  await evaluate(`document.querySelector('.line-link-pop .line-link-unlink').click()`);await wait(120);
+  assert.equal(await links(),0);
+  assert.equal(await linked(),'');
+  assert.match(await evaluate(`document.querySelector('.rich-text p:nth-last-of-type(1)').textContent`),/This is why mass and energy together trade off\./,'the words are still there');
+  assert.doesNotMatch(await savedHTML(),/data-line-link/);
+
+  // ⌘⇧L with just the caret on a line links the whole line; Esc backs out and leaves nothing behind.
   await evaluate(`(()=>{const li=document.querySelector('.rich-text li');li.closest('.rich-text').focus();const r=document.createRange();r.setStart(li.firstChild,3);r.collapse(true);getSelection().removeAllRanges();getSelection().addRange(r)})()`);
   await evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{code:'KeyL',key:'l',shiftKey:true,metaKey:true,bubbles:true,cancelable:true}))`);await wait(60);
-  assert.equal(await evaluate(`document.querySelector('.rich-text li').classList.contains('line-link-source')`),true);
+  assert.equal(await evaluate(`document.querySelector('#editor span.line-link-source')?.textContent`),'Bullet one');
   await evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}))`);await wait(60);
   assert.equal(await evaluate(`document.body.classList.contains('linking-lines')`),false);
-  assert.equal(await links(),1);
-  // Done again and finished with a click, it links the bullet to the heading.
-  await evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{code:'KeyL',key:'l',shiftKey:true,metaKey:true,bubbles:true,cancelable:true}))`);await wait(60);
-  await evaluate(`document.querySelector('article').scrollTop=0`);await wait(80);
-  await click(...await centre('.rich-text h2'));await wait(100);
-  assert.equal(await links(),2);
-  // Linking a line to the equation as well gives the equation's marker a count.
-  await evaluate(`(()=>{const li=document.querySelector('.rich-text li');li.closest('.rich-text').focus();const r=document.createRange();r.setStart(li.firstChild,3);r.collapse(true);getSelection().removeAllRanges();getSelection().addRange(r)})()`);
-  await evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{code:'KeyL',key:'l',shiftKey:true,metaKey:true,bubbles:true,cancelable:true}))`);await wait(60);
-  await click(...await centre('.rich-text .display-equation'));await wait(100);
-  assert.equal(await links(),3);
-  assert.ok(await evaluate(`[...document.querySelectorAll('.line-link-marker')].some(m=>m.textContent==='↔ 2')`),'a line with two links shows the count');
+  assert.equal(await evaluate(`document.querySelectorAll('#editor [data-line-link]').length`),0);
+  assert.equal(await evaluate(`document.querySelector('.rich-text li').innerHTML`),'Bullet one');
 
-  // The links survive reopening the note.
-  await evaluate(`render()`);await wait(200);
-  assert.ok(await markers()>=3);
+  // The line handle offers it too.
+  const [lx,ly]=await centre('.rich-text li');
+  await mouse('mouseMoved',lx,ly);await wait(150);
+  await click(...await centre('#block-handle'));
+  assert.ok(await evaluate(`[...document.querySelectorAll('.block-menu button')].some(b=>b.textContent.includes('Link this line to'))`));
+  await evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);
 
-  // Unlink from the list.
-  const eqMarker=await evaluate(`(()=>{const m=[...document.querySelectorAll('.line-link-marker')].find(m=>m.textContent==='↔ 2').getBoundingClientRect();return [m.left+m.width/2,m.top+m.height/2]})()`);
-  await click(...eqMarker);
-  assert.equal(await evaluate(`document.querySelectorAll('.line-link-pop .line-link-row').length`),2);
-  await evaluate(`document.querySelector('.line-link-unlink').click()`);await wait(100);
-  assert.equal(await links(),2);
-  assert.equal(await evaluate(`state.notes[0].nodes.length`),0,'the mind map is never touched');
+  // A link made earlier from a whole line (before words could be chosen) still shows and still leads back.
+  await open('<div class="equation display-equation" data-equation="x^2" data-passage-id="eq1" contenteditable="false">x^2</div><p data-passage-id="p1">Old style link</p>');
+  await evaluate(`current().lineLinks=[{id:'old',from:'p1',to:'eq1',created:1}];window.marginLineLinks.draw()`);await wait(80);
+  assert.equal(await evaluate(`document.querySelectorAll('.line-link-marker').length`),1);
+  await click(...await centre('.line-link-marker'));
+  assert.match(await evaluate(`document.querySelector('.line-link-pop').textContent`),/Old style link/);
   console.log('Line link tests passed');
 }finally{browser.kill();await rm(profile,{recursive:true,force:true,maxRetries:5,retryDelay:100})}

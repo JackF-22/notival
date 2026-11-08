@@ -145,6 +145,7 @@ const RichEditor = (() => {
         const task=child.classList.contains('task-row');
         const passageId=child.getAttribute('data-passage-id');
         const flagId=child.tagName==='SPAN'?child.getAttribute('data-flag'):null;
+        const lineLink=child.tagName==='SPAN'?child.getAttribute('data-line-link'):null;
         const imageId=child.tagName==='IMG'?child.getAttribute('data-image-id'):null;
         const alignment=/^(P|DIV|H[1-6]|LI|TD|TH|BLOCKQUOTE|PRE)$/.test(child.tagName)?(child.style.textAlign||child.getAttribute('align')||''):'';
         const checked=child.tagName==='INPUT' && child.hasAttribute('checked');
@@ -160,6 +161,7 @@ const RichEditor = (() => {
         if(['left','center','right','justify'].includes(alignment))child.style.textAlign=alignment;
         if (passageId && /^[a-zA-Z0-9_-]{1,100}$/.test(passageId)) child.dataset.passageId=passageId;
         if (flagId && /^[a-zA-Z0-9_-]{1,100}$/.test(flagId)) child.dataset.flag=flagId;
+        if (lineLink && /^[a-zA-Z0-9_-]{1,100}$/.test(lineLink)) child.dataset.lineLink=lineLink;
         if (child.tagName === 'A' && href) child.setAttribute('href',href);
         if (child.tagName === 'IMG') { if(src){child.setAttribute('src',src);child.setAttribute('alt',alt);if(imageId&&/^[a-zA-Z0-9_-]{1,100}$/.test(imageId))child.dataset.imageId=imageId;if(/^\d{1,3}(\.\d)?$/.test(imageWidth)&&+imageWidth>=5&&+imageWidth<=100)child.dataset.width=imageWidth;if(['left','right','center'].includes(imageAlign))child.dataset.align=imageAlign;} else {child.remove();continue;} }
         if (child.tagName === 'INPUT') {child.setAttribute('type','checkbox'); child.setAttribute('contenteditable','false');if(checked)child.setAttribute('checked','');}
