@@ -21,7 +21,6 @@ const RichEditor = (() => {
   const listItem = /^(\s*)([-*+]|\d+[.)])\s+(.+)$/, taskItem = /^\s*[-*]\s+\[[ xX]\]/;
   // Indentation decides nesting, so a list can go as deep as the writer indents it.
   function parseList(lines, start) {
-    const make = tag => ({tag, items: []});
     let top = null, levels = [], i = start;
     while (i < lines.length) {
       if (levels.length && /^\s+\$\$\s*$/.test(lines[i])) {
@@ -33,6 +32,7 @@ const RichEditor = (() => {
       const match = lines[i].match(listItem);
       if (!match || taskItem.test(lines[i])) break;
       const indent = match[1].replace(/\t/g, '    ').length, tag = /\d/.test(match[2]) ? 'ol' : 'ul';
+      const make = tag => ({tag, items: [], start: tag === 'ol' ? parseInt(match[2], 10) : 1});
       while (levels.length && levels.at(-1).indent > indent) levels.pop();
       if (!levels.length) {
         if (top && tag !== top.tag) break;
@@ -44,7 +44,7 @@ const RichEditor = (() => {
       levels.at(-1).list.items.push({html: inline(match[3]), children: [], equations: []});
       i++;
     }
-    const render = list => `<${list.tag}>${list.items.map(item => `<li>${item.html}${item.equations.map(source => `<div class="equation display-equation" data-equation="${escape(source)}" contenteditable="false">${escape(source)}</div>`).join('')}${item.children.map(render).join('')}</li>`).join('')}</${list.tag}>`;
+    const render = list => `<${list.tag}${list.start > 1 ? ` start="${list.start}"` : ''}>${list.items.map(item => `<li>${item.html}${item.equations.map(source => `<div class="equation display-equation" data-equation="${escape(source)}" contenteditable="false">${escape(source)}</div>`).join('')}${item.children.map(render).join('')}</li>`).join('')}</${list.tag}>`;
     return {html: render(top), next: i};
   }
   function fromMarkdown(markdown) {
@@ -150,11 +150,13 @@ const RichEditor = (() => {
         const checked=child.tagName==='INPUT' && child.hasAttribute('checked');
         const widths=child.tagName==='TABLE'?child.getAttribute('data-widths')||'':'';
         const indent=/^(P|DIV|H[1-6]|BLOCKQUOTE)$/.test(child.tagName)?child.getAttribute('data-indent')||'':'';
+        const listStart=child.tagName==='OL'?child.getAttribute('start')||'':'';
         const imageWidth=child.tagName==='IMG'?child.getAttribute('data-width')||'':'';
         const imageAlign=child.tagName==='IMG'?child.getAttribute('data-align')||'':'';
         for (const attribute of [...child.attributes]) child.removeAttribute(attribute.name);
         if(/^\d+(\.\d+)?(,\d+(\.\d+)?)*$/.test(widths))child.dataset.widths=widths;
         if(/^[1-6]$/.test(indent))child.dataset.indent=indent;
+        if(/^\d{1,4}$/.test(listStart)&&+listStart>1)child.setAttribute('start',String(+listStart));
         if(['left','center','right','justify'].includes(alignment))child.style.textAlign=alignment;
         if (passageId && /^[a-zA-Z0-9_-]{1,100}$/.test(passageId)) child.dataset.passageId=passageId;
         if (flagId && /^[a-zA-Z0-9_-]{1,100}$/.test(flagId)) child.dataset.flag=flagId;
@@ -172,7 +174,7 @@ const RichEditor = (() => {
     const children = node => [...node.childNodes].map(walk).join('');
     const isList = node => node.nodeType === Node.ELEMENT_NODE && (node.tagName==='UL'||node.tagName==='OL');
     function list(node, depth) {
-      let number = 0;
+      let number = node.tagName==='OL' && Number(node.getAttribute('start')) > 1 ? Number(node.getAttribute('start')) - 1 : 0;
       return [...node.children].map(item => {
         if (isList(item)) return list(item, depth+1);
         if (item.tagName!=='LI') return '';
@@ -400,6 +402,16 @@ const RichEditor = (() => {
     const adjacent=editor.childNodes[backward?offset-1:offset];
     return adjacent?.nodeType===Node.ELEMENT_NODE && adjacent.classList.contains('equation')?adjacent:null;
   }
+  // A display equation alone on its own bullet, right under another bullet, is part of that bullet: move it there so
+  // the list numbering carries on past it (1, equation, 2) instead of counting the equation as a step.
+  function tuckIntoItemAbove(equation) {
+    const item=equation.parentElement,above=item?.previousElementSibling;
+    if(item?.tagName!=='LI'||above?.tagName!=='LI')return false;
+    const rest=[...item.childNodes].filter(node=>node!==equation);
+    if(rest.some(node=>node.nodeType===Node.ELEMENT_NODE?!/^BR$/.test(node.tagName):node.textContent.replace(/[\s\u200b\u00a0]/g,'')))return false;
+    above.insertBefore(equation,[...above.children].find(isListElement)||null);item.remove();
+    return true;
+  }
   function placeCaretByEquation(editor, equation, after) {
     const range=document.createRange();
     if(equation.classList.contains('display-equation')&&equation.parentElement?.tagName==='LI'){
@@ -447,7 +459,22 @@ const RichEditor = (() => {
     if(!block||!/^(P|DIV)$/.test(block.tagName)||block.textContent!==node.textContent)return false;
     const marker=node.textContent,tag=/^[-*+]$/.test(marker)?'UL':/^\d+[.)]$/.test(marker)?'OL':null;
     if(!tag)return false;
-    const list=document.createElement(tag),item=document.createElement('li');item.append(document.createElement('br'));list.append(item);block.replaceWith(list);
+    const item=document.createElement('li');item.append(document.createElement('br'));
+    const number=tag==='OL'?parseInt(marker,10):1;
+    // "2." under a numbered list that a display equation broke off carries that list on: the equations tuck in under the
+    // item above (where they belong) and the new line takes the next number. Typing "1." always starts afresh.
+    let joined=null;
+    if(number>1){
+      const between=[];let previous=block.previousElementSibling;
+      const blank=node=>/^(P|DIV)$/.test(node.tagName)&&!node.classList.contains('equation')&&!node.textContent.trim()&&!node.querySelector('img,.equation');
+      while(previous&&(previous.classList.contains('display-equation')||blank(previous))){between.unshift(previous);previous=previous.previousElementSibling}
+      if(previous?.tagName==='OL'&&previous.lastElementChild?.tagName==='LI'){
+        const owner=previous.lastElementChild,nested=[...owner.children].find(isListElement)||null;
+        for(const node of between)if(node.classList.contains('display-equation'))owner.insertBefore(node,nested);else node.remove();
+        previous.append(item);block.remove();joined=previous;
+      }
+    }
+    if(!joined){const list=document.createElement(tag);if(number>1)list.setAttribute('start',String(Math.min(number,9999)));list.append(item);block.replaceWith(list);}
     const caret=document.createRange();caret.selectNodeContents(item);caret.collapse(true);selection.removeAllRanges();selection.addRange(caret);
     if(focused?.editor===editor)focused.range=caret.cloneRange();
     editor.dispatchEvent(new Event('input',{bubbles:true}));
@@ -688,7 +715,9 @@ const RichEditor = (() => {
         const fixed=document.createElement(display?'div':'span');
         fixed.className=display?'equation display-equation':'equation inline-equation';fixed.dataset.equation=value;fixed.contentEditable='false';
         if(equation?.dataset.passageId)fixed.dataset.passageId=equation.dataset.passageId;
-        region.replaceWith(fixed);renderOne(fixed);placeCaretByEquation(editor,fixed,side!=='before');
+        region.replaceWith(fixed);renderOne(fixed);
+        if(display)tuckIntoItemAbove(fixed);
+        placeCaretByEquation(editor,fixed,side!=='before');
       }
       editor.dispatchEvent(new Event('input',{bubbles:true}));
       // The engine may scroll while it re-places the caret, so hold the page where it was for a moment.
