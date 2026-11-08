@@ -100,7 +100,8 @@
    row.onmousedown=e=>e.preventDefault();row.onclick=()=>{closeMenu();convert(rich,item,id)};menu.append(row);
   }
   // Moving a line next to another, for people who would rather click than drag.
-  const layout=window.LineColumns?.menuItems(rich,item)||[];
+  // Other features add their own entries for a line (linking it to another, say) through marginBlockMenuExtras.
+  const layout=[...(window.LineColumns?.menuItems(rich,item)||[]),...(window.marginBlockMenuExtras||[]).flatMap(extra=>extra(rich,item)||[])];
   if(layout.length){
    const rule=document.createElement('div');rule.className='block-menu-rule';rule.setAttribute('role','separator');menu.append(rule);
    for(const [name,mark,run] of layout){
