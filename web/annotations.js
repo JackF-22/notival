@@ -635,5 +635,80 @@
    for(const t of ['pointerdown','keydown'])window.addEventListener(t,away,true);
   };
  }
- window.marginAnnotations={draw,group,groupSelection,sideNote,drawMode};
+ // ── Export: drawings placed beside the lines they belong to on the exported page ───────────────────────────
+ // The page is a different width from the window, so drawings can't keep their exact spot. Each one goes beside its
+ // line instead, the way a margin note sits in a printed book: shapes, side notes and boxes to the right of the line,
+ // a brace down the right of its lines with its note beside it. Colours are worked out for white paper. In a Word
+ // file (no drawings there) each becomes a short aside under its line, so nothing written is lost.
+ const escape=text=>String(text??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+ function resolved(css){const probe=el('span');probe.style.color=css;document.body.append(probe);const value=getComputedStyle(probe).color;probe.remove();return value}
+ function paperColours(a){
+  const pencil=resolved('color-mix(in srgb, var(--accent, var(--green)) 70%, #1f2430)');
+  const pick=name=>name==='ink'?'#1f2430':colour(name)?resolved(colour(name)):pencil;
+  const line=pick(a.line);
+  return {line,text:pick(a.color),paper:resolved(`color-mix(in srgb, ${line} 8%, #ffffff)`)};
+ }
+ function exportText(text){
+  return String(text||'').split(/(\$\$[\s\S]+?\$\$|\$[^$\n]+\$)/).map(part=>{
+   const math=part.match(/^\$\$([\s\S]+)\$\$$/)||part.match(/^\$([^$]+)\$$/);
+   if(math&&typeof katex!=='undefined'){try{return katex.renderToString(window.MathSyntax?.katexSource?MathSyntax.katexSource(math[1]):math[1],{displayMode:part.startsWith('$$'),throwOnError:false,output:'html'})}catch{}}
+   return escape(part).replace(/\n/g,'<br>');
+  }).join('');
+ }
+ const PAGE=504;   // the width of the text on an exported page, in CSS pixels (native/export.swift)
+ function exportDrawing(a){
+  const {line,text,paper}=paperColours(a),words=exportText(a.text);
+  const shown=layer.querySelector(`.anno[data-id="${a.id}"]:not(.tucked)`);
+  if(a.kind==='shape'){
+   // At the size it's shown in the note (grown to fit its words), no wider than about two fifths of the page.
+   const ink=shown?.querySelector('.anno-shape-ink');
+   let w=ink?+ink.getAttribute('width'):Math.max(40,a.w||160),h=ink?+ink.getAttribute('height'):Math.max(30,a.h||90);
+   const scale=Math.min(1,PAGE*.42/w);w=Math.round(w*scale);h=Math.round(h*scale);
+   const outline=forms[a.form]||a.points||forms.rect,room=roomInside(outline,w,h);
+   const path=forms[a.form]?formPath(a.form,w,h):shapePath(outline,w,h);
+   return `<div class="pdf-anno pdf-anno-shape" style="width:${w}px;height:${h}px"><svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><path d="${path}" fill="${paper}" stroke="${line}" stroke-width="1.5" stroke-linejoin="round"/></svg>`+
+    `<div class="pdf-anno-text" style="left:${room.x.toFixed(1)}px;top:${room.y.toFixed(1)}px;width:${room.w.toFixed(1)}px;min-height:${room.h.toFixed(1)}px;color:${text};font-size:${Math.max(9,13*scale).toFixed(1)}px">${words}</div></div>`;
+  }
+  if(a.kind==='box')return `<div class="pdf-anno pdf-anno-box" style="width:${Math.min(PAGE*.42,Math.max(60,a.w||160))}px;min-height:${Math.max(32,a.h||60)}px;border-color:${line};color:${text}">${words}</div>`;
+  return `<div class="pdf-anno pdf-anno-bubble" style="border-color:${resolved(`color-mix(in srgb, ${line} 35%, #ffffff)`)};background:${paper};color:${text}">${words}</div>`;
+ }
+ // Put a note's drawings into one exported block (`box` is the block's cleaned-up HTML, ready to print).
+ function decorate(box,note,format){
+  const byId=id=>id?[...box.querySelectorAll('[data-passage-id]')].find(n=>n.dataset.passageId===id):null;
+  for(const a of note?.annotations||[]){
+   const first=byId(a.from);if(!first)continue;
+   const last=a.kind==='brace'?byId(a.to)||first:first;
+   if(format!=='pdf'){
+    if(!a.text)continue;
+    const aside=el('p',undefined,'pdf-aside');aside.textContent=(a.kind==='brace'?'} ':'— ')+a.text;
+    if(last.tagName==='LI')last.append(aside);else last.after(aside);   // a bullet keeps its aside inside it
+    continue;
+   }
+   if(a.kind==='brace'){
+    const {line,text}=paperColours(a);
+    const lines=[];for(let n=first;n;n=n.nextElementSibling){lines.push(n);if(n===last)break}
+    if(lines.at(-1)!==last){lines.length=0;lines.push(first)}   // ends in different places: brace the first line alone
+    const group=el('div',undefined,'pdf-brace'),held=el('div',undefined,'pdf-brace-lines');
+    first.before(group);held.append(...lines);
+    group.innerHTML=`<div class="pdf-brace-mark"><svg viewBox="0 0 12 100" preserveAspectRatio="none"><path d="${bracePath(1,1,99,10)}" fill="none" stroke="${line}" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg></div><div class="pdf-brace-label" style="color:${text}">${exportText(a.text)}</div>`;
+    group.prepend(held);
+    continue;
+   }
+   const holder=el('div');holder.innerHTML=exportDrawing(a);const drawing=holder.firstElementChild;
+   if(first.tagName==='LI')first.prepend(drawing);else first.before(drawing);
+  }
+ }
+ const exportCSS=`
+  .pdf-anno{float:right;clear:right;margin:2pt 0 6pt 14pt;break-inside:avoid;font:9.5pt/1.4 -apple-system,"Helvetica Neue",Helvetica,Arial,sans-serif}
+  .pdf-anno-shape{position:relative}.pdf-anno-shape svg{position:absolute;left:0;top:0;overflow:visible}
+  .pdf-anno-text{position:absolute;display:flex;flex-direction:column;justify-content:center;text-align:center;line-height:1.35}
+  .pdf-anno-bubble{max-width:34%;padding:4pt 8pt;border:.75pt solid;border-radius:8pt}
+  .pdf-anno-box{max-width:42%;padding:5pt 8pt;border:1.2pt solid;border-radius:5pt}
+  .pdf-brace{display:grid;grid-template-columns:minmax(0,1fr) 12px minmax(0,30%);column-gap:7pt;align-items:center;margin:0 0 6pt;break-inside:avoid}
+  .pdf-brace-lines>:last-child{margin-bottom:0}
+  .pdf-brace-mark{align-self:stretch;position:relative}.pdf-brace-mark svg{position:absolute;left:0;top:2pt;width:12px;height:calc(100% - 4pt)}
+  .pdf-brace-label{font:9.5pt/1.4 -apple-system,"Helvetica Neue",Helvetica,Arial,sans-serif}
+  .pdf-aside{margin:0 0 6pt 14pt;color:#4a4f60;font-style:italic}
+ `;
+ window.marginAnnotations={draw,group,groupSelection,sideNote,drawMode,decorate,exportCSS};
 })();

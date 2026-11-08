@@ -28,7 +28,7 @@
  `;
  // One block of the note, cleaned up for reading rather than editing.
  let procedures=0;   // "Algorithm 1, 2, …" run through the whole note
- function cell(block,format){
+ function cell(block,format,note){
   if(block.type==='code'){
    const pre=document.createElement('pre');pre.textContent=block.text||'';
    const box=document.createElement('div');box.className='cell';box.append(pre);return box;
@@ -50,6 +50,8 @@
    const done=row.dataset.task==='done'||!!row.querySelector('input:checked');
    row.querySelector('input')?.replaceWith(document.createTextNode(done?'☑ ':'☐ '));
   });
+  // Braces, side notes and shapes drawn around the text go beside the lines they belong to.
+  window.marginAnnotations?.decorate(box,note,format);
   box.querySelectorAll('[contenteditable]').forEach(item=>item.removeAttribute('contenteditable'));
   box.querySelectorAll('button,.image-handle,.resize-handle,.cell-copy,.word-count,.block-tools').forEach(item=>item.remove());
   return box;
@@ -59,21 +61,21 @@
   const date=new Date(note.updated||Date.now()).toLocaleDateString(undefined,{year:'numeric',month:'long',day:'numeric'});
   const meta=[project?.name,date].filter(Boolean).join('  ·  ');
   const body=document.createElement('div');
-  procedures=0;note.blocks.forEach(block=>body.append(cell(block,format)));
+  procedures=0;note.blocks.forEach(block=>body.append(cell(block,format,note)));
   const title=note.title?.trim()||'Untitled note';
   const katexCSS=format==='pdf'?'<link rel="stylesheet" href="math/katex.min.css">':'';
-  return {title,html:`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title>${katexCSS}<style>${css}</style></head><body><header class="note-head"><h1 class="note-title">${esc(title)}</h1><p class="note-meta">${esc(meta)}</p></header>${body.innerHTML}</body></html>`};
+  return {title,html:`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title>${katexCSS}<style>${css}${window.marginAnnotations?.exportCSS||''}</style></head><body><header class="note-head"><h1 class="note-title">${esc(title)}</h1><p class="note-meta">${esc(meta)}</p></header>${body.innerHTML}</body></html>`};
  }
  // An end-of-unit study guide: the unit's notes in order, then a list of the PDFs the app appends after them.
  function buildGuide(title,subtitle,notes,pdfNames=[]){
   const body=document.createElement('div');
   for(const note of notes){
    const heading=document.createElement('h1');heading.className='guide-note-title';heading.textContent=note.title?.trim()||'Untitled note';body.append(heading);
-   procedures=0;note.blocks.forEach(block=>body.append(cell(block,'pdf')));
+   procedures=0;note.blocks.forEach(block=>body.append(cell(block,'pdf',note)));
   }
   const list=pdfNames.length?`<h2>Attached PDFs</h2><ul class="guide-pdfs">${pdfNames.map(name=>`<li>${esc(name)}</li>`).join('')}</ul>`:'';
   const name=title?.trim()||'Study guide';
-  return {title:name,html:`<!doctype html><html><head><meta charset="utf-8"><title>${esc(name)}</title><link rel="stylesheet" href="math/katex.min.css"><style>${css}</style></head><body><header class="note-head"><h1 class="note-title">${esc(name)}</h1><p class="note-meta">${esc(subtitle||'')}</p></header>${list}${body.innerHTML}</body></html>`};
+  return {title:name,html:`<!doctype html><html><head><meta charset="utf-8"><title>${esc(name)}</title><link rel="stylesheet" href="math/katex.min.css"><style>${css}${window.marginAnnotations?.exportCSS||''}</style></head><body><header class="note-head"><h1 class="note-title">${esc(name)}</h1><p class="note-meta">${esc(subtitle||'')}</p></header>${list}${body.innerHTML}</body></html>`};
  }
  function sendGuide(title,subtitle,notes,pdfs){
   const channel=window.webkit?.messageHandlers?.margin;
