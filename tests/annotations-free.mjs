@@ -97,39 +97,73 @@ try{
   await type(' (Tue 2pm)');await key('Escape','Escape',27);
   assert.equal((await annotations())[0].text,'Ask about this in office hours (Tue 2pm)');
 
-  // ── A box in the top right of the page: ⌘⇧B, drag it out beside the heading, type a reminder with an equation ──
-  // (With a heading, the outline takes the right margin at this width, so the box goes on the page itself.)
-  await shortcut('KeyB','B',true);
-  assert.equal(await evaluate(`document.body.classList.contains('anno-drawing')`),true);
+  // Sketch a loop with the pointer: an oval (or a lopsided one) around a centre, ⌘ held if asked.
+  const META=4;
+  const sketch=async(cx,cy,rx,ry,{meta=false,wobble=0,turns=1}={})=>{
+    const steps=36,mods=meta?META:0,point=i=>{const t=i/steps*Math.PI*2*turns;return [cx+rx*Math.cos(t)*(1+wobble*Math.sin(3*t)),cy+ry*Math.sin(t)]};
+    await call('Input.dispatchMouseEvent',{type:'mouseMoved',x:point(0)[0],y:point(0)[1],button:'none',modifiers:mods},sessionId);await wait(30);
+    await call('Input.dispatchMouseEvent',{type:'mousePressed',x:point(0)[0],y:point(0)[1],button:'left',buttons:1,clickCount:1,modifiers:mods},sessionId);
+    for(let i=1;i<=steps;i++){const [x,y]=point(i);await call('Input.dispatchMouseEvent',{type:'mouseMoved',x,y,button:'left',buttons:1,modifiers:mods},sessionId);await wait(8)}
+    await call('Input.dispatchMouseEvent',{type:'mouseReleased',x:point(steps)[0],y:point(steps)[1],button:'left',buttons:0,clickCount:1,modifiers:mods},sessionId);await wait(150);
+  };
+  const metaDown=()=>call('Input.dispatchKeyEvent',{type:'rawKeyDown',key:'Meta',code:'MetaLeft',windowsVirtualKeyCode:91,modifiers:META},sessionId);
+  const metaUp=()=>call('Input.dispatchKeyEvent',{type:'keyUp',key:'Meta',code:'MetaLeft',windowsVirtualKeyCode:91,modifiers:0},sessionId);
+  const drawing=()=>evaluate(`document.body.classList.contains('anno-drawing')`);
+
+  // ── ⌘ pressed with another key is a shortcut, not drawing ──
+  await metaDown();await call('Input.dispatchKeyEvent',{type:'rawKeyDown',key:'c',code:'KeyC',windowsVirtualKeyCode:67,modifiers:META},sessionId);await wait(400);
+  assert.equal(await drawing(),false,'⌘C never switches drawing on');
+  await call('Input.dispatchKeyEvent',{type:'keyUp',key:'c',code:'KeyC',windowsVirtualKeyCode:67,modifiers:META},sessionId);await metaUp();await wait(50);
+
+  // ── Hold ⌘: drawing comes on. Sketch an oval beside the heading; it becomes a bubble of that shape ──
+  await metaDown();await wait(400);
+  assert.equal(await drawing(),true,'holding ⌘ turns drawing on');
+  assert.match(await evaluate(`document.querySelector('.anno-sketch-hint').textContent`),/let go of ⌘/);
   const top=(await rect('.rich-text h2')).top,right=(await rect('.rich-text')).right;
-  await drag([right-200,top-6],[right-50,top+36]);
-  assert.equal(await evaluate(`document.body.classList.contains('anno-drawing')`),false,'one box, then back to normal');
+  await sketch(right-130,top+20,95,34,{meta:true});
+  await shot('2-sketching');
   let all=await annotations();
-  assert.equal(all.length,2);const box=all[1];
-  assert.equal(box.kind,'box');assert.ok(box.w>=140&&box.h>=32,'drawn at the size dragged: '+JSON.stringify(box));
-  assert.match(await active(),/anno-label/);
+  assert.equal(all.length,2);const shape=all[1];
+  assert.equal(shape.kind,'shape');assert.ok(shape.w>=180&&shape.h>=60&&shape.points.length>=6,'the outline as drawn: '+JSON.stringify({w:shape.w,h:shape.h,n:shape.points.length}));
+  assert.match(await active(),/anno-label/,'straight into writing inside it');
+  await metaUp();await wait(50);
+  assert.equal(await drawing(),false,'letting go of ⌘ stops drawing');
   await type('Remember $E=mc^2$ units');await key('Enter','Enter',13);
   assert.equal((await annotations())[1].text,'Remember $E=mc^2$ units');
-  assert.equal(await evaluate(`!!document.querySelector('.anno-box .anno-label .katex')`),true,'the equation is typeset');
-  await shot('2-box');
+  assert.equal(await evaluate(`!!document.querySelector('.anno-shape .anno-label .katex')`),true,'the equation is typeset');
+  // The writing sits inside the outline.
+  const fits=await evaluate(`(()=>{const f=document.querySelector('.anno-shape .anno-frame').getBoundingClientRect(),s=document.querySelector('.anno-shape-ink').getBoundingClientRect();return f.left>=s.left&&f.right<=s.right&&f.top>=s.top&&f.bottom<=s.bottom})()`);
+  assert.equal(fits,true,'the text is inside the shape');
+  await shot('3-shape');
+
+  // More words than room: the shape grows taller to hold them.
+  const small=await rect('.anno-shape-ink'),area=small.width*small.height;
+  await click(...centreOf(await rect('.anno-shape .anno-label')));
+  await type(' and check the dimensions on both sides of every equation before moving on');await key('Enter','Enter',13);
+  const after=await rect('.anno-shape-ink');assert.ok(after.width*after.height>area*1.2&&after.width>=small.width,'grew to fit, keeping its proportions: '+JSON.stringify([small.width,small.height,after.width,after.height]));
 
   // Resize it by its corner.
-  const corner=await evaluate(`(()=>{const c=document.querySelector('.anno-box .anno-corner').getBoundingClientRect();return [c.left+5,c.top+5]})()`);
-  await mouse('mouseMoved',...centreOf(await rect('.anno-box .anno-frame')));await wait(50);
+  await mouse('mouseMoved',...centreOf(await rect('.anno-shape .anno-frame')));await wait(50);
+  const corner=await evaluate(`(()=>{const c=document.querySelector('.anno-shape .anno-corner').getBoundingClientRect();return [c.left+5,c.top+5]})()`);
   await drag(corner,[corner[0]+30,corner[1]+20]);
-  assert.ok((await annotations())[1].w>=box.w+25,'wider');
+  assert.ok((await annotations())[1].w>=shape.w+25,'wider');
 
-  // ── A plain drag across blank page (here, below the note) draws a box too ──
+  // ── A drag round a loop in blank page (below the note) draws a shape too, no key needed ──
   const below=(await rect('#add-bar'))?.bottom||(await rect('#editor')).bottom;
-  await drag([block.left+40,below+30],[block.left+220,below+80]);
-  all=await annotations();assert.equal(all.length,3);assert.equal(all[2].kind,'box');
+  await sketch(block.left+140,below+60,100,36,{wobble:.15});
+  all=await annotations();assert.equal(all.length,3);assert.equal(all[2].kind,'shape');
   await type('Two phases');await key('Enter','Enter',13);
+  // A stray scribble that doesn't go round anything is let go.
+  await metaDown();await wait(350);
+  await drag([block.left+60,below+140],[block.left+260,below+150]);
+  assert.equal((await annotations()).length,3,'a line is not a shape');
+  await metaUp();await wait(50);
   // A plain drag over text still selects text.
   const para=await rect('.rich-text > p:last-of-type');
   await drag([para.left+5,para.top+8],[para.left+120,para.top+8]);
   assert.ok((await evaluate(`getSelection().toString()`)).length>5,'dragging over text selects it');
   assert.equal((await annotations()).length,3);
-  await shot('3-boxes');
+  await shot('4-shapes');
 
   // ── ⌘' puts a side note beside the line the caret is on ──
   await evaluate(`(()=>{const p=${pick(2)};p.closest('.rich-text').focus();const r=document.createRange();r.setStart(p.firstChild,4);r.collapse(true);getSelection().removeAllRanges();getSelection().addRange(r)})()`);
@@ -141,11 +175,11 @@ try{
   await resize(860);
   const tucked=await evaluate(`[...document.querySelectorAll('.anno')].map(a=>a.className.replace('anno ','')).join('|')`);
   assert.match(tucked,/anno-bubble tucked/,'side notes fold away: '+tucked);
-  await shot('4-narrow');
+  await shot('5-narrow');
   await click(...centreOf(await rect('.anno-bubble.tucked .anno-badge')));
   assert.equal(await evaluate(`getComputedStyle(document.querySelector('.anno-bubble.tucked.open .anno-frame')).display`),'block');
   assert.match(await evaluate(`document.querySelector('.anno-bubble.open .anno-label').innerText`),/office hours|Flow/);
-  await shot('5-narrow-open');
+  await shot('6-narrow-open');
   await click(20,880);
   // Nothing that's shown sits on the words.
   const overlaps=await evaluate(`(()=>{const words=[...document.querySelectorAll('.rich-text > p, .rich-text li, .rich-text h2')].flatMap(l=>{const r=document.createRange();r.selectNodeContents(l);return [...r.getClientRects()]});
@@ -157,19 +191,19 @@ try{
   // ── Reopen ──
   await evaluate(`(()=>{const saved=JSON.stringify(state.notes);state.notes=[];render();state.notes=JSON.parse(saved);active=state.notes[0].id;render();setMode('write')})()`);await wait(300);
   assert.equal(await evaluate(`document.querySelectorAll('.anno:not([hidden])').length`),4,'all four come back');
-  assert.equal(await evaluate(`!!document.querySelector('.anno-box .katex')`),true);
-  await shot('6-reopened');
+  assert.equal(await evaluate(`!!document.querySelector('.anno-shape .katex')`),true);
+  await shot('7-reopened');
 
-  // ── Remove a box, undo ──
-  await mouse('mouseMoved',...centreOf(await rect('.anno-box .anno-frame')));await wait(60);
-  await evaluate(`document.querySelector('.anno-box .anno-remove').click()`);await wait(80);
+  // ── Remove a shape, undo ──
+  await mouse('mouseMoved',...centreOf(await rect('.anno-shape .anno-frame')));await wait(60);
+  await evaluate(`document.querySelector('.anno-shape .anno-remove').click()`);await wait(80);
   assert.equal((await annotations()).length,3);
   await shortcut('KeyZ','z');
   assert.equal((await annotations()).length,4);
 
   // ── "Mark up" in the format bar lists all three ──
   await evaluate(`document.querySelector('.format-markup').click()`);await wait(60);
-  assert.equal(await evaluate(`[...document.querySelectorAll('.block-menu button')].map(b=>b.textContent.replace(/⌘.*/,'')).join('|')`),'}Brace the selected lines|“Side note beside this line|▢Draw a box');
+  assert.equal(await evaluate(`[...document.querySelectorAll('.block-menu button')].map(b=>[...b.childNodes].filter(n=>!n.classList?.contains('anno-keys')).map(n=>n.textContent).join('')).join('|')`),'◯Draw a shape to write in|}Brace the selected lines|“Side note beside this line');
   await evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);
   assert.equal(await evaluate(`state.notes[0].nodes.length`),0,'nothing goes to the mind map');
   console.log('Side note and box tests passed');

@@ -1,7 +1,8 @@
 /* Writing around the text, the way you would on paper. Three kinds, all kept on note.annotations:
      brace   a } beside a run of lines (say three bullets that share an assumption), with a short note beside it
      bubble  a side note in the margin beside a line, joined to it by a faint lead line
-     box     a box drawn in blank space anywhere on the page, holding a reminder or an equation ($…$)
+     shape   any outline sketched on the page (hold ⌘ and draw), smoothed into a bubble of that shape to write in
+     box     a plain box (made by earlier versions; still shown)
 
    Each is pinned to lines, never to a spot on the screen. A brace remembers the first and last line it spans; a bubble
    or box remembers the line nearest its top and where it sits from there: dy from the line's top, and x from the text's
@@ -10,8 +11,8 @@
    the note keep them in place. When there's no room for one, it folds into a small badge beside its line.
 
    Starting one: the } in the right margin (click for a line, drag for several), ⌘} for selected lines; a click in the
-   margin beside a paragraph, or ⌘', for a side note; a drag across blank space, or ⌘⇧B then a drag anywhere, for a box.
-   "Mark up" in the format bar lists all three. Enter (or Esc) after typing puts the caret back where you were. */
+   margin beside a paragraph, or ⌘', for a side note; hold ⌘ and sketch anywhere (or drag across blank space, or ⌘⇧B
+   then sketch) for a shape. "Mark up" in the format bar lists them all. Enter (or Esc) after typing puts the caret back where you were. */
 (()=>{
  const root=document.querySelector('#editor'),article=root?.closest('article');if(!root||!article)return;
  const mac=/Mac|iPhone|iPad/.test(navigator.platform),cmd=mac?'⌘':'Ctrl+';
@@ -21,7 +22,7 @@
  const list=note=>(note.annotations??=[]);
  const find=id=>current()?.annotations?.find(a=>a.id===id);
  const tidy=text=>String(text||'').replace(/\s+/g,' ').trim();
- const names={brace:'brace',bubble:'side note',box:'box'};
+ const names={brace:'brace',bubble:'side note',box:'box',shape:'shape'};
 
  // ── Lines ───────────────────────────────────────────────────────────────────
  // The lines of a text block in reading order: each top-level line, each bullet at any depth, each line of a column.
@@ -147,6 +148,10 @@
   const pin=pinAt(left,top);if(!pin)return;
   add({id:uid(),kind:'box',from:pin.from,side:pin.side,x:pin.x,dy:pin.dy,w:Math.round(width),h:Math.round(height),text:'',created:Date.now()},pin.line);
  }
+ function shapeAt(left,top,width,height,points){
+  const pin=pinAt(left,top);if(!pin)return;
+  add({id:uid(),kind:'shape',from:pin.from,side:pin.side,x:pin.x,dy:pin.dy,w:Math.round(width),h:Math.round(height),points,text:'',created:Date.now()},pin.line);
+ }
  function finishEditing(restore=true){
   if(!editing)return;const {id,fresh,back}=editing;editing=null;
   const note=current(),a=note&&find(id),host=layer.querySelector(`.anno[data-id="${id}"]`),label=host?.querySelector('.anno-label');
@@ -194,6 +199,47 @@
   if(rail&&!rail.hidden&&rail.offsetWidth){const r=rail.getBoundingClientRect(),text=line.closest('.rich-text').getBoundingClientRect();if(r.left>=text.right-1)limit=Math.min(limit,at.x(r.left)-12)}
   return limit;
  }
+ // ── Sketched shapes: the outline as drawn, simplified and smoothed, with the text in the room it leaves inside ──
+ function simplify(points,epsilon){
+  if(points.length<3)return points;
+  const [a,b]=[points[0],points.at(-1)],dx=b[0]-a[0],dy=b[1]-a[1],length=Math.hypot(dx,dy)||1;
+  let far=0,index=0;
+  for(let i=1;i<points.length-1;i++){const d=Math.abs(dy*points[i][0]-dx*points[i][1]+b[0]*a[1]-b[1]*a[0])/length;if(d>far){far=d;index=i}}
+  if(far<=epsilon)return [a,b];
+  return [...simplify(points.slice(0,index+1),epsilon).slice(0,-1),...simplify(points.slice(index),epsilon)];
+ }
+ // A loop starts and ends in the same place, which leaves simplify() no line to measure from; so split it at the
+ // point furthest from the start and simplify each half.
+ function simplifyLoop(points,epsilon){
+  if(points.length<4)return points;
+  let far=0,index=0;for(let i=1;i<points.length;i++){const d=Math.hypot(points[i][0]-points[0][0],points[i][1]-points[0][1]);if(d>far){far=d;index=i}}
+  const out=[...simplify(points.slice(0,index+1),epsilon).slice(0,-1),...simplify(points.slice(index),epsilon)];
+  const last=out.at(-1),first=out[0];if(out.length>3&&Math.hypot(last[0]-first[0],last[1]-first[1])<6)out.pop();
+  return out;
+ }
+ // A closed curve through every point (Catmull-Rom as cubic Béziers), scaled to w × h.
+ function shapePath(points,w,h){
+  const p=points.map(([u,v])=>[u*w,v*h]),n=p.length;if(n<3)return '';
+  const at=i=>p[(i+n)%n];let d=`M ${at(0)[0].toFixed(1)} ${at(0)[1].toFixed(1)}`;
+  for(let i=0;i<n;i++){const [p0,p1,p2,p3]=[at(i-1),at(i),at(i+1),at(i+2)];
+   d+=` C ${(p1[0]+(p2[0]-p0[0])/6).toFixed(1)} ${(p1[1]+(p2[1]-p0[1])/6).toFixed(1)}, ${(p2[0]-(p3[0]-p1[0])/6).toFixed(1)} ${(p2[1]-(p3[1]-p1[1])/6).toFixed(1)}, ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`}
+  return d+' Z';
+ }
+ function insidePolygon(p,x,y){let inside=false;for(let i=0,j=p.length-1;i<p.length;j=i++){const [xi,yi]=p[i],[xj,yj]=p[j];if((yi>y)!==(yj>y)&&x<(xj-xi)*(y-yi)/(yj-yi)+xi)inside=!inside}return inside}
+ const polygonArea=p=>Math.abs(p.reduce((sum,[x,y],i)=>{const [x2,y2]=p[(i+1)%p.length];return sum+x*y2-x2*y},0))/2;
+ // The biggest upright rectangle that fits inside the outline, for the text: tried from the middle and from the
+ // centre of mass, a little wider and a little taller.
+ function roomInside(points,w,h){
+  const p=points.map(([u,v])=>[u*w,v*h]),mass=p.reduce((c,[x,y])=>[c[0]+x/p.length,c[1]+y/p.length],[0,0]);
+  let best={x:w*.3,y:h*.3,w:w*.4,h:h*.4,area:0};
+  for(const [cx,cy] of [[w/2,h/2],mass])for(const k of [1,.8,1.25]){
+   const fits=s=>{const rw=Math.min(w,s*w*k)/2,rh=Math.min(h,s*h/k)/2;for(let i=0;i<=4;i++){const t=i/4;for(const [x,y] of [[cx-rw+2*rw*t,cy-rh],[cx-rw+2*rw*t,cy+rh],[cx-rw,cy-rh+2*rh*t],[cx+rw,cy-rh+2*rh*t]])if(!insidePolygon(p,x,y))return false}return true};
+   let lo=0,hi=1;for(let i=0;i<14;i++){const mid=(lo+hi)/2;if(fits(mid))lo=mid;else hi=mid}
+   const rw=Math.min(w,lo*w*k),rh=Math.min(h,lo*h/k);
+   if(rw*rh>best.area)best={x:cx-rw/2,y:cy-rh/2,w:rw,h:rh,area:rw*rh};
+  }
+  const pad=Math.min(8,best.w*.08);return {x:best.x+pad,y:best.y+pad/2,w:Math.max(20,best.w-2*pad),h:Math.max(14,best.h-pad)};
+ }
  function draw(){
   const note=current();
   if(!note||!visible()||!note.annotations?.length){for(const host of [...layer.querySelectorAll('.anno:not(.anno-preview)')])host.remove();layer.hidden=!layer.children.length;return}
@@ -206,7 +252,7 @@
    const label=host.querySelector('.anno-label'),badge=host.querySelector('.anno-badge');
    if(editing?.id!==a.id)show(label,a.text);
    label.classList.toggle('empty',!a.text&&editing?.id!==a.id);
-   badge.textContent=a.kind==='brace'?String(number):a.kind==='box'?'▢':'“';
+   badge.textContent=a.kind==='brace'?String(number):a.kind==='box'?'▢':a.kind==='shape'?'◯':'“';
    badge.title=a.text||('Empty '+names[a.kind]);badge.setAttribute('aria-label',names[a.kind]+': '+(a.text||'empty'));
   }
   for(const host of [...layer.querySelectorAll('.anno:not(.anno-preview)')])if(!seen.has(host.dataset.id))host.remove();
@@ -235,17 +281,30 @@
   let left=(a.side==='right'?at.x(text.right):at.x(text.left))+(a.x||0),top=at.y(ink.top)+(a.dy||0);
   if(a.drag){left=a.drag.left;top=a.drag.top}
   host.classList.remove('tucked');
-  const frame=host.querySelector('.anno-frame');
-  if(a.kind==='box'){frame.style.width=Math.max(60,a.w||160)+'px';frame.style.minHeight=Math.max(32,a.h||60)+'px'}
-  else frame.style.width='';
-  const width=frame.offsetWidth,height=frame.offsetHeight;
+  const frame=host.querySelector('.anno-frame');let width,height;
+  if(a.kind==='shape'){
+   // The text sits in the room inside the outline; if there's more text than room, the shape grows taller.
+   width=Math.max(40,a.w||160);height=Math.max(30,a.h||90);
+   let room=roomInside(a.points,width,height);
+   frame.style.cssText=`left:${room.x}px;top:${room.y}px;width:${room.w}px`;
+   // Grown evenly, so it keeps the proportions it was drawn with; wider lines then need less height, so settle in a few steps.
+   const widest=Math.max(width,Math.min((a.w||160)*1.8,limit-left));   // widen only into room it has, then grow taller
+   for(let i=0;i<4;i++){const need=frame.scrollHeight;if(need<=room.h+1)break;const k=Math.sqrt(need/room.h)*1.03,wider=Math.min(Math.round(width*k),widest);height=Math.round(height*(need/room.h)*1.03*(width/wider));width=wider;room=roomInside(a.points,width,height);frame.style.cssText=`left:${room.x}px;top:${room.y}px;width:${room.w}px`}
+   const svg=host.querySelector('.anno-shape-ink');svg.setAttribute('width',String(width));svg.setAttribute('height',String(height));
+   for(const path of svg.querySelectorAll('path'))path.setAttribute('d',shapePath(a.points,width,height));
+   host.querySelector('.anno-corner').style.cssText=`left:${width-6}px;top:${height-6}px`;
+  }else{
+   if(a.kind==='box'){frame.style.width=Math.max(60,a.w||160)+'px';frame.style.minHeight=Math.max(32,a.h||60)+'px'}
+   else frame.style.width='';
+   width=frame.offsetWidth;height=frame.offsetHeight;
+  }
   let tucked=false;
   if(!a.drag&&left+width>limit){
    const shifted=limit-width;
    const lines=linesOf(rich).filter(l=>{const k=inkOf([l]);return at.y(k.bottom)>top&&at.y(k.top)<top+height});
    const clear=lines.every(l=>at.x(inkOf([l]).right)+10<=shifted);
    // Moved left only into clear space: past the end of every line beside it, never onto the words.
-   if(clear&&(shifted>=at.x(ink.right)+8||(a.kind==='box'&&shifted>=richLeft)))left=shifted;else tucked=true;
+   if(clear&&(shifted>=at.x(ink.right)+8||(a.kind!=='bubble'&&shifted>=richLeft)))left=shifted;else tucked=true;
   }
   host.classList.toggle('tucked',tucked);
   if(tucked){
@@ -267,8 +326,8 @@
  function build(a){
   const host=el('div',undefined,'anno anno-'+a.kind);host.dataset.id=a.id;
   const label=el('div',undefined,'anno-label');label.contentEditable='plaintext-only';label.spellcheck=true;label.setAttribute('role','textbox');
-  label.setAttribute('aria-label',a.kind==='brace'?'Note beside the grouped lines':a.kind==='box'?'Text in the box':'Side note');
-  label.dataset.placeholder=a.kind==='brace'?'Say what they share…':a.kind==='box'?'Type, or $x^2$ for maths…':'Side note…';
+  label.setAttribute('aria-label',a.kind==='brace'?'Note beside the grouped lines':a.kind==='bubble'?'Side note':'Text in the '+names[a.kind]);
+  label.dataset.placeholder=a.kind==='brace'?'Say what they share…':a.kind==='bubble'?'Side note…':'Type, or $x^2$ for maths…';
   const badge=el('button',undefined,'anno-badge');badge.type='button';
   const close=el('button','×','anno-remove');close.type='button';close.title='Remove the '+names[a.kind];close.setAttribute('aria-label',close.title);
   if(a.kind==='brace'){
@@ -279,6 +338,15 @@
    host.append(svg,label,badge,close,top,bottom);
    for(const part of [hit,ink,label])part.addEventListener('pointerdown',event=>moveBrace(event,host,part===label));
    for(const knob of [top,bottom])knob.addEventListener('pointerdown',event=>stretchBrace(event,host,knob===top));
+  }else if(a.kind==='shape'){
+   const svg=document.createElementNS(svgNS,'svg');svg.classList.add('anno-shape-ink');
+   const outline=document.createElementNS(svgNS,'path');outline.classList.add('anno-shape-line');svg.append(outline);
+   const frame=el('div',undefined,'anno-frame');frame.append(label);
+   const corner=el('span',undefined,'anno-corner');corner.title='Drag to resize';
+   const leader=document.createElementNS(svgNS,'svg');leader.classList.add('anno-leader');
+   host.append(leader,svg,frame,corner,badge,close);
+   corner.addEventListener('pointerdown',event=>resizeBox(event,host));
+   for(const part of [outline,frame])part.addEventListener('pointerdown',event=>moveFree(event,host));
   }else{
    const leader=document.createElementNS(svgNS,'svg');leader.classList.add('anno-leader');
    const frame=el('div',undefined,'anno-frame');frame.append(label);
@@ -350,7 +418,7 @@
   if(event.button!==0)return;const note=current(),a=find(host.dataset.id);if(!a)return;
   event.preventDefault();event.stopPropagation();
   const start={w:a.w||160,h:a.h||60},snapshot=JSON.stringify(list(note));
-  follow(event,(ddx,ddy)=>{host.classList.add('dragging');a.w=Math.round(Math.max(60,Math.min(900,start.w+ddx)));a.h=Math.round(Math.max(32,Math.min(900,start.h+ddy)));draw()},
+  follow(event,(ddx,ddy)=>{host.classList.add('dragging');a.w=Math.round(Math.max(a.kind==='shape'?40:60,Math.min(900,start.w+ddx)));a.h=Math.round(Math.max(a.kind==='shape'?30:32,Math.min(900,start.h+ddy)));draw()},
    moved=>{host.classList.remove('dragging');if(moved){remember(note,snapshot);draw()}});
  }
 
@@ -362,7 +430,7 @@
  function placeControl(line){
   const at=local(),rich=line.closest('.rich-text'),ink=inkOf([line]),block=(line.closest('.col')||rich).getBoundingClientRect();
   const gutter=at.right-at.x(block.right);
-  control.style.left=(gutter>=34?at.x(block.right)+8:at.x(block.right)-24)+'px';control.style.top=(at.y(ink.top)+Math.max(0,(ink.bottom-ink.top-20)/2))+'px';control.hidden=false;
+  control.style.left=(gutter>=42?at.x(block.right)+6:at.x(block.right)-32)+'px';control.style.top=(at.y(ink.top)+(Math.min(ink.bottom-ink.top,28)-30)/2)+'px';control.hidden=false;
  }
  // Blank page: inside the note's area but not on text, a control or a drawing.
  function blankAt(event){
@@ -373,7 +441,7 @@
  // Beside which text, if any, a point in the blank margin is.
  function textBeside(event){for(const t of root.querySelectorAll('.rich-text')){const b=t.getBoundingClientRect();if(event.clientY>=b.top-6&&event.clientY<=b.bottom+6&&event.clientX>b.right)return t}return null}
  article.addEventListener('mousemove',event=>{
-  if(dragging||drawingBox||!visible())return;
+  if(dragging||drawingOn()||!visible())return;
   if(event.target.closest?.('.anno')){clearTimeout(hideTimer);control.hidden=true;return}   // over a drawing: its own tools
   if(event.target.closest?.('.anno-start'))return;
   const rich=event.target.closest?.('#editor .rich-text');
@@ -405,39 +473,61 @@
   });
  });
 
- // ── Blank space: a click beside the text starts a side note, a drag draws a box ──────────────────────────────
- let drawingBox=false;   // ⌘⇧B or "Box" in Mark up: the next drag draws a box anywhere, even over the text
- function boxMode(on){
-  const was=drawingBox;drawingBox=on;document.body.classList.toggle('anno-drawing',on);
-  if(on){control.hidden=true;toast('Drag to draw a box · Esc to cancel')}else if(was)document.querySelector('#toast')?.classList.remove('show');
+ // ── Drawing: hold ⌘ (or switch Draw on) and sketch any outline; it becomes a bubble of that shape ──────────────
+ // Holding ⌘ alone for a moment turns drawing on until it's let go; pressing any other key with it (⌘C, ⌘Z…) is a
+ // shortcut instead and leaves drawing off. A ⌘-drag draws straight away; a ⌘-click (say on linked words) is still a
+ // click. "Draw a shape" under Mark up, or ⌘⇧B, turns it on for one shape without holding anything. A drag across
+ // blank page draws a shape too, and a click in the margin beside the text starts a side note.
+ let sticky=false,held=false,holdTimer=0,stroking=false;
+ const modKey=mac?'Meta':'Control',modDown=event=>mac?event.metaKey:event.ctrlKey;
+ const hint=el('div',undefined,'anno-sketch-hint');hint.hidden=true;hint.setAttribute('role','status');document.body.append(hint);
+ const drawingOn=()=>sticky||held;
+ function showDrawing(){
+  const on=drawingOn()&&visible();document.body.classList.toggle('anno-drawing',on);hint.hidden=!on;
+  hint.textContent='Drawing: sketch a shape, then write in it · '+(sticky?'Esc to stop':'let go of '+(mac?'⌘':'Ctrl')+' to stop');
+  if(on)control.hidden=true;
  }
+ function drawMode(on){sticky=on;showDrawing()}
+ document.addEventListener('keydown',event=>{
+  if(event.key===modKey&&!event.shiftKey&&!event.altKey&&!event.repeat){clearTimeout(holdTimer);if(visible()&&!document.querySelector('dialog[open]'))holdTimer=setTimeout(()=>{held=true;showDrawing()},280);return}
+  clearTimeout(holdTimer);if(held&&!stroking){held=false;showDrawing()}
+ },true);
+ document.addEventListener('keyup',event=>{if(event.key===modKey){clearTimeout(holdTimer);if(!stroking){held=false;showDrawing()}}},true);
+ window.addEventListener('blur',()=>{clearTimeout(holdTimer);held=false;showDrawing()});
  article.addEventListener('pointerdown',event=>{
   if(event.button!==0||!visible())return;
-  // While drawing a box on purpose, anywhere on the page will do (over text, over a block's own tools), except an
-  // existing drawing and the format bar.
-  const free=drawingBox&&!event.target.closest?.('.anno,#format-bar');
-  if(!free&&!blankAt(event))return;
-  event.preventDefault();if(free)event.stopPropagation();
-  const at=local(),origin={x:at.x(event.clientX),y:at.y(event.clientY)},beside=textBeside(event);
-  const preview=el('div',undefined,'anno anno-box anno-preview');const frame=el('div',undefined,'anno-frame');preview.append(frame);
+  const deliberate=(drawingOn()||modDown(event))&&!event.target.closest?.('.anno,#format-bar,.block-menu,.table-menu');
+  if(!deliberate&&!blankAt(event))return;
+  event.preventDefault();if(deliberate)event.stopPropagation();
+  clearTimeout(holdTimer);
+  const at=local(),points=[[at.x(event.clientX),at.y(event.clientY)]],beside=textBeside(event);
+  const trail=document.createElementNS(svgNS,'svg');trail.classList.add('anno-trail');const line=document.createElementNS(svgNS,'polyline');trail.append(line);
+  stroking=true;
   follow(event,(ddx,ddy,ev)=>{
-   const x=at.x(ev.clientX),y=at.y(ev.clientY);
-   preview.style.cssText=`left:${Math.min(x,origin.x)}px;top:${Math.min(y,origin.y)}px`;frame.style.cssText=`width:${Math.abs(x-origin.x)}px;min-height:${Math.abs(y-origin.y)}px`;
-   if(!preview.isConnected)layer.append(preview);layer.hidden=false;
+   const point=[at.x(ev.clientX),at.y(ev.clientY)],last=points.at(-1);if(Math.hypot(point[0]-last[0],point[1]-last[1])<2)return;
+   points.push(point);line.setAttribute('points',points.map(p=>p.join(',')).join(' '));
+   if(!trail.isConnected)layer.append(trail);layer.hidden=false;
   },(moved,ev)=>{
-   preview.remove();const wasDrawing=drawingBox;boxMode(false);
+   stroking=false;trail.remove();const wasSticky=sticky;
+   if(!modDown(ev))held=false;
    if(moved){
-    const w=Math.abs(at.x(ev.clientX)-origin.x),h=Math.abs(at.y(ev.clientY)-origin.y);
-    if(w>=24&&h>=16)boxAt(Math.min(ev.clientX,event.clientX),Math.min(ev.clientY,event.clientY),Math.max(w,60),Math.max(h,32));
-   }else if(!wasDrawing&&beside)bubbleAt(event.clientX,event.clientY-10,null);
+    const xs=points.map(p=>p[0]),ys=points.map(p=>p[1]),left=Math.min(...xs),top=Math.min(...ys),w=Math.max(...xs)-left,h=Math.max(...ys)-top;
+    const outline=simplifyLoop(points,1.6);
+    // A closed-ish loop of some size becomes a shape; a stray line or scribble is let go.
+    if(w>=30&&h>=20&&outline.length>=4&&polygonArea(outline)>=w*h*.2){
+     if(wasSticky)sticky=false;
+     shapeAt(at.toClientX(left),at.toClientY(top),w,h,outline.map(([x,y])=>[+((x-left)/w).toFixed(3),+((y-top)/h).toFixed(3)]));
+    }else if(deliberate)toast('Draw round a shape to write in it');
+   }else if(!deliberate&&beside)bubbleAt(event.clientX,event.clientY-10,null);
+   showDrawing();
   });
  },true);
  document.addEventListener('keydown',event=>{
-  if(drawingBox&&event.key==='Escape'){event.preventDefault();boxMode(false);return}
+  if(sticky&&event.key==='Escape'){event.preventDefault();drawMode(false);return}
   const mod=mac?event.metaKey&&!event.ctrlKey:event.ctrlKey&&!event.metaKey;if(!mod||event.altKey||!visible()||document.querySelector('dialog[open]'))return;
   if(event.code==='BracketRight'&&event.shiftKey){if(groupSelection()){event.preventDefault();event.stopImmediatePropagation()}}
   else if(event.code==='Quote'&&!event.shiftKey){const line=lineOf(getSelection()?.anchorNode);if(line){event.preventDefault();event.stopImmediatePropagation();sideNote(line)}}
-  else if(event.code==='KeyB'&&event.shiftKey){event.preventDefault();event.stopImmediatePropagation();boxMode(!drawingBox)}
+  else if(event.code==='KeyB'&&event.shiftKey){event.preventDefault();event.stopImmediatePropagation();drawMode(!sticky)}
  },true);
  function sideNote(line){const ink=inkOf([line]);bubbleAt(ink.right+28,ink.top,line)}
 
@@ -448,7 +538,7 @@
  const resized=new ResizeObserver(schedule);resized.observe(root);resized.observe(article);
  window.addEventListener('resize',schedule);document.fonts?.ready?.then(schedule);
  document.addEventListener('pointerdown',event=>{if(!event.target.closest?.('.anno'))for(const open of layer.querySelectorAll('.anno.open'))if(!open.contains(document.activeElement))open.classList.remove('open')},true);
- const reset=()=>{if(editing)finishEditing(false);control.hidden=true;if(drawingBox)boxMode(false)};
+ const reset=()=>{if(editing)finishEditing(false);control.hidden=true;sticky=false;held=false;showDrawing()};
  new MutationObserver(()=>{reset();schedule()}).observe(document.body,{attributes:true,attributeFilter:['data-view']});
  const baseRender=render;render=function(){reset();baseRender();schedule()};
  const baseSetMode=setMode;setMode=function(next){reset();baseSetMode(next);schedule()};
@@ -463,7 +553,7 @@
  (window.marginBlockMenuExtras??=[]).push((rich,item)=>item.matches('.equation,.procedure,table,hr')?[]:[['Side note','“',()=>sideNote(item)],['Brace this line','}',()=>group(item,item)]]);
  const bar=document.querySelector('#format-bar');
  if(bar){
-  const markup=el('button','Mark up','format-markup');markup.type='button';markup.title='Write around your notes: braces, side notes and boxes';markup.setAttribute('aria-haspopup','menu');
+  const markup=el('button','Mark up','format-markup');markup.type='button';markup.title='Write around your notes: shapes, braces and side notes';markup.setAttribute('aria-haspopup','menu');
   bar.append(markup);let menu=null;
   const close=()=>{menu?.remove();menu=null;markup.setAttribute('aria-expanded','false')};
   markup.onmousedown=e=>e.preventDefault();
@@ -471,7 +561,7 @@
    if(menu){close();return}
    const line=lineOf(getSelection()?.anchorNode)||lineOf(document.querySelector('#editor .rich-text')?.lastElementChild);
    menu=el('div',undefined,'table-menu block-menu');menu.setAttribute('role','menu');
-   for(const [name,mark,keys,run] of [['Brace the selected lines','}',cmd+'}',()=>{if(!groupSelection()&&line)group(line,line)}],['Side note beside this line','“',cmd+'\'',()=>line&&sideNote(line)],['Draw a box','▢',cmd+'⇧B',()=>boxMode(true)]]){
+   for(const [name,mark,keys,run] of [['Draw a shape to write in','◯',mac?'hold ⌘':'hold Ctrl',()=>drawMode(true)],['Brace the selected lines','}',cmd+'}',()=>{if(!groupSelection()&&line)group(line,line)}],['Side note beside this line','“',cmd+'\'',()=>line&&sideNote(line)]]){
     const row=el('button',undefined);row.type='button';row.setAttribute('role','menuitem');
     row.append(el('span',mark,'block-menu-mark'),document.createTextNode(name),el('kbd',keys,'anno-keys'));
     row.onmousedown=e=>e.preventDefault();row.onclick=()=>{close();run()};menu.append(row);
@@ -482,5 +572,5 @@
    for(const t of ['pointerdown','keydown'])window.addEventListener(t,away,true);
   };
  }
- window.marginAnnotations={draw,group,groupSelection,sideNote,boxMode};
+ window.marginAnnotations={draw,group,groupSelection,sideNote,drawMode};
 })();
