@@ -1,38 +1,68 @@
-/* Writing around the text: braces with handwritten labels, drawn in a pencil tone of the person's accent colour. */
+/* Writing around the text: braces, side notes and boxes, drawn in a pencil tone of the person's accent colour and
+   written in the same face as the note itself. */
 article{position:relative}
-:root{--anno-ink:color-mix(in srgb,var(--accent,var(--green)) 72%,var(--ink));--anno-hand:"Noteworthy","Bradley Hand","Segoe Print","Comic Neue",cursive}
+/* The note layout widens every direct child of the article (article>:not(#note-rail){width:100%}, with id weight);
+   the drawing layer and the margin } are children too, so they opt out with the same weight. */
+article>.anno-layer:not(#anno-none){width:0}
+article>.anno-start:not(#anno-none){width:22px}
+:root{--anno-ink:color-mix(in srgb,var(--accent,var(--green)) 70%,var(--ink));--anno-paper:color-mix(in srgb,var(--accent,var(--green)) 6%,var(--bg))}
 .anno-layer{position:absolute;left:0;top:0;width:0;height:0;overflow:visible;z-index:6}
 .anno-layer[hidden]{display:none}
 .anno{position:absolute;box-sizing:border-box}
+.anno[hidden]{display:none}
+.anno-label{min-width:24px;padding:1px 4px;border-radius:5px;color:var(--anno-ink);font:14px/1.45 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;white-space:pre-wrap;overflow-wrap:anywhere;outline:none;cursor:grab}
+.anno-label:focus{cursor:text}
+.anno-label:empty::before{content:attr(data-placeholder);color:var(--muted);opacity:.8}
+.anno-label.empty:not(:focus)::before{content:none}
+.anno-math .katex{font-size:1.02em}
+.anno.dragging,.anno.dragging *{cursor:grabbing!important}
+
+/* Brace */
 .anno-ink{position:absolute;left:-1px;top:-1px;overflow:visible;pointer-events:none}
 .anno-stroke{fill:none;stroke:var(--anno-ink);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .anno-hit{fill:none;stroke:transparent;stroke-width:14;pointer-events:stroke;cursor:grab}
-.anno.dragging .anno-hit,.anno.dragging .anno-label{cursor:grabbing}
-.anno-label{position:absolute;min-width:24px;width:max-content;padding:1px 4px;border-radius:5px;color:var(--anno-ink);font:15px/1.35 var(--anno-hand);white-space:pre-wrap;overflow-wrap:anywhere;outline:none;cursor:grab}
-.anno-label:focus{cursor:text;background:color-mix(in srgb,var(--accent,var(--green)) 7%,var(--bg));box-shadow:0 0 0 1px color-mix(in srgb,var(--accent,var(--green)) 30%,transparent)}
-.anno-label:empty::before{content:attr(data-placeholder);color:var(--muted);opacity:.8}
-.anno-label.empty:not(:focus){min-width:0;padding:0}
-.anno-label.empty:not(:focus)::before{content:none}
-.anno:hover .anno-stroke,.anno:focus-within .anno-stroke{stroke-width:2.1}
-
-/* Tools that appear on hover: remove, and knobs to stretch over more lines */
-.anno-remove{position:absolute;right:-26px;top:-12px;width:18px;height:18px;padding:0;border:1px solid var(--line);border-radius:50%;background:var(--bg);color:var(--muted);font:13px/15px -apple-system,sans-serif;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .12s}
-.anno:hover .anno-remove,.anno:focus-within .anno-remove{opacity:1;pointer-events:auto}
-.anno-remove:hover{color:var(--ink);border-color:var(--ink)}
-.anno-knob{position:absolute;left:-3px;width:9px;height:9px;border-radius:50%;background:var(--bg);border:1.5px solid var(--anno-ink);cursor:ns-resize;opacity:0;transition:opacity .12s}
+.anno-brace .anno-label{position:absolute;width:max-content}
+.anno-brace .anno-label:focus{background:var(--anno-paper)}
+.anno-brace .anno-label.empty:not(:focus){min-width:0;padding:0}
+.anno-knob{position:absolute;left:-3px;width:9px;height:9px;border-radius:50%;background:var(--bg);border:1.5px solid var(--anno-ink);cursor:ns-resize;opacity:0}
 .anno-knob-top{top:-5px}.anno-knob-bottom{bottom:-5px}
-.anno:hover .anno-knob,.anno.dragging .anno-knob{opacity:1}
+.anno-brace:hover .anno-knob,.anno.dragging .anno-knob{opacity:1}
 
-/* When there's no room beside the text, the label folds into a numbered badge by the brace; it opens as a bubble. */
-.anno-badge{display:none;position:absolute;left:14px;top:50%;transform:translateY(-50%);min-width:18px;height:18px;padding:0 4px;border:1px solid color-mix(in srgb,var(--accent,var(--green)) 45%,transparent);border-radius:9px;background:var(--bg);color:var(--anno-ink);font:600 10px/16px -apple-system,sans-serif;cursor:pointer}
-.anno.tucked .anno-badge{display:block}
-.anno.tucked .anno-label{display:none}
-.anno.tucked.open .anno-label{display:block;left:auto;right:-4px;top:calc(100% + 8px);width:min(240px,70vw);max-width:none;padding:8px 10px;border-radius:10px;background:var(--bg);border:1px solid var(--line);box-shadow:0 8px 24px #0002;z-index:2}
-.anno.tucked.open .anno-badge{background:color-mix(in srgb,var(--accent,var(--green)) 14%,var(--bg))}
-
-/* Starting one: the } beside the line you're on */
-.anno-start{position:absolute;z-index:5;width:22px;height:22px;padding:0;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--muted);font:500 16px/20px var(--anno-hand);cursor:ns-resize;opacity:.55;transition:opacity .12s,background .12s}
-.anno-start:hover{opacity:1;color:var(--anno-ink);background:var(--soft);border-color:var(--line)}
-.anno-start[hidden]{display:none}
+/* Side note and box */
+.anno-frame{position:relative;box-sizing:border-box;border-radius:10px}
+.anno-bubble .anno-frame{width:max-content;max-width:240px;padding:5px 9px;background:var(--anno-paper);border:1px solid color-mix(in srgb,var(--accent,var(--green)) 22%,transparent)}
+.anno-box .anno-frame{padding:8px 10px;border:1.5px solid var(--anno-ink);border-radius:8px;background:var(--bg)}
+.anno-bubble .anno-label,.anno-box .anno-label{padding:0}
+.anno-box .anno-label{min-height:1.45em}
+.anno-frame{cursor:grab}
+.anno-leader{position:absolute;left:0;top:0;width:1px;height:1px;overflow:visible;pointer-events:none}
+.anno-leader path{fill:none;stroke:var(--anno-ink);stroke-width:1.2;stroke-dasharray:2 3;opacity:.55}
+.anno-corner{position:absolute;right:-5px;bottom:-5px;width:11px;height:11px;border-radius:3px;background:var(--bg);border:1.5px solid var(--anno-ink);cursor:nwse-resize;opacity:0}
+.anno-box:hover .anno-corner,.anno.dragging .anno-corner{opacity:1}
+.anno-preview .anno-frame{border-style:dashed;background:transparent}
 .anno-preview .anno-stroke{stroke-dasharray:3 3}
+
+/* Remove: appears with the drawing's other handles */
+.anno-remove{position:absolute;right:-24px;top:-10px;width:18px;height:18px;padding:0;border:1px solid var(--line);border-radius:50%;background:var(--bg);color:var(--muted);font:13px/15px -apple-system,sans-serif;cursor:pointer;opacity:0;pointer-events:none}
+.anno-bubble .anno-remove,.anno-box .anno-remove{right:-8px;top:-8px}
+.anno:hover>.anno-remove,.anno:focus-within>.anno-remove{opacity:1;pointer-events:auto}
+.anno.tucked>.anno-remove{display:none}
+
+/* No room: a small badge beside the line, which opens the note as a bubble */
+.anno-badge{display:none;min-width:18px;height:18px;padding:0 4px;border:1px solid color-mix(in srgb,var(--accent,var(--green)) 45%,transparent);border-radius:9px;background:var(--bg);color:var(--anno-ink);font:600 10px/16px -apple-system,sans-serif;cursor:pointer}
+.anno-brace .anno-badge{position:absolute;left:14px;top:50%;transform:translateY(-50%)}
+.anno.tucked .anno-badge{display:block}
+.anno.tucked .anno-label,.anno.tucked .anno-frame,.anno.tucked .anno-leader{display:none}
+.anno-brace.tucked.open .anno-label{display:block;left:auto;right:-4px;top:calc(100% + 8px);width:min(240px,70vw);max-width:none;padding:8px 10px;border-radius:10px;background:var(--bg);border:1px solid var(--line);box-shadow:0 8px 24px #0002;z-index:2}
+.anno-bubble.tucked.open .anno-frame,.anno-box.tucked.open .anno-frame{display:block;position:absolute;right:0;top:24px;width:min(240px,70vw)!important;max-width:none;min-height:0!important;background:var(--bg);border:1px solid var(--line);box-shadow:0 8px 24px #0002;z-index:2}
+.anno.tucked.open .anno-frame .anno-label{display:block}
+.anno.tucked.open .anno-badge{background:var(--anno-paper)}
+
+/* Starting one */
+.anno-start{position:absolute;z-index:5;width:22px;height:22px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--muted);font:500 16px/20px -apple-system,sans-serif;cursor:ns-resize;opacity:.5}
+.anno-start:hover{opacity:1;color:var(--anno-ink)}
+.anno-start[hidden]{display:none}
 #editor .anno-covered{background:color-mix(in srgb,var(--accent,var(--green)) 9%,transparent);border-radius:4px}
+article.anno-margin{cursor:text}
+body.anno-drawing article,body.anno-drawing article *{cursor:crosshair!important}
+.anno-keys{margin-left:auto;padding-left:14px;color:var(--muted);font:11px -apple-system,sans-serif}
