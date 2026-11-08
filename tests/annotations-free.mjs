@@ -124,7 +124,7 @@ try{
   await shot('2-sketching');
   let all=await annotations();
   assert.equal(all.length,2);const shape=all[1];
-  assert.equal(shape.kind,'shape');assert.ok(shape.w>=180&&shape.h>=60&&shape.points.length>=6,'the outline as drawn: '+JSON.stringify({w:shape.w,h:shape.h,n:shape.points.length}));
+  assert.equal(shape.kind,'shape');assert.equal(shape.form,'ellipse','a rough oval becomes a true oval');assert.ok(shape.w>=180&&shape.h>=60,'the size it was drawn: '+JSON.stringify(shape));
   assert.match(await active(),/anno-label/,'straight into writing inside it');
   await metaUp();await wait(50);
   assert.equal(await drawing(),false,'letting go of ⌘ stops drawing');
@@ -157,7 +157,58 @@ try{
   await metaDown();await wait(350);
   await drag([block.left+60,below+140],[block.left+260,below+150]);
   assert.equal((await annotations()).length,3,'a line is not a shape');
+  // A rough, wobbly square (still holding ⌘) becomes a stock square: straight sides, equal width and height.
+  const corners=(points,jitter)=>{const out=[];for(let i=0;i<points.length;i++){const [ax,ay]=points[i],[bx,by]=points[(i+1)%points.length];for(let t=0;t<1;t+=1/12)out.push([ax+(bx-ax)*t+jitter*Math.sin(out.length*1.7),ay+(by-ay)*t+jitter*Math.cos(out.length*2.3)])}out.push(points[0]);return out};
+  const trace=async(path)=>{
+    await call('Input.dispatchMouseEvent',{type:'mousePressed',x:path[0][0],y:path[0][1],button:'left',buttons:1,clickCount:1,modifiers:META},sessionId);
+    for(const [x,y] of path.slice(1)){await call('Input.dispatchMouseEvent',{type:'mouseMoved',x,y,button:'left',buttons:1,modifiers:META},sessionId);await wait(6)}
+    await call('Input.dispatchMouseEvent',{type:'mouseReleased',x:path.at(-1)[0],y:path.at(-1)[1],button:'left',buttons:0,clickCount:1,modifiers:META},sessionId);await wait(150);
+  };
+  const sx=block.left+420,sy=below+40;
+  await trace(corners([[sx,sy],[sx+92,sy+4],[sx+88,sy+86],[sx-3,sy+90]],3));
+  let square=(await annotations()).at(-1);
+  assert.equal(square.form,'rect','a rough square becomes a rectangle');
+  assert.equal(square.w,square.h,'and a true square: '+JSON.stringify(square));
+  assert.match(await evaluate(`document.querySelector('.anno[data-id="${square.id}"] .anno-shape-line').getAttribute('d')`),/ H .* V .* H .* V /,'drawn with straight sides');
+  await key('Escape','Escape',27);
+  assert.equal((await annotations()).length,3,'Esc on an empty new shape takes it away again');
+  await trace(corners([[sx,sy],[sx+92,sy+4],[sx+88,sy+86],[sx-3,sy+90]],3));
+  await type('Square');await key('Enter','Enter',13);
+  // A rough triangle becomes a triangle.
+  await trace(corners([[sx+200,sy+90],[sx+252,sy-4],[sx+300,sy+88]],2.5));
+  assert.equal((await annotations()).at(-1).form,'triangle');
+  await type('Tri');await key('Enter','Enter',13);
   await metaUp();await wait(50);
+  await shot('4b-stock-shapes');
+
+  // ── ⋯ chooses the shape, the outline colour and the text colour, separately ──
+  square=(await annotations()).find(a=>a.text==='Square');
+  const host=`.anno[data-id="${square.id}"]`;
+  await mouse('mouseMoved',...centreOf(await rect(host+' .anno-frame')));await wait(60);
+  await evaluate(`document.querySelector('${host} .anno-more').click()`);await wait(60);
+  assert.equal(await evaluate(`[...document.querySelectorAll('.anno-style-menu .anno-style-title')].map(t=>t.textContent).join('|')`),'Shape|Outline|Text');
+  await evaluate(`document.querySelector('.anno-style-menu [data-field=line][data-value=red]').click()`);await wait(60);
+  await evaluate(`document.querySelector('.anno-style-menu [data-field=color][data-value=blue]').click()`);await wait(80);
+  await shot('4c-colours');
+  square=(await annotations()).find(a=>a.id===square.id);
+  assert.equal(square.line,'red');assert.equal(square.color,'blue');
+  assert.equal(await evaluate(`getComputedStyle(document.querySelector('${host} .anno-shape-line')).stroke`),'rgb(212, 72, 59)','the outline is red');
+  assert.equal(await evaluate(`getComputedStyle(document.querySelector('${host} .anno-label')).color`),'rgb(59, 111, 216)','the writing is blue');
+  assert.equal(await evaluate(`document.querySelector('.anno-style-menu [data-field=line][data-value=red]').classList.contains('current')`),true,'the choice is marked');
+  // Change the shape from the menu; ⌘Z puts it back.
+  await evaluate(`document.querySelector('.anno-style-menu [data-field=form][data-value=diamond]').click()`);await wait(80);
+  assert.equal((await annotations()).find(a=>a.id===square.id).form,'diamond');
+  await evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);await wait(40);
+  assert.equal(await evaluate(`!!document.querySelector('.anno-style-menu')`),false,'Esc closes the menu');
+  await shortcut('KeyZ','z');
+  assert.equal((await annotations()).find(a=>a.id===square.id).form,'rect','⌘Z undoes the change of shape');
+  // Back to the pencil default.
+  await evaluate(`document.querySelector('${host} .anno-more').click()`);await wait(60);
+  await evaluate(`document.querySelector('.anno-style-menu [data-field=line][data-value=pencil]').click()`);await wait(60);
+  assert.equal((await annotations()).find(a=>a.id===square.id).line,undefined);
+  await evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);
+  // Tidy up: these two aren't part of the narrow-window and reopening checks below.
+  await evaluate(`(()=>{const n=current();n.annotations=n.annotations.filter(a=>!['Square','Tri'].includes(a.text));persist();window.marginAnnotations.draw()})()`);
   // A plain drag over text still selects text.
   const para=await rect('.rich-text > p:last-of-type');
   await drag([para.left+5,para.top+8],[para.left+120,para.top+8]);

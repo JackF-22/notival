@@ -6,11 +6,13 @@ article{position:relative}
 article>.anno-layer:not(#anno-none){width:0}
 article>.anno-start:not(#anno-none){width:30px}
 :root{--anno-ink:color-mix(in srgb,var(--accent,var(--green)) 70%,var(--ink));--anno-paper:color-mix(in srgb,var(--accent,var(--green)) 6%,var(--bg))}
+/* A drawing's own colours, chosen under ⋯: the outline (--anno-line) and the writing (--anno-text); otherwise pencil. */
+.anno{--line:var(--anno-line,var(--anno-ink));--text:var(--anno-text,var(--anno-ink));--paper:color-mix(in srgb,var(--anno-line,var(--accent,var(--green))) 7%,var(--bg))}
 .anno-layer{position:absolute;left:0;top:0;width:0;height:0;overflow:visible;z-index:6}
 .anno-layer[hidden]{display:none}
 .anno{position:absolute;box-sizing:border-box}
 .anno[hidden]{display:none}
-.anno-label{min-width:24px;padding:1px 4px;border-radius:5px;color:var(--anno-ink);font:14px/1.45 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;white-space:pre-wrap;overflow-wrap:anywhere;outline:none;cursor:grab}
+.anno-label{min-width:24px;padding:1px 4px;border-radius:5px;color:var(--text);font:14px/1.45 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;white-space:pre-wrap;overflow-wrap:anywhere;outline:none;cursor:grab}
 .anno-label:focus{cursor:text}
 .anno-label:empty::before{content:attr(data-placeholder);color:var(--muted);opacity:.8}
 .anno-label.empty:not(:focus)::before{content:none}
@@ -19,25 +21,25 @@ article>.anno-start:not(#anno-none){width:30px}
 
 /* Brace */
 .anno-ink{position:absolute;left:-1px;top:-1px;overflow:visible;pointer-events:none}
-.anno-stroke{fill:none;stroke:var(--anno-ink);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.anno-stroke{fill:none;stroke:var(--line);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .anno-hit{fill:none;stroke:transparent;stroke-width:22;pointer-events:stroke;cursor:grab}
 .anno-brace .anno-label{position:absolute;width:max-content}
-.anno-brace .anno-label:focus{background:var(--anno-paper)}
+.anno-brace .anno-label:focus{background:var(--paper)}
 .anno-brace .anno-label.empty:not(:focus){min-width:0;padding:0}
-.anno-knob{position:absolute;left:-4px;width:11px;height:11px;border-radius:50%;background:var(--bg);border:1.5px solid var(--anno-ink);cursor:ns-resize;opacity:0}
+.anno-knob{position:absolute;left:-4px;width:11px;height:11px;border-radius:50%;background:var(--bg);border:1.5px solid var(--line);cursor:ns-resize;opacity:0}
 .anno-knob-top{top:-6px}.anno-knob-bottom{bottom:-6px}
 .anno-brace:hover .anno-knob,.anno.dragging .anno-knob{opacity:1}
 
 /* Side note and box */
 .anno-frame{position:relative;box-sizing:border-box;border-radius:10px}
-.anno-bubble .anno-frame{width:max-content;max-width:240px;padding:5px 9px;background:var(--anno-paper);border:1px solid color-mix(in srgb,var(--accent,var(--green)) 22%,transparent)}
-.anno-box .anno-frame{padding:8px 10px;border:1.5px solid var(--anno-ink);border-radius:8px;background:var(--bg)}
+.anno-bubble .anno-frame{width:max-content;max-width:240px;padding:5px 9px;background:var(--paper);border:1px solid color-mix(in srgb,var(--line) 30%,transparent)}
+.anno-box .anno-frame{padding:8px 10px;border:1.5px solid var(--line);border-radius:8px;background:var(--bg)}
 .anno-bubble .anno-label,.anno-box .anno-label{padding:0}
 .anno-box .anno-label{min-height:1.45em}
 .anno-frame{cursor:grab}
 .anno-leader{position:absolute;left:0;top:0;width:1px;height:1px;overflow:visible;pointer-events:none}
-.anno-leader path{fill:none;stroke:var(--anno-ink);stroke-width:1.2;stroke-dasharray:2 3;opacity:.55}
-.anno-corner{position:absolute;right:-5px;bottom:-5px;width:11px;height:11px;border-radius:3px;background:var(--bg);border:1.5px solid var(--anno-ink);cursor:nwse-resize;opacity:0}
+.anno-leader path{fill:none;stroke:var(--line);stroke-width:1.2;stroke-dasharray:2 3;opacity:.55}
+.anno-corner{position:absolute;right:-5px;bottom:-5px;width:11px;height:11px;border-radius:3px;background:var(--bg);border:1.5px solid var(--line);cursor:nwse-resize;opacity:0}
 .anno-box:hover .anno-corner,.anno.dragging .anno-corner{opacity:1}
 .anno-preview .anno-frame{border-style:dashed;background:transparent}
 .anno-preview .anno-stroke{stroke-dasharray:3 3}
@@ -45,7 +47,20 @@ article>.anno-start:not(#anno-none){width:30px}
 /* Remove: appears with the drawing's other handles */
 .anno-remove{position:absolute;right:-24px;top:-10px;width:18px;height:18px;padding:0;border:1px solid var(--line);border-radius:50%;background:var(--bg);color:var(--muted);font:13px/15px -apple-system,sans-serif;cursor:pointer;opacity:0;pointer-events:none}
 .anno-bubble .anno-remove,.anno-box .anno-remove{right:-8px;top:-8px}
-.anno:hover>.anno-remove,.anno:focus-within>.anno-remove{opacity:1;pointer-events:auto}
+.anno-more{position:absolute;right:-46px;top:-10px;width:20px;height:18px;padding:0;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--muted);font:600 11px/14px -apple-system,sans-serif;cursor:pointer;opacity:0;pointer-events:none}
+.anno-bubble .anno-more,.anno-box .anno-more{right:14px;top:-8px}
+.anno-shape .anno-more{right:14px;top:-8px}
+.anno:hover>:is(.anno-remove,.anno-more),.anno:focus-within>:is(.anno-remove,.anno-more),.anno-more[aria-expanded=true]{opacity:1;pointer-events:auto}
+.anno-more:hover{color:var(--ink);border-color:var(--ink)}
+.anno.tucked>.anno-more{display:none}
+/* The menu: a row of shapes, then outline and text colours */
+.anno-style-menu{position:fixed;z-index:1100;display:grid;gap:10px;padding:10px 12px;width:max-content;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink);box-shadow:0 12px 36px #0003}
+.anno-style-title{display:block;margin:0 0 5px;color:var(--muted);font:600 10.5px/1 -apple-system,sans-serif;letter-spacing:.06em;text-transform:uppercase}
+.anno-style-choices{display:flex;gap:5px;flex-wrap:wrap;max-width:300px}
+.anno-swatch{width:20px;height:20px;padding:0;border-radius:50%;border:2px solid var(--bg);background:var(--swatch);box-shadow:0 0 0 1px var(--line);cursor:pointer}
+.anno-swatch.current{box-shadow:0 0 0 2px var(--ink)}
+.anno-form{width:28px;height:26px;padding:0;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink);font:15px/24px -apple-system,sans-serif;cursor:pointer}
+.anno-form.current{border-color:var(--ink);background:var(--soft)}
 .anno.tucked>.anno-remove{display:none}
 
 /* No room: a small badge beside the line, which opens the note as a bubble */
@@ -68,12 +83,12 @@ body.anno-drawing article,body.anno-drawing article *{cursor:crosshair!important
 
 /* Sketched shapes: the outline as drawn, softly filled, with the text in the room inside */
 .anno-shape-ink{position:absolute;left:0;top:0;overflow:visible}
-.anno-shape-line{fill:var(--anno-paper);stroke:var(--anno-ink);stroke-width:1.6;stroke-linejoin:round;pointer-events:visiblePainted;cursor:grab}
+.anno-shape-line{fill:var(--paper);stroke:var(--line);stroke-width:1.6;stroke-linejoin:round;pointer-events:visiblePainted;cursor:grab}
 .anno-shape .anno-frame{position:absolute;padding:0;border:0;background:transparent;border-radius:0}
 .anno-shape .anno-label{text-align:center}
 .anno-shape .anno-corner{z-index:1}
 .anno-shape:hover .anno-corner,.anno-shape.dragging .anno-corner{opacity:1}
-.anno-shape .anno-remove{right:auto;left:calc(100% - 8px)}
+.anno-shape .anno-remove{right:-8px;top:-8px}
 .anno-shape.tucked .anno-shape-ink,.anno-shape.tucked .anno-corner{display:none}
 .anno-shape.tucked.open .anno-frame{left:auto!important;height:auto}
 .anno-shape.tucked.open .anno-label{text-align:left}

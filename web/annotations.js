@@ -1,7 +1,8 @@
 /* Writing around the text, the way you would on paper. Three kinds, all kept on note.annotations:
      brace   a } beside a run of lines (say three bullets that share an assumption), with a short note beside it
      bubble  a side note in the margin beside a line, joined to it by a faint lead line
-     shape   any outline sketched on the page (hold ⌘ and draw), smoothed into a bubble of that shape to write in
+     shape   an outline sketched on the page (hold ⌘ and draw), squared up into the stock shape it's closest to
+             (rectangle, oval, diamond, triangle) and written in
      box     a plain box (made by earlier versions; still shown)
 
    Each is pinned to lines, never to a spot on the screen. A brace remembers the first and last line it spans; a bubble
@@ -148,9 +149,9 @@
   const pin=pinAt(left,top);if(!pin)return;
   add({id:uid(),kind:'box',from:pin.from,side:pin.side,x:pin.x,dy:pin.dy,w:Math.round(width),h:Math.round(height),text:'',created:Date.now()},pin.line);
  }
- function shapeAt(left,top,width,height,points){
+ function shapeAt(left,top,width,height,form){
   const pin=pinAt(left,top);if(!pin)return;
-  add({id:uid(),kind:'shape',from:pin.from,side:pin.side,x:pin.x,dy:pin.dy,w:Math.round(width),h:Math.round(height),points,text:'',created:Date.now()},pin.line);
+  add({id:uid(),kind:'shape',form,from:pin.from,side:pin.side,x:pin.x,dy:pin.dy,w:Math.round(width),h:Math.round(height),text:'',created:Date.now()},pin.line);
  }
  function finishEditing(restore=true){
   if(!editing)return;const {id,fresh,back}=editing;editing=null;
@@ -217,7 +218,34 @@
   const last=out.at(-1),first=out[0];if(out.length>3&&Math.hypot(last[0]-first[0],last[1]-first[1])<6)out.pop();
   return out;
  }
- // A closed curve through every point (Catmull-Rom as cubic Béziers), scaled to w × h.
+ // Stock shapes, as outlines in a unit square. A sketch becomes whichever one it lies closest to.
+ const ellipse=Array.from({length:48},(_,i)=>[.5+.5*Math.cos(i/48*Math.PI*2),.5+.5*Math.sin(i/48*Math.PI*2)]);
+ const forms={rect:[[0,0],[1,0],[1,1],[0,1]],ellipse,diamond:[[.5,0],[1,.5],[.5,1],[0,.5]],triangle:[[.5,0],[1,1],[0,1]],'triangle-down':[[0,0],[1,0],[.5,1]]};
+ const formNames={rect:'Rectangle',ellipse:'Oval',diamond:'Diamond',triangle:'Triangle','triangle-down':'Triangle, pointing down'};
+ const formMarks={rect:'▢',ellipse:'◯',diamond:'◇',triangle:'△','triangle-down':'▽'};
+ function distanceToOutline(outline,x,y){
+  let best=Infinity;
+  for(let i=0;i<outline.length;i++){const [ax,ay]=outline[i],[bx,by]=outline[(i+1)%outline.length],dx=bx-ax,dy=by-ay,t=Math.max(0,Math.min(1,((x-ax)*dx+(y-ay)*dy)/(dx*dx+dy*dy||1)));best=Math.min(best,Math.hypot(ax+t*dx-x,ay+t*dy-y))}
+  return best;
+ }
+ // How far, on average, the drawn stroke lies from each stock outline fitted to the same box; the nearest wins.
+ function recognise(points,w,h){
+  const scaled=name=>forms[name].map(([u,v])=>[u*w,v*h]),step=Math.max(1,Math.floor(points.length/80));
+  let best='rect',score=Infinity;
+  for(const name of Object.keys(forms)){
+   const outline=scaled(name);let total=0,n=0;
+   for(let i=0;i<points.length;i+=step){total+=distanceToOutline(outline,points[i][0],points[i][1]);n++}
+   if(total/n<score){score=total/n;best=name}
+  }
+  return best;
+ }
+ function formPath(form,w,h){
+  if(form==='ellipse')return `M 0 ${h/2} A ${w/2} ${h/2} 0 1 0 ${w} ${h/2} A ${w/2} ${h/2} 0 1 0 0 ${h/2} Z`;
+  if(form==='rect'){const r=Math.min(5,w/8,h/8);return `M ${r} 0 H ${w-r} Q ${w} 0 ${w} ${r} V ${h-r} Q ${w} ${h} ${w-r} ${h} H ${r} Q 0 ${h} 0 ${h-r} V ${r} Q 0 0 ${r} 0 Z`}
+  return 'M '+forms[form].map(([u,v])=>`${(u*w).toFixed(1)} ${(v*h).toFixed(1)}`).join(' L ')+' Z';
+ }
+ // A closed curve through every point (Catmull-Rom as cubic Béziers), scaled to w × h. (Shapes from before they
+ // were squared up keep their hand-drawn outline.)
  function shapePath(points,w,h){
   const p=points.map(([u,v])=>[u*w,v*h]),n=p.length;if(n<3)return '';
   const at=i=>p[(i+n)%n];let d=`M ${at(0)[0].toFixed(1)} ${at(0)[1].toFixed(1)}`;
@@ -249,10 +277,12 @@
    const placed=a.kind==='brace'?placeBrace(a,host,at):placeFree(a,host,at);
    if(!placed){host.hidden=true;seen.add(a.id);continue}
    host.hidden=false;seen.add(a.id);number++;
+   host.style.setProperty('--anno-line',colour(a.line)||'');host.style.setProperty('--anno-text',colour(a.color)||'');
+   if(!a.line)host.style.removeProperty('--anno-line');if(!a.color)host.style.removeProperty('--anno-text');
    const label=host.querySelector('.anno-label'),badge=host.querySelector('.anno-badge');
    if(editing?.id!==a.id)show(label,a.text);
    label.classList.toggle('empty',!a.text&&editing?.id!==a.id);
-   badge.textContent=a.kind==='brace'?String(number):a.kind==='box'?'▢':a.kind==='shape'?'◯':'“';
+   badge.textContent=a.kind==='brace'?String(number):a.kind==='box'?'▢':a.kind==='shape'?(formMarks[a.form]||'◯'):'“';
    badge.title=a.text||('Empty '+names[a.kind]);badge.setAttribute('aria-label',names[a.kind]+': '+(a.text||'empty'));
   }
   for(const host of [...layer.querySelectorAll('.anno:not(.anno-preview)')])if(!seen.has(host.dataset.id))host.remove();
@@ -285,13 +315,14 @@
   if(a.kind==='shape'){
    // The text sits in the room inside the outline; if there's more text than room, the shape grows taller.
    width=Math.max(40,a.w||160);height=Math.max(30,a.h||90);
-   let room=roomInside(a.points,width,height);
+   const outline=forms[a.form]||a.points||forms.rect;
+   let room=roomInside(outline,width,height);
    frame.style.cssText=`left:${room.x}px;top:${room.y}px;width:${room.w}px`;
    // Grown evenly, so it keeps the proportions it was drawn with; wider lines then need less height, so settle in a few steps.
    const widest=Math.max(width,Math.min((a.w||160)*1.8,limit-left));   // widen only into room it has, then grow taller
-   for(let i=0;i<4;i++){const need=frame.scrollHeight;if(need<=room.h+1)break;const k=Math.sqrt(need/room.h)*1.03,wider=Math.min(Math.round(width*k),widest);height=Math.round(height*(need/room.h)*1.03*(width/wider));width=wider;room=roomInside(a.points,width,height);frame.style.cssText=`left:${room.x}px;top:${room.y}px;width:${room.w}px`}
+   for(let i=0;i<4;i++){const need=frame.scrollHeight;if(need<=room.h+1)break;const k=Math.sqrt(need/room.h)*1.03,wider=Math.min(Math.round(width*k),widest);height=Math.round(height*(need/room.h)*1.03*(width/wider));width=wider;room=roomInside(outline,width,height);frame.style.cssText=`left:${room.x}px;top:${room.y}px;width:${room.w}px`}
    const svg=host.querySelector('.anno-shape-ink');svg.setAttribute('width',String(width));svg.setAttribute('height',String(height));
-   for(const path of svg.querySelectorAll('path'))path.setAttribute('d',shapePath(a.points,width,height));
+   for(const path of svg.querySelectorAll('path'))path.setAttribute('d',forms[a.form]?formPath(a.form,width,height):shapePath(outline,width,height));
    host.querySelector('.anno-corner').style.cssText=`left:${width-6}px;top:${height-6}px`;
   }else{
    if(a.kind==='box'){frame.style.width=Math.max(60,a.w||160)+'px';frame.style.minHeight=Math.max(32,a.h||60)+'px'}
@@ -314,7 +345,7 @@
    return true;
   }
   host.classList.remove('open');
-  host.style.cssText=`left:${left}px;top:${top}px`;
+  host.style.cssText=`left:${left}px;top:${top}px`+(a.kind==='shape'?`;width:${width}px;height:${height}px`:'');
   // A side note is joined to the end of its line by a faint lead line, when it sits away from it.
   const leader=host.querySelector('.anno-leader');leader.replaceChildren();
   if(a.kind==='bubble'){
@@ -330,12 +361,13 @@
   label.dataset.placeholder=a.kind==='brace'?'Say what they share…':a.kind==='bubble'?'Side note…':'Type, or $x^2$ for maths…';
   const badge=el('button',undefined,'anno-badge');badge.type='button';
   const close=el('button','×','anno-remove');close.type='button';close.title='Remove the '+names[a.kind];close.setAttribute('aria-label',close.title);
+  const more=el('button','⋯','anno-more');more.type='button';more.title='Shape and colours';more.setAttribute('aria-label','Shape and colours of the '+names[a.kind]);more.setAttribute('aria-haspopup','menu');
   if(a.kind==='brace'){
    const svg=document.createElementNS(svgNS,'svg');svg.classList.add('anno-ink');
    const hit=document.createElementNS(svgNS,'path');hit.classList.add('anno-hit');
    const ink=document.createElementNS(svgNS,'path');ink.classList.add('anno-stroke');svg.append(hit,ink);
    const top=el('span',undefined,'anno-knob anno-knob-top'),bottom=el('span',undefined,'anno-knob anno-knob-bottom');top.title=bottom.title='Drag to cover more or fewer lines';
-   host.append(svg,label,badge,close,top,bottom);
+   host.append(svg,label,badge,close,more,top,bottom);
    for(const part of [hit,ink,label])part.addEventListener('pointerdown',event=>moveBrace(event,host,part===label));
    for(const knob of [top,bottom])knob.addEventListener('pointerdown',event=>stretchBrace(event,host,knob===top));
   }else if(a.kind==='shape'){
@@ -344,18 +376,19 @@
    const frame=el('div',undefined,'anno-frame');frame.append(label);
    const corner=el('span',undefined,'anno-corner');corner.title='Drag to resize';
    const leader=document.createElementNS(svgNS,'svg');leader.classList.add('anno-leader');
-   host.append(leader,svg,frame,corner,badge,close);
+   host.append(leader,svg,frame,corner,badge,close,more);
    corner.addEventListener('pointerdown',event=>resizeBox(event,host));
    for(const part of [outline,frame])part.addEventListener('pointerdown',event=>moveFree(event,host));
   }else{
    const leader=document.createElementNS(svgNS,'svg');leader.classList.add('anno-leader');
    const frame=el('div',undefined,'anno-frame');frame.append(label);
-   host.append(leader,frame,badge,close);
+   host.append(leader,frame,badge,close,more);
    if(a.kind==='box'){const corner=el('span',undefined,'anno-corner');corner.title='Drag to resize';frame.append(corner);corner.addEventListener('pointerdown',event=>resizeBox(event,host))}
    frame.addEventListener('pointerdown',event=>moveFree(event,host));
   }
   layer.append(host);
   close.onmousedown=e=>e.preventDefault();close.onclick=()=>remove(host.dataset.id);
+  more.onmousedown=e=>e.preventDefault();more.onclick=()=>styleMenu(host,more);
   badge.onmousedown=e=>e.preventDefault();
   badge.onclick=()=>{const open=!host.classList.contains('open');for(const other of layer.querySelectorAll('.anno.open'))other.classList.remove('open');host.classList.toggle('open',open);if(open)focusLabel(host.dataset.id)};
   label.addEventListener('focus',()=>{
@@ -516,7 +549,10 @@
     // A closed-ish loop of some size becomes a shape; a stray line or scribble is let go.
     if(w>=30&&h>=20&&outline.length>=4&&polygonArea(outline)>=w*h*.2){
      if(wasSticky)sticky=false;
-     shapeAt(at.toClientX(left),at.toClientY(top),w,h,outline.map(([x,y])=>[+((x-left)/w).toFixed(3),+((y-top)/h).toFixed(3)]));
+     const form=recognise(points.map(([x,y])=>[x-left,y-top]),w,h);
+     // Nearly as tall as it is wide: a true square, circle, diamond or triangle, centred where it was drawn.
+     let sw=w,sh=h;if(w/h>.8&&w/h<1.25){sw=sh=(w+h)/2}
+     shapeAt(at.toClientX(left+(w-sw)/2),at.toClientY(top+(h-sh)/2),sw,sh,form);
     }else if(deliberate)toast('Draw round a shape to write in it');
    }else if(!deliberate&&beside)bubbleAt(event.clientX,event.clientY-10,null);
    showDrawing();
@@ -530,6 +566,33 @@
   else if(event.code==='KeyB'&&event.shiftKey){event.preventDefault();event.stopImmediatePropagation();drawMode(!sticky)}
  },true);
  function sideNote(line){const ink=inkOf([line]);bubbleAt(ink.right+28,ink.top,line)}
+
+ // ── ⋯: the shape, and the colour of the outline and of the writing, chosen separately ───────────────────────
+ // "pencil" (no value) is the default tone; "ink" follows the note's own text colour, light or dark.
+ const palette=[['pencil','Pencil',null],['ink','Ink','var(--ink)'],['red','Red','#d4483b'],['orange','Orange','#e07a2e'],['amber','Amber','#c08f0f'],['green','Green','#3c8d5a'],['teal','Teal','#1f8a8a'],['blue','Blue','#3b6fd8'],['purple','Purple','#7a4fd0'],['pink','Pink','#c4458a'],['grey','Grey','#8a8f98']];
+ const colour=name=>palette.find(([id])=>id===name)?.[2]||null;
+ let styling=null;
+ function closeStyleMenu(){styling?.menu.remove();styling?.button.setAttribute('aria-expanded','false');styling=null}
+ function styleMenu(host,button){
+  if(styling?.host===host){closeStyleMenu();return}
+  closeStyleMenu();
+  const note=current(),a=find(host.dataset.id);if(!note||!a)return;
+  const menu=el('div',undefined,'anno-style-menu');menu.setAttribute('role','menu');
+  const row=(title,items)=>{const group=el('div',undefined,'anno-style-row');group.append(el('small',title,'anno-style-title'));const choices=el('div',undefined,'anno-style-choices');choices.append(...items);group.append(choices);menu.append(group)};
+  const set=(field,value)=>{change(note,()=>{if(value)a[field]=value;else delete a[field]});mark()};
+  const swatch=(field,[id,name,css])=>{const b=el('button',undefined,'anno-swatch');b.type='button';b.dataset.field=field;b.dataset.value=id;b.title=name;b.setAttribute('aria-label',name);b.style.setProperty('--swatch',css||'var(--anno-ink)');b.onmousedown=e=>e.preventDefault();b.onclick=()=>set(field,id==='pencil'?null:id);return b};
+  if(a.kind==='shape')row('Shape',Object.keys(forms).map(form=>{const b=el('button',formMarks[form],'anno-form');b.type='button';b.dataset.field='form';b.dataset.value=form;b.title=formNames[form];b.setAttribute('aria-label',formNames[form]);b.onmousedown=e=>e.preventDefault();b.onclick=()=>{change(note,()=>{a.form=form;delete a.points});mark()};return b}));
+  row(a.kind==='brace'?'Brace':'Outline',palette.map(p=>swatch('line',p)));
+  row('Text',palette.map(p=>swatch('color',p)));
+  // The current choices are marked.
+  const mark=()=>{for(const b of menu.querySelectorAll('[data-field]')){const field=b.dataset.field,value=field==='form'?a.form:a[field]||'pencil';b.classList.toggle('current',b.dataset.value===value);b.setAttribute('aria-pressed',String(b.dataset.value===value))}};
+  mark();document.body.append(menu);button.setAttribute('aria-expanded','true');
+  const box=button.getBoundingClientRect();menu.style.left=Math.max(8,Math.min(box.right-menu.offsetWidth,innerWidth-menu.offsetWidth-8))+'px';
+  menu.style.top=(box.bottom+6+menu.offsetHeight<innerHeight-8?box.bottom+6:Math.max(8,box.top-menu.offsetHeight-6))+'px';
+  styling={host,button,menu};
+ }
+ document.addEventListener('pointerdown',event=>{if(styling&&!styling.menu.contains(event.target)&&!styling.button.contains(event.target))closeStyleMenu()},true);
+ document.addEventListener('keydown',event=>{if(styling&&event.key==='Escape'){event.preventDefault();closeStyleMenu()}},true);
 
  // ── Keeping drawings beside their lines ─────────────────────────────────────
  let queued=false;
