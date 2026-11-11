@@ -151,14 +151,19 @@ body.class-mode #update-card{display:none}
 .schedule-row .schedule-title{grid-column:1/5}
 .schedule-row .schedule-timer{display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap;color:var(--muted,#888)}
 .schedule-row .schedule-timer input{padding:0}
-/* The same rows, set on a subject's page. */
-.subject-schedule .schedule-row{grid-template-columns:auto minmax(0,1fr) auto;border-color:var(--line,#ddd);gap:8px}
-.subject-schedule .schedule-days{grid-column:1/-1}
-.subject-schedule .schedule-row input[type=time]{width:112px}
-.subject-schedule .schedule-row .schedule-title{width:100%}
-.subject-schedule .schedule-row .schedule-title{grid-column:1/-1}
-.subject-schedule .schedule-row .schedule-timer{grid-column:1/-1}
-.subject-schedule .schedule-day{width:28px;padding:4px 0;font-size:11px;border-radius:7px;border:1px solid var(--line,#ddd);background:transparent;color:inherit;cursor:pointer}
+/* The same rows, set on a subject's page: lighter, one small group at a time. */
+.subject-schedule .schedule-list{gap:10px}
+.subject-schedule .schedule-row{grid-template-columns:minmax(0,1fr) auto;gap:10px 8px;padding:12px;border:1px solid var(--line,#ddd);border-radius:12px;background:transparent}
+.subject-schedule .schedule-days{gap:4px}
+.subject-schedule .schedule-day{width:30px;height:30px;padding:0;font-size:11px;border-radius:50%;border:1px solid var(--line,#ddd);background:transparent;color:inherit;cursor:pointer}
 .subject-schedule .schedule-day[aria-pressed=true]{background:var(--accent,var(--green,#4a6452));border-color:var(--accent,var(--green,#4a6452));color:var(--on-accent,#fff)}
-.subject-schedule .schedule-remove{border:0;background:transparent;color:var(--muted,#888);cursor:pointer}
-.subject-schedule .schedule-next,.subject-schedule .schedule-empty{margin:8px 0 0}
+.subject-schedule .schedule-when{grid-column:1/-1;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.subject-schedule .schedule-row input[type=time]{width:116px}
+.subject-schedule .schedule-length input{width:56px}
+.subject-schedule .schedule-timer{margin-left:auto;padding:5px 11px;border:1px solid var(--line,#ddd);border-radius:999px;cursor:pointer;color:var(--muted,#888);font-size:12px;gap:6px}
+.subject-schedule .schedule-timer:has(input:checked){color:var(--ink,#333);border-color:var(--accent,var(--green,#4a6452))}
+.subject-schedule .schedule-timer input{margin:0}
+.subject-schedule .schedule-row .schedule-title{grid-column:1/-1;width:100%;border:0;border-bottom:1px solid var(--line,#ddd);border-radius:0;background:transparent;padding:6px 2px}
+.subject-schedule .schedule-remove{width:34px;height:34px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--muted,#888);font-size:16px;line-height:1;cursor:pointer}
+.subject-schedule .schedule-remove:hover,.subject-schedule .schedule-remove:focus-visible{background:#d4584a1f;color:#d4584a}
+.subject-schedule .schedule-next,.subject-schedule .schedule-empty{margin:8px 0 0;font-size:12px}

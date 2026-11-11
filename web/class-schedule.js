@@ -66,9 +66,12 @@
   length.onchange=()=>{entry.minutes=Math.round(Number(length.value)||0);changed()};
   const remove=button('✕',()=>{state.classSchedule=schedule().filter(e=>e!==entry);persist();onRemove?.()},'schedule-remove','Remove this class');
   const minutes=el('label','schedule-length');minutes.append(length,el('span','',' min'));
-  const name=el('input','schedule-title');name.type='text';name.value=entry.title||'';name.placeholder='Note title, e.g. {date} - CoStaff Meeting';name.setAttribute('aria-label','Title for each note');name.title='Each time, a note with this title is made. {date} is today\'s date, {iso} is 2026-11-11, {weekday} and {subject} work too.';name.onchange=()=>{entry.title=name.value.trim();changed()};
-  const timer=el('label','schedule-timer'),timerBox=el('input');timerBox.type='checkbox';timerBox.checked=entry.timer!==false;timerBox.onchange=()=>{entry.timer=timerBox.checked;changed()};timer.append(timerBox,el('span','',' Class timer'));timer.title='Start class mode for the length of this slot. Turn off to just open the note.';
-  r.append(...(pickSubject?[pick]:[]),days,time,minutes,remove,name,timer);r.classList.toggle('is-invalid',!S.valid(entry));
+  const name=el('input','schedule-title');name.type='text';name.value=entry.title||'';name.placeholder=pickSubject?'Note title, e.g. {date} - CoStaff Meeting':'Note name  ·  {date} = today';name.setAttribute('aria-label','Title for each note');name.title='Each time, a note with this title is made. {date} is today\'s date, {iso} is 2026-11-11, {weekday} and {subject} work too.';name.onchange=()=>{entry.title=name.value.trim();changed()};
+  const timer=el('label','schedule-timer'),timerBox=el('input');timerBox.type='checkbox';timerBox.checked=entry.timer!==false;timerBox.onchange=()=>{entry.timer=timerBox.checked;changed()};timer.append(timerBox,el('span','',pickSubject?' Class timer':'Timer'));timer.title='Run a countdown for this slot (class mode). Off: just open the note.';
+  remove.setAttribute('aria-label','Remove this time');
+  if(pickSubject)r.append(pick,days,time,minutes,remove,name,timer);
+  else{const when=el('div','schedule-when');when.append(time,minutes,timer);r.append(days,remove,when,name)}
+  r.classList.toggle('is-invalid',!S.valid(entry));
   return r;
  }
 
@@ -102,7 +105,7 @@
    box.append(head);
    const list=el('div','schedule-list');
    for(const entry of own())list.append(scheduleRow(entry,{pickSubject:false,remove:paint}));
-   if(!own().length)list.append(el('p','schedule-empty','Set a regular time, like a weekly meeting. Notival offers to open a note for it when it starts, titled the way you like (for example "{date} - Staff Meeting").'));
+   if(!own().length)list.append(el('p','schedule-empty','Nothing scheduled'));
    box.append(list);
    const upcoming=S.next(own(),now());
    if(upcoming)box.append(el('p','schedule-next','Next: '+S.when(upcoming,now())));
