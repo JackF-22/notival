@@ -14,7 +14,7 @@ const RichEditor = (() => {
       return `\u0001${links.length-1}\u0002`;
     });
     value = escape(value);
-    value = value.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/~~(.+?)~~/g, '<s>$1</s>');
+    value = value.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/~~(.+?)~~/g, '<s>$1</s>').replace(/==(.+?)==/g, '<mark data-hl="yellow">$1</mark>');
     value = value.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>').replace(/`([^`\n]+)`/g, '<code>$1</code>');
     return value.replace(/\u0001(\d+)\u0002/g, (_, index) => links[Number(index)]);
   };
@@ -102,7 +102,8 @@ const RichEditor = (() => {
     }
     return output.join('') || '<p><br></p>';
   }
-  const allowed = new Set(['P','DIV','BR','H1','H2','H3','H4','H5','H6','STRONG','B','EM','I','U','S','STRIKE','CODE','PRE','BLOCKQUOTE','UL','OL','LI','HR','TABLE','TBODY','THEAD','TR','TH','TD','A','IMG','SPAN','INPUT']);
+  const highlightColors=['yellow','green','blue','pink'];
+  const allowed = new Set(['P','DIV','BR','H1','H2','H3','H4','H5','H6','STRONG','B','EM','I','U','S','STRIKE','CODE','PRE','BLOCKQUOTE','UL','OL','LI','HR','TABLE','TBODY','THEAD','TR','TH','TD','A','IMG','SPAN','INPUT','MARK']);
   function cleanHTML(html) {
     const holder = document.createElement('div'); holder.innerHTML = String(html || '');
     function clean(node) {
@@ -152,9 +153,11 @@ const RichEditor = (() => {
         const widths=child.tagName==='TABLE'?child.getAttribute('data-widths')||'':'';
         const indent=/^(P|DIV|H[1-6]|BLOCKQUOTE)$/.test(child.tagName)?child.getAttribute('data-indent')||'':'';
         const listStart=child.tagName==='OL'?child.getAttribute('start')||'':'';
+        const highlight=child.tagName==='MARK'?child.getAttribute('data-hl')||'':'';
         const imageWidth=child.tagName==='IMG'?child.getAttribute('data-width')||'':'';
         const imageAlign=child.tagName==='IMG'?child.getAttribute('data-align')||'':'';
         for (const attribute of [...child.attributes]) child.removeAttribute(attribute.name);
+        if(child.tagName==='MARK')child.dataset.hl=highlightColors.includes(highlight)?highlight:'yellow';
         if(/^\d+(\.\d+)?(,\d+(\.\d+)?)*$/.test(widths))child.dataset.widths=widths;
         if(/^[1-6]$/.test(indent))child.dataset.indent=indent;
         if(/^\d{1,4}$/.test(listStart)&&+listStart>1)child.setAttribute('start',String(+listStart));
@@ -202,6 +205,7 @@ const RichEditor = (() => {
       if (tag==='STRONG'||tag==='B') return `**${content}**`;
       if (tag==='EM'||tag==='I') return `*${content}*`;
       if (tag==='S'||tag==='STRIKE') return `~~${content}~~`;
+      if (tag==='MARK') return `==${content}==`;
       if (tag==='CODE' && node.parentElement?.tagName!=='PRE') return `\`${content}\``;
       if (tag==='A') return `[${content}](${safeURL(node.getAttribute('href')||'')})`;
       if (tag==='IMG') return `![${node.getAttribute('alt')||''}](${safeURL(node.getAttribute('src')||'')})`;
@@ -394,7 +398,12 @@ const RichEditor = (() => {
         if(adjacent)return adjacent.nodeType===Node.ELEMENT_NODE && adjacent.classList.contains('equation')?adjacent:null;
       }
       // At the edge of a bullet, Backspace and Delete belong to the list (un-bullet, merge items), never to a neighbour.
-      if(node.nodeType===Node.ELEMENT_NODE&&node.tagName==='LI')return null;
+      if(node.nodeType===Node.ELEMENT_NODE&&node.tagName==='LI'){
+        // Backspace at the start of a bullet under one that ends in a display equation would merge the two and lose the equation.
+        const above=backward&&offset===0?node.previousElementSibling:null,last=above?.tagName==='LI'?[...above.children].filter(child=>child.tagName!=='BR').at(-1):null;
+        if(last?.classList.contains('display-equation')){if(info)info.crossed=true;return last;}
+        return null;
+      }
       if(info&&node.nodeType===Node.ELEMENT_NODE&&/^(P|DIV|H[1-6]|BLOCKQUOTE|PRE)$/.test(node.tagName)&&!node.classList.contains('equation')){info.crossed=true;info.block??=node;}
       const parent=node.parentNode;
       if(!parent || !editor.contains(parent))return null;
@@ -413,6 +422,16 @@ const RichEditor = (() => {
     if(rest.some(node=>node.nodeType===Node.ELEMENT_NODE?!/^BR$/.test(node.tagName):node.textContent.replace(/[\s\u200b\u00a0]/g,'')))return false;
     above.insertBefore(equation,[...above.children].find(isListElement)||null);item.remove();
     return true;
+  }
+  // Where the caret goes when it steps onto a neighbouring block: into a list's first or last bullet, or a table's first or last cell.
+  function caretTarget(node, end) {
+    if(node.tagName==='TABLE'){const cells=node.querySelectorAll('td,th');return cells[end?cells.length-1:0]||node;}
+    if(/^(UL|OL)$/.test(node.tagName)){
+      let item=end?node.lastElementChild:node.firstElementChild;
+      while(end&&item){const nested=[...item.children].filter(child=>/^(UL|OL)$/.test(child.tagName)).at(-1)?.lastElementChild;if(!nested)break;item=nested;}
+      return item||node;
+    }
+    return node;
   }
   function placeCaretByEquation(editor, equation, after) {
     const range=document.createRange();
@@ -434,6 +453,7 @@ const RichEditor = (() => {
         target=document.createElement('p');target.append(document.createElement('br'));
         equation[after?'after':'before'](target);
       }
+      target=caretTarget(target,!after);
       range.selectNodeContents(target);range.collapse(after);
     }else{
       let neighbor=after?equation.nextSibling:equation.previousSibling;
@@ -446,9 +466,48 @@ const RichEditor = (() => {
     if(focused?.editor===editor)focused.range=range.cloneRange();
   }
   function deleteEquation(editor, equation) {
-    placeCaretByEquation(editor,equation,true);
+    const item=equation.parentElement?.tagName==='LI'?equation.parentElement:null,own=item&&[...item.childNodes].find(node=>node!==equation&&node.nodeType===Node.TEXT_NODE&&node.data.trim());
+    const next=equation.nextElementSibling,before=equation.previousElementSibling;
+    if(equation.classList.contains('display-equation')&&own){
+      // The bullet keeps its text, so the caret stays at the end of it rather than jumping to the next bullet.
+      const range=document.createRange();range.setStart(own,own.data.length);range.collapse(true);
+      const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);if(focused?.editor===editor)focused.range=range.cloneRange();
+    }else if(equation.classList.contains('display-equation')&&!item&&!(next&&next.isContentEditable&&!next.classList.contains('equation'))&&before&&before.isContentEditable&&!before.classList.contains('equation')){
+      placeCaretByEquation(editor,equation,false);
+    }else placeCaretByEquation(editor,equation,true);
     equation.remove();
     if(focused?.selectedEquation===equation)focused.selectedEquation=null;
+    editor.dispatchEvent(new Event('input',{bubbles:true}));
+  }
+  // A display equation is a block: clicking or arrowing onto it selects it (nothing new is made), and then the arrows,
+  // Enter or typing carry on from it, while Backspace and Delete remove it.
+  function clearEquationSelection(editor) {
+    editor.querySelectorAll('.equation.selected').forEach(item=>item.classList.remove('selected'));
+    if(focused?.editor===editor)focused.selectedEquation=null;
+  }
+  function selectEquation(editor, equation) {
+    clearEquationSelection(editor);
+    equation.classList.add('selected');
+    const range=document.createRange();range.setStartAfter(equation);range.collapse(true);
+    const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
+    if(focused?.editor===editor){focused.selectedEquation=equation;focused.range=range.cloneRange();}
+  }
+  const pickedDisplayEquation = editor => {
+    const equation=focused?.editor===editor?focused.selectedEquation:null;
+    return equation?.isConnected&&equation.classList.contains('display-equation')?equation:null;
+  };
+  function stepFromEquation(editor, equation, after) {
+    const neighbor=equation.parentElement?.tagName==='LI'?null:after?equation.nextElementSibling:equation.previousElementSibling;
+    if(neighbor?.classList.contains('display-equation')){selectEquation(editor,neighbor);return;}
+    clearEquationSelection(editor);placeCaretByEquation(editor,equation,after);
+  }
+  function lineAfterEquation(editor, equation) {
+    const item=equation.parentElement?.tagName==='LI'?equation.parentElement:null,line=document.createElement(item?'li':'p');
+    line.append(document.createElement('br'));(item||equation).after(line);
+    clearEquationSelection(editor);
+    const range=document.createRange();range.setStart(line,0);range.collapse(true);
+    const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
+    if(focused?.editor===editor)focused.range=range.cloneRange();
     editor.dispatchEvent(new Event('input',{bubbles:true}));
   }
   function convertListMarker(editor) {
@@ -765,6 +824,51 @@ const RichEditor = (() => {
     if(equation)field.select();else field.setSelectionRange(field.value.length,field.value.length);
     return region;
   }
+  // ---- Highlighting: a <mark> in one of four colours. Choosing the colour a passage already has takes it off again. ----
+  function highlight(editor, color) {
+    const selection=window.getSelection();
+    if(!selection?.rangeCount||selection.isCollapsed||!editor.contains(selection.anchorNode))return false;
+    color=highlightColors.includes(color)?color:'yellow';
+    const range=selection.getRangeAt(0),touching=[...editor.querySelectorAll('mark')].filter(mark=>range.intersectsNode(mark));
+    const same=touching.length>0&&touching.every(mark=>(mark.dataset.hl||'yellow')===color);
+    if(touching.length){
+      // Unwrapping moves text between parents; remember which text the selection covered so it can be put back.
+      const texts=[],walker=document.createTreeWalker(editor,NodeFilter.SHOW_TEXT);
+      for(let node=walker.nextNode();node;node=walker.nextNode()){
+        if(!range.intersectsNode(node)||(node===range.startContainer&&range.startOffset>=node.data.length)||(node===range.endContainer&&range.endOffset===0))continue;
+        texts.push(node);
+      }
+      const from=texts[0]===range.startContainer?range.startOffset:0,to=texts.at(-1)===range.endContainer?range.endOffset:texts.at(-1)?.data.length;
+      for(const mark of touching)mark.replaceWith(...mark.childNodes);
+      if(texts.length){const keep=document.createRange();keep.setStart(texts[0],from);keep.setEnd(texts.at(-1),to);selection.removeAllRanges();selection.addRange(keep);}
+    }
+    if(same)return true;
+    // The browser knows how to paint across lines and blocks, so let it, with a colour no one else uses, then turn that paint into marks.
+    document.execCommand('hiliteColor',false,'rgb(1, 2, 3)');
+    const made=[];
+    for(const painted of editor.querySelectorAll('[style]')){
+      if(painted.style.backgroundColor!=='rgb(1, 2, 3)')continue;
+      painted.style.removeProperty('background-color');
+      if(painted.tagName==='SPAN'){
+        const mark=document.createElement('mark');mark.dataset.hl=color;mark.append(...painted.childNodes);painted.replaceWith(mark);made.push(mark);
+      }else{
+        const mark=document.createElement('mark');mark.dataset.hl=color;mark.append(...painted.childNodes);painted.append(mark);made.push(mark);
+        if(!painted.getAttribute('style'))painted.removeAttribute('style');
+      }
+    }
+    // Marks next to each other of one colour read as one.
+    for(const mark of editor.querySelectorAll('mark')){
+      const next=mark.nextSibling;
+      if(next?.nodeName==='MARK'&&next.dataset.hl===mark.dataset.hl){mark.append(...next.childNodes);next.remove();}
+    }
+    // Keep the passage selected, so another colour (or the same one, to take it off) applies straight away.
+    const first=made.find(mark=>mark.isConnected),last=made.findLast(mark=>mark.isConnected);
+    if(first&&last){
+      const keep=document.createRange();keep.setStart(first,0);keep.setEnd(last,last.childNodes.length);
+      selection.removeAllRanges();selection.addRange(keep);
+    }
+    return true;
+  }
   // Swap a plain-text block for another tag without letting the browser rewrap neighbouring tables.
   function setBlockTag(editor, tag) {
     const selection=window.getSelection();if(!selection.rangeCount)return false;
@@ -918,6 +1022,8 @@ const RichEditor = (() => {
     editor.onbeforeinput=event=>{
       if(event.inputType==='insertText'&&event.data===' '&&convertListMarker(editor)){event.preventDefault();hideSlash();return;}
       if(event.inputType==='insertText'&&event.data===' '&&convertSymbol(editor)){event.preventDefault();hideSlash();return;}
+      const picked=pickedDisplayEquation(editor);
+      if(picked&&event.inputType==='insertText'&&event.data){event.preventDefault();hideSlash();clearEquationSelection(editor);placeCaretByEquation(editor,picked,true);document.execCommand('insertText',false,event.data);return;}
       const key=event.inputType==='deleteContentBackward'?'Backspace':event.inputType==='deleteContentForward'?'Delete':null;
       if(!key)return;
       equationKey(key,event);
@@ -952,9 +1058,13 @@ const RichEditor = (() => {
       if(event.target.tagName==='INPUT'&&event.target.type==='checkbox'){event.target.toggleAttribute('checked',event.target.checked);editor.dispatchEvent(new Event('input',{bubbles:true}));}
       const equation=event.target.closest('.equation');
       if(equation && editor.contains(equation)){
-        editor.focus({preventScroll:true});editor.querySelectorAll('.equation.selected').forEach(item=>item.classList.remove('selected'));
-        equation.classList.add('selected');if(focused?.editor===editor)focused.selectedEquation=equation;
-        placeCaretByEquation(editor,equation,true);
+        editor.focus({preventScroll:true});
+        if(equation.classList.contains('display-equation'))selectEquation(editor,equation);
+        else{
+          editor.querySelectorAll('.equation.selected').forEach(item=>item.classList.remove('selected'));
+          equation.classList.add('selected');if(focused?.editor===editor)focused.selectedEquation=equation;
+          placeCaretByEquation(editor,equation,true);
+        }
       }else{editor.querySelectorAll('.equation.selected').forEach(item=>item.classList.remove('selected'));if(focused?.editor===editor)focused.selectedEquation=null;}
       const link=event.target.closest('a');if(link&&(event.metaKey||event.ctrlKey)){event.preventDefault();if(window.webkit?.messageHandlers?.margin)window.webkit.messageHandlers.margin.postMessage({type:'openURL',url:link.href});else window.open(link.href,'_blank');}
     };
@@ -1021,6 +1131,12 @@ const RichEditor = (() => {
         }
         if(equationKey(event.key,event))return;
       }
+      const picked=pickedDisplayEquation(editor);
+      if(picked&&!event.metaKey&&!event.ctrlKey&&!event.altKey&&!event.shiftKey&&!slash?.editor){
+        if(event.key==='ArrowDown'||event.key==='ArrowRight'||event.key==='ArrowUp'||event.key==='ArrowLeft'){event.preventDefault();stepFromEquation(editor,picked,event.key==='ArrowDown'||event.key==='ArrowRight');return;}
+        if(event.key==='Enter'){event.preventDefault();lineAfterEquation(editor,picked);return;}
+        if(event.key==='Escape'){event.preventDefault();clearEquationSelection(editor);return;}
+      }
       // Each block is its own editor, so when the caret cannot move any further in this one (an equation can pin it there), carry on into the neighbouring block.
       if((event.key==='ArrowDown'||event.key==='ArrowUp'||event.key==='ArrowRight'||event.key==='ArrowLeft')&&!event.shiftKey&&!event.metaKey&&!event.ctrlKey&&!event.altKey&&!slash?.editor&&editor.closest('#editor')){
         const selection=window.getSelection(),down=event.key==='ArrowDown'||event.key==='ArrowRight';
@@ -1040,6 +1156,7 @@ const RichEditor = (() => {
       }
       if(event.key==='ArrowLeft'||event.key==='ArrowRight'){
         const equation=equationAtCaret(editor,event.key==='ArrowLeft'?'Backspace':'Delete');
+        if(equation&&equation.classList.contains('display-equation')&&!event.shiftKey&&!equation.parentElement?.closest('li')){event.preventDefault();selectEquation(editor,equation);return;}
         if(equation){event.preventDefault();placeCaretByEquation(editor,equation,event.key==='ArrowRight');}
       }
       if(focused?.editor===editor && !['Backspace','Delete'].includes(event.key)){
@@ -1114,6 +1231,7 @@ const RichEditor = (() => {
     }
     else if(name==='wordcount'){block.wordCount=!block.wordCount;window.marginWordCountRefresh?.();onChange();return;}
     else if(name==='image'){document.querySelector('#image-picker')?.click();return;}
+    else if(name==='highlight'){if(!highlight(editor,value))return;}
     else if(name==='rule')document.execCommand('insertHorizontalRule');
     else if(name==='code')document.execCommand('formatBlock',false,'pre');
     else if(name==='heading'){if(!['p','h1','h2','h3'].includes(value))return;if(!setBlockTag(editor,value))document.execCommand('formatBlock',false,value);hoistTables(editor);}

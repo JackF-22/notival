@@ -43,9 +43,9 @@ body .student-home-view:has(.student-tabs){max-width:1000px;border-top:0;padding
 /* Real checkboxes retain keyboard and screen-reader behavior. */
 .student-check{position:relative;gap:10px;cursor:pointer;line-height:1.5}
 .student-check.task-check>input[type=checkbox]{appearance:none;-webkit-appearance:none;position:relative;flex:0 0 19px;width:19px;height:19px;margin:0;border:1.5px solid var(--line);border-radius:50%;background:var(--bg);cursor:pointer;transition:background .18s,border-color .18s,box-shadow .18s;display:inline-grid;place-items:center}
-.student-check.task-check>input[type=checkbox]::after{content:'';width:8px;height:4px;border-left:2px solid var(--bg);border-bottom:2px solid var(--bg);transform:rotate(-45deg) scale(0);transition:transform .16s ease-out}
+.student-check.task-check>input[type=checkbox]::after{content:'';position:absolute;left:50%;top:50%;width:5px;height:9px;box-sizing:border-box;border:solid var(--bg);border-width:0 2px 2px 0;transform:translate(-50%,-62%) rotate(45deg) scale(0);transition:transform .16s ease-out}
 .student-check.task-check>input[type=checkbox]:checked{background:var(--green);border-color:var(--green)}
-.student-check.task-check>input[type=checkbox]:checked::after{transform:rotate(-45deg) scale(1)}
+.student-check.task-check>input[type=checkbox]:checked::after{transform:translate(-50%,-62%) rotate(45deg) scale(1)}
 .student-check.task-check>input[type=checkbox]:focus-visible{outline:2px solid var(--green);outline-offset:4px}
 .student-check>.check-label{transition:color .2s,opacity .2s,transform .2s;overflow-wrap:anywhere;min-width:0}
 .student-check.task-check.is-checked>.check-label{color:var(--muted);text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--muted) 65%,transparent)}

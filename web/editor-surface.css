@@ -228,3 +228,15 @@ body #editor>.block:first-child:not(.code) .block-tools{top:4px}
 body #editor .rich-text :is(h1,h2,h3){margin:24px 0 6px}
 body #editor .rich-text>:first-child:is(h1,h2,h3){margin-top:0}
 body #editor .rich-text :is(h1,h2,h3)+:is(h1,h2,h3){margin-top:12px}
+
+/* Highlights: soft marker colours that keep the text readable in both themes. */
+.rich-text mark{color:inherit;background:#ffe14d66;border-radius:3px;padding:0 1px;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+.rich-text mark[data-hl=green]{background:#6fd88a66}
+.rich-text mark[data-hl=blue]{background:#6cb6ff66}
+.rich-text mark[data-hl=pink]{background:#ff8fb866}
+.hl-icon{display:inline-block;padding:0 3px;border-radius:3px;background:#ffe14d99;font-weight:600;line-height:1.25}
+#selection-tools .hl-dot{width:18px;height:18px;min-width:0;padding:0;border:1px solid color-mix(in srgb,var(--ink) 25%,transparent);border-radius:50%;background:#ffe14d}
+#selection-tools .hl-dot[data-hl=green]{background:#6fd88a}
+#selection-tools .hl-dot[data-hl=blue]{background:#6cb6ff}
+#selection-tools .hl-dot[data-hl=pink]{background:#ff8fb8}
+#selection-tools .hl-dot:first-of-type{margin-left:4px}
