@@ -19,12 +19,11 @@
   handled()[occurrence.key]='started';
   let note=S.classNote(state.notes,subject.id,at);
   if(!note){
-   const date=new Date(at).toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});
-   note={id:uid(),title:subject.name+' · '+date,projectId:subject.id,classDate:S.dayKey(at),updated:at,pinned:false,nodes:[],blocks:[{id:uid(),type:'text',text:'',html:'<p><br></p>'}]};
+   note={id:uid(),title:S.noteTitle(occurrence.entry,subject.name,at),projectId:subject.id,classDate:S.dayKey(at),updated:at,pinned:false,nodes:[],blocks:[{id:uid(),type:'text',text:'',html:'<p><br></p>'}]};
    state.notes.unshift(note);
   }
   active=note.id;persist();render();setMode?.('write');hideBanner();
-  window.marginClass?.begin(S.minutesLeft(occurrence,at),{fullscreen:fullscreenPref()});
+  if(occurrence.entry.timer!==false)window.marginClass?.begin(S.minutesLeft(occurrence,at),{fullscreen:fullscreenPref()});
  }
  function skip(occurrence){handled()[occurrence.key]='skipped';persist();hideBanner()}
 
@@ -38,7 +37,7 @@
   const text=el('div','due-text');
   text.append(el('strong','',(subject?.icon?subject.icon+' ':'')+(subject?.name||'Class')+(occurrence.state==='soon'?' starts at '+S.timeLabel(occurrence.start):' is on now')),el('small','',S.span(occurrence)+' · opens today\'s '+(subject?.name||'class')+' note'));
   const actions=el('div','due-actions');
-  actions.append(button('Not today',()=>skip(occurrence),'','Don\'t offer this class again today'),button('Start class',()=>start(occurrence),'primary'));
+  actions.append(button('Not today',()=>skip(occurrence),'','Don\'t offer this class again today'),button(occurrence.entry.timer===false?'Open note':'Start class',()=>start(occurrence),'primary'));
   banner.append(text,actions);document.body.append(banner);
  }
  function check(){
@@ -85,7 +84,9 @@
    length.onchange=()=>{entry.minutes=Math.round(Number(length.value)||0);changed()};
    const remove=button('✕',()=>{state.classSchedule=schedule().filter(e=>e!==entry);persist();paint()},'schedule-remove','Remove this class');
    const minutes=el('label','schedule-length');minutes.append(length,el('span','',' min'));
-   r.append(pick,days,time,minutes,remove);r.classList.toggle('is-invalid',!S.valid(entry));
+   const name=el('input','schedule-title');name.type='text';name.value=entry.title||'';name.placeholder='Note title, e.g. {date} - CoStaff Meeting';name.setAttribute('aria-label','Title for each note');name.title='Each time, a note with this title is made. {date} is today\'s date, {iso} is 2026-11-11, {weekday} and {subject} work too.';name.onchange=()=>{entry.title=name.value.trim();changed()};
+   const timer=el('label','schedule-timer'),timerBox=el('input');timerBox.type='checkbox';timerBox.checked=entry.timer!==false;timerBox.onchange=()=>{entry.timer=timerBox.checked;changed()};timer.append(timerBox,el('span','',' Class timer'));timer.title='Start class mode for the length of this slot. Turn off to just open the note.';
+   r.append(pick,days,time,minutes,remove,name,timer);r.classList.toggle('is-invalid',!S.valid(entry));
    return r;
   }
   paint();box.showModal();box.querySelector('button.primary,select')?.focus();

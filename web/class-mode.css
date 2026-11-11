@@ -147,3 +147,7 @@ body.class-mode #class-due{display:none}
 #update-card button.primary{background:var(--accent,var(--green,#4a6452));border-color:var(--accent,var(--green,#4a6452));color:var(--on-accent,#fff)}
 #update-card button:disabled{opacity:.6;cursor:default}
 body.class-mode #update-card{display:none}
+/* Each scheduled item can name its notes and choose whether to run the class timer. */
+.schedule-row .schedule-title{grid-column:1/5}
+.schedule-row .schedule-timer{display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap;color:var(--muted,#888)}
+.schedule-row .schedule-timer input{padding:0}

@@ -53,4 +53,10 @@ assert.equal(S.when(S.onDay([{...bio,days:[6]}],at(7,8))[0],at(6,20)),'tomorrow 
 const notes=[{id:'old',projectId:'bio',classDate:'2026-11-04'},{id:'today',projectId:'bio',classDate:'2026-11-06'},{id:'other',projectId:'zh',classDate:'2026-11-06'}];
 assert.equal(S.classNote(notes,'bio',at(6,10)).id,'today');assert.equal(S.classNote(notes,'bio',at(9,10)),null);
 
+// Titles: the student's own pattern, or "Subject · date"
+assert.equal(S.noteTitle({title:'{iso} - CoStaff Meeting'},'CoStaff',at(6,10)),'2026-11-06 - CoStaff Meeting');
+assert.match(S.noteTitle({title:'{date} - CoStaff Meeting'},'CoStaff',at(6,10)),/^Fri, Nov 6 - CoStaff Meeting$/);
+assert.equal(S.noteTitle({title:'{weekday} {subject} {nope}'},'Bio',at(6,10)),'Friday Bio {nope}');
+assert.match(S.noteTitle({},'Bio',at(6,10)),/^Bio · /);
+
 console.log('PASS: schedule — valid entries, today\'s classes, offered from 5 min before to 20 min in, once per day, next class, labels, today\'s note.');
