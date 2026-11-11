@@ -160,9 +160,11 @@ body.class-mode #update-card{display:none}
 .subject-schedule .schedule-when{grid-column:1/-1;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .subject-schedule .schedule-row input[type=time]{width:116px}
 .subject-schedule .schedule-length input{width:56px}
-.subject-schedule .schedule-timer{margin-left:auto;padding:5px 11px;border:1px solid var(--line,#ddd);border-radius:999px;cursor:pointer;color:var(--muted,#888);font-size:12px;gap:6px}
-.subject-schedule .schedule-timer:has(input:checked){color:var(--ink,#333);border-color:var(--accent,var(--green,#4a6452))}
-.subject-schedule .schedule-timer input{margin:0}
+.subject-schedule .schedule-options{grid-column:1/-1;display:flex;gap:8px}
+.subject-schedule .schedule-pill{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border:1px solid var(--line,#ddd);border-radius:999px;cursor:pointer;color:var(--muted,#888);font-size:12px;white-space:nowrap}
+.subject-schedule .schedule-pill:has(input:checked){color:var(--ink,#333);border-color:var(--accent,var(--green,#4a6452))}
+.subject-schedule .schedule-pill input{margin:0;padding:0}
+.subject-schedule .schedule-preview{grid-column:1/-1;margin-top:-4px;color:var(--muted,#888);font-size:12px;overflow-wrap:anywhere}
 .subject-schedule .schedule-row .schedule-title{grid-column:1/-1;width:100%;border:0;border-bottom:1px solid var(--line,#ddd);border-radius:0;background:transparent;padding:6px 2px}
 .subject-schedule .schedule-remove{width:34px;height:34px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--muted,#888);font-size:16px;line-height:1;cursor:pointer}
 .subject-schedule .schedule-remove:hover,.subject-schedule .schedule-remove:focus-visible{background:#d4584a1f;color:#d4584a}

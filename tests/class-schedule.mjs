@@ -139,8 +139,8 @@ try{
   await evaluate(`(()=>{state.classSchedule=[];window.marginHome('bio')})()`);await wait(300);
   assert.equal(await count('.subject-schedule'),1,'the subject page has a Schedule section');
   await evaluate(`[...document.querySelectorAll('.subject-schedule button')].find(b=>b.textContent==='+ Add').click()`);await wait(150);
-  await evaluate(`(()=>{const t=document.querySelector('.subject-schedule .schedule-title');t.value='{date} - CoStaff Meeting';t.dispatchEvent(new Event('change'))})()`);
-  assert.deepEqual(await evaluate(`state.classSchedule.map(e=>[e.subjectId,e.title])`),[['bio','{date} - CoStaff Meeting']],'the item belongs to this subject and keeps its title pattern');
+  await evaluate(`(()=>{const t=document.querySelector('.subject-schedule .schedule-title');t.value='CoStaff Meeting';t.dispatchEvent(new Event('change'))})()`);
+  assert.deepEqual(await evaluate(`state.classSchedule.map(e=>[e.subjectId,e.title])`),[['bio','{date} - CoStaff Meeting']],'the item belongs to this subject, and Date puts the date in front of its name');
 
   console.log('PASS: scheduled classes — timetable in the Focus menu, offered from just before the start, opens today\'s note and runs class mode for the rest of the class, once a day, and an after-class wrap-up that writes the note and keeps questions for Recall.');
 }finally{browser.kill();for(const pending of waiting.values())clearTimeout(pending.timer);await rm(profile,{recursive:true,force:true,maxRetries:10,retryDelay:100})}

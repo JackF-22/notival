@@ -70,7 +70,21 @@
   const timer=el('label','schedule-timer'),timerBox=el('input');timerBox.type='checkbox';timerBox.checked=entry.timer!==false;timerBox.onchange=()=>{entry.timer=timerBox.checked;changed()};timer.append(timerBox,el('span','',pickSubject?' Class timer':'Timer'));timer.title='Run a countdown for this slot (class mode). Off: just open the note.';
   remove.setAttribute('aria-label','Remove this time');
   if(pickSubject)r.append(pick,days,time,minutes,remove,name,timer);
-  else{const when=el('div','schedule-when');when.append(time,minutes,timer);r.append(days,remove,when,name)}
+  else{
+   // On a subject's page the name is just a name; "Date" puts today's date in front of it each time.
+   const plain=/^\{date\} - (.*)$/.exec(entry.title||''),raw=!plain&&/\{\w+\}/.test(entry.title||'');
+   let dated=plain?true:raw?false:!entry.title;
+   name.value=plain?plain[1]:entry.title||'';name.placeholder='Note name, e.g. CoStaff Meeting';name.title='';
+   const preview=el('small','schedule-preview');
+   const refresh=()=>{const text=name.value.trim(),at=S.next([entry],now())?.start??now();preview.textContent=text?'Next note: '+S.noteTitle({title:raw?text:dated?'{date} - '+text:text},subjectOf(entry.subjectId)?.name||'',at):'Named after the subject and date'};
+   const save=()=>{entry.title=raw?name.value.trim():dated&&name.value.trim()?'{date} - '+name.value.trim():name.value.trim();changed();refresh()};
+   name.oninput=refresh;name.onchange=save;
+   const date=el('label','schedule-pill'),dateBox=el('input');dateBox.type='checkbox';dateBox.checked=dated;dateBox.disabled=raw;dateBox.onchange=()=>{dated=dateBox.checked;save()};date.append(dateBox,el('span','','Date'));date.title='Put the date in front of the name';
+   timer.className='schedule-pill';
+   const options=el('div','schedule-options');options.append(date,timer);
+   const when=el('div','schedule-when');when.append(time,minutes);
+   refresh();r.append(days,remove,when,name,preview,options);
+  }
   r.classList.toggle('is-invalid',!S.valid(entry));
   return r;
  }
