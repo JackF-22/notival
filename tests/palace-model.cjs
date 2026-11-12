@@ -6,7 +6,7 @@ const near=(a,b,e=1e-6)=>Math.abs(a-b)<e;
 const types=Object.keys(P.CATALOG);assert(types.length>=30,'a good range of furniture: '+types.length);
 for(const t of types){
  const s=P.CATALOG[t];assert(s.name&&s.cat&&s.w>0&&s.d>0&&s.h>0&&s.parts.length>0,t+' is complete');
- for(const part of s.parts){assert(['b','c'].includes(part[0]),t+' part kind');assert(part.slice(1,-1).every(Number.isFinite),t+' part numbers');assert(/^#[0-9a-f]{6}$/i.test(P.paint(part.at(-1),'#808080')),t+' part colour '+part.at(-1))}
+ for(const part of s.parts){const opts=typeof part.at(-1)==='object',colour=opts?part.at(-2):part.at(-1);assert(['b','c','s','k'].includes(part[0]),t+' part kind');assert(part.slice(1,opts?-2:-1).every(Number.isFinite),t+' part numbers');assert(/^#[0-9a-f]{6}$/i.test(P.paint(colour,'#808080')),t+' part colour '+colour)}
 }
 assert.equal(P.paint('m','#808080'),'#808080');assert.notEqual(P.paint('m-','#808080'),P.paint('m+','#808080'),'darker and lighter differ');
 

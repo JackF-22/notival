@@ -146,6 +146,28 @@ try{
   await ed(`(()=>{const w=${JSON.stringify(mw)},v=PalaceModel.viewFrom(e.palace,w.host),c=e.ctl;c.walk.x=v.x;c.walk.z=v.z;c.walk.yaw=v.yaw;c.walk.pitch=-.5;c.redraw();return 1})()`);await wait(400);
   const mpt=await toScreen2(mw);await pm('mousePressed',mpt);await pm('mouseReleased',mpt,0);await wait(250);
   assert(await count('.pe-card .katex')>=1,'the card shows the equation typeset');
+  // 12c · writing in a book: pages with big live equations, snippets, more pages, a title on the cover
+  await ed(`e.setMode('plan')`);await wait(200);
+  const nb2=await pal(`p.props.find(q=>q.type==='notebook').id`);await ed(`(()=>{const q=e.palace.props.find(g=>g.id==='${nb2}');q.pages=[{text:''}];e.commit();e.selectProp('${nb2}');return 1})()`);
+  assert.match(await text('.pe-panel'),/Write in it/);
+  await evaluate(`[...document.querySelectorAll('.pe-actions button')].find(x=>/Write in it/.test(x.textContent)).click()`);await wait(1300);
+  assert.equal(await count('.pb-scrim.is-editing'),1,'the book opens ready for writing');assert.equal(await count('.pb-input'),1,'a page to write on');
+  await evaluate(`(()=>{const ta=document.querySelector('.pb-input');ta.focus();ta.value='Area $A=\\\\pi r^2$';ta.dispatchEvent(new Event('input'))})()`);await wait(100);
+  assert(await count('.pb-live .katex')>=1,'the equation is drawn big under what you type');
+  const size=await evaluate(`parseFloat(getComputedStyle(document.querySelector('.pb-live .katex')).fontSize)`);assert(size>=20,'and it is large enough to read: '+size+'px');
+  await evaluate(`(()=>{const b=[...document.querySelectorAll('.pb-snip')].find(x=>x.textContent==='a⁄b');b.click()})()`);await wait(100);
+  assert.match(await evaluate(`document.querySelector('.pb-input').value`),/\$\\frac\{a\}\{b\}\$/,'a snippet puts an equation at the cursor');
+  await wait(700);assert.match(await pal(`p.props.find(q=>q.id==='${nb2}').pages[0].text`),/frac/,'what you write is saved as you go');
+  await evaluate(`[...document.querySelectorAll('.pb-tool')].find(x=>x.textContent==='+ Page').click()`);await wait(1400);
+  assert.equal(await pal(`p.props.find(q=>q.id==='${nb2}').pages.length`),2,'a page is added');assert(await count('.pb-input')>=1);
+  await evaluate(`(()=>{const ta=document.querySelector('.pb-right .pb-input')||document.querySelector('.pb-input');ta.value='Second page';ta.dispatchEvent(new Event('input'))})()`);await wait(600);
+  assert.equal(await pal(`p.props.find(q=>q.id==='${nb2}').pages[1].text`),'Second page');
+  await evaluate(`document.querySelector('.pb-turn.pb-prev').click()`);await wait(900);await evaluate(`document.querySelector('.pb-turn.pb-prev').click()`);await wait(900);
+  assert.equal(await text('.pb-counter'),'Cover');
+  await evaluate(`(()=>{const t=document.querySelector('.pb-cover-input.pb-cover-title');t.value='Maths $\\\\pi$';t.dispatchEvent(new Event('input'))})()`);await wait(700);
+  assert.equal(await pal(`p.props.find(q=>q.id==='${nb2}').title`),'Maths $\\pi$','the title of the book can be written on its cover');
+  await press('Escape');await wait(800);assert.equal(await count('.pb-scrim'),0);
+  assert(await ed(`e.ctl.labelCount()`)>=1,'a titled book has its title drawn on its binding');
   // 13 · it is all saved
   const saved=await evaluate(`JSON.parse(JSON.stringify(state.palaces[0]))`);assert(saved.props.length>15);assert(saved.props.every(q=>q.hostId&&saved.furniture.some(f=>f.id===q.hostId)),'every thing stands on something');
   assert.deepEqual(await pal(`PalaceModel.problems(p)`),[]);

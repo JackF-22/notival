@@ -87,34 +87,84 @@ const Palace3D=(()=>{
     }
    }
   }
+  // One part of a piece: a box ['b',x,y,z,w,h,d,colour], an upright cylinder ['c',x,y,z,r,h,colour], a sphere ['s',x,y,z,r,colour]
+  // or a cone ['k',x,y,z,r,h,colour], with an optional last {bevel, sy, top, mat} for softer edges, flattened spheres, tapers.
+  function drawPart(mesh,part,o){
+   const last=part.at(-1),opts=last&&typeof last==='object'?last:{},raw=opts===last?part.at(-2):last;
+   const colour=P.paint(raw,o.main),plain=['m','m-','m+'].includes(raw),mat=opts.mat||(plain?o.mat:undefined),cs=o.cs,sn=o.sn;
+   const spin=(x,z)=>[o.x+x*cs+z*sn,o.z-x*sn+z*cs];
+   if(part[0]==='b'){const [,x,y,z,w,h,d]=part;mesh.box(o.x+x,o.y+y,o.z+z,w,h,d,colour,{rot:o.rot,pivot:[o.x,o.z],mat:colour==='#1b1b20'?'screen':mat,bevel:opts.bevel||0})}
+   else if(part[0]==='c'){const [,x,y,z,r,h]=part,[px,pz]=spin(x,z);mesh.cylinder(px,o.y+y,pz,r,h,colour,{mat,segments:opts.segments||16,topRadius:opts.top??r})}
+   else if(part[0]==='k'){const [,x,y,z,r,h]=part,[px,pz]=spin(x,z);mesh.cylinder(px,o.y+y,pz,r,h,colour,{mat,segments:opts.segments||16,topRadius:opts.top??0})}
+   else{const [,x,y,z,r]=part,[px,pz]=spin(x,z);mesh.sphere(px,o.y+y,pz,r,colour,{segments:opts.segments||12,rings:opts.rings||8,mat,scaleY:opts.sy||1})}
+  }
+  // ── Book titles ──────────────────────────────────────────────────────────
+  // Spines and covers are drawn into one picture (an atlas of 128-pixel cells, one cell per book) that the renderer reads.
+  const ATLAS=2048,CELL=128,SPINE_W=40,PER_ROW=ATLAS/CELL;
+  const atlas={canvas:null,ctx:null,slots:new Map(),dirty:false};
+  const lum=hex=>{const m=/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex||'');return m?(.299*parseInt(m[1],16)+.587*parseInt(m[2],16)+.114*parseInt(m[3],16)):128};
+  function atlasSlot(prop){
+   const key=[prop.type,prop.title,prop.color].join('|'),have=atlas.slots.get(key);if(have)return have;
+   if(atlas.slots.size>=PER_ROW*PER_ROW)return null;
+   if(!atlas.canvas){atlas.canvas=document.createElement('canvas');atlas.canvas.width=atlas.canvas.height=ATLAS;atlas.ctx=atlas.canvas.getContext('2d')}
+   const k=atlas.slots.size,slot={x:(k%PER_ROW)*CELL,y:Math.floor(k/PER_ROW)*CELL},c=atlas.ctx,colour=prop.color||'#3f6f8f',ink=lum(colour)<150?'#f5e9c8':'#2a2118';
+   const fit=(text,max,size,min)=>{c.font='bold '+size+'px Georgia, serif';while(size>min&&c.measureText(text).width>max){size-=1;c.font='bold '+size+'px Georgia, serif'}return size};
+   // the spine: cloth, darker edges, gilt bands, the title running down it
+   c.save();c.beginPath();c.rect(slot.x,slot.y,CELL,CELL);c.clip();
+   c.fillStyle=colour;c.fillRect(slot.x,slot.y,CELL,CELL);
+   c.fillStyle='rgba(0,0,0,.22)';c.fillRect(slot.x,slot.y,4,CELL);c.fillRect(slot.x+SPINE_W-4,slot.y,4,CELL);c.fillRect(slot.x,slot.y,SPINE_W,3);c.fillRect(slot.x,slot.y+CELL-3,SPINE_W,3);
+   c.fillStyle='rgba(235,200,110,.85)';for(const y of [9,13,CELL-14,CELL-10])c.fillRect(slot.x+4,slot.y+y,SPINE_W-8,2);
+   c.save();c.translate(slot.x+SPINE_W/2,slot.y+CELL/2);c.rotate(Math.PI/2);c.fillStyle=ink;c.textAlign='center';c.textBaseline='middle';
+   let text=String(prop.title).replace(/\$+/g,'').trim()||'Book',size=fit(text,CELL-40,SPINE_W*.58,10);
+   while(text.length>3&&c.measureText(text).width>CELL-40)text=text.slice(0,-2);
+   c.fillText(text,0,1);c.restore();
+   // the cover, for a book lying down: a frame and the title across the middle
+   const cx=slot.x+SPINE_W,cw=CELL-SPINE_W;
+   c.fillStyle=colour;c.fillRect(cx,slot.y,cw,CELL);c.strokeStyle='rgba(235,200,110,.8)';c.lineWidth=2;c.strokeRect(cx+7,slot.y+7,cw-14,CELL-14);
+   c.fillStyle=ink;c.textAlign='center';c.textBaseline='middle';
+   const words=text.split(/\s+/),lines=[];let line='';c.font='bold 15px Georgia, serif';
+   for(const w of words){if(line&&c.measureText(line+' '+w).width>cw-26){lines.push(line);line=w}else line=line?line+' '+w:w}
+   lines.push(line);lines.slice(0,5).forEach((l,i,all)=>c.fillText(l,cx+cw/2,slot.y+CELL/2+(i-(all.length-1)/2)*18));
+   c.restore();
+   atlas.slots.set(key,slot);atlas.dirty=true;return slot;
+  }
+  // Title quads laid over a book's spine (standing) or top cover (lying down).
+  function addLabels(mesh,prop,w){
+   if(!prop.title||(prop.type!=='book'&&prop.type!=='notebook'))return;
+   const slot=atlasSlot(prop);if(!slot)return;
+   const rad=w.rot*Math.PI/180,cs=Math.cos(rad),sn=Math.sin(rad),sp=P.propSpec(prop.type);
+   const at=(lx,y,lz)=>[w.x+lx*cs+lz*sn,w.y+y,w.z-lx*sn+lz*cs];
+   const tex=(rx,ry,rw,rh,u,v)=>[(slot.x+rx+1+u*(rw-2))/ATLAS,(slot.y+ry+1+v*(rh-2))/ATLAS];
+   if(prop.type==='book'&&w.shelf){
+    const t=prop.t||sp.w,h=w.h,z=sp.d/2+.0006,r=[0,0,SPINE_W,CELL];
+    mesh.labelQuad([at(-t/2,0,z),at(t/2,0,z),at(t/2,h,z),at(-t/2,h,z)],[tex(...r,0,1),tex(...r,1,1),tex(...r,1,0),tex(...r,0,0)],[sn,0,cs]);
+   }else{
+    const flat=prop.type==='book',bw=flat?sp.flat.w:.15,bd=flat?sp.flat.d:.21,y=flat?w.h+.0006:.0216,r=[SPINE_W,0,CELL-SPINE_W,CELL];
+    mesh.labelQuad([at(-bw/2,y,-bd/2),at(bw/2,y,-bd/2),at(bw/2,y,bd/2),at(-bw/2,y,bd/2)],[tex(...r,0,0),tex(...r,1,0),tex(...r,1,1),tex(...r,0,1)],[0,1,0]);
+   }
+  }
   // A prop, part by part, standing on its furniture (books standing with their spine out, or lying flat).
   const PROP_MAT={mug:'ceramic',vase:'ceramic',fruit:'ceramic',frame:'paint',laptop:'metal',book:'fabric',notebook:'fabric',paper:'paper',candle:'paper'};
   function propParts(prop,w){
    const sp=P.propSpec(prop.type);
    if(prop.type!=='book')return sp.parts;
    const t=w.shelf?(prop.t||sp.w):.2,d=w.shelf?sp.d:.27,h=w.h,page='#f1ead8';
-   if(w.shelf)return [['b',0,0,d/2-.007,t,h,.007,'m'],['b',-t/2+.004,0,0,.008,h,d,'m'],['b',t/2-.004,0,0,.008,h,d,'m'],['b',0,.004,-.005,t-.016,h-.008,d-.012,page],['b',0,h*.72,d/2,t,.014,.009,'m+'],['b',0,h*.22,d/2,t,.01,.009,'m+']];
+   if(w.shelf)return [['b',0,0,d/2-.007,t,h,.007,'m'],['b',-t/2+.004,0,0,.008,h,d,'m'],['b',t/2-.004,0,0,.008,h,d,'m'],['b',0,.004,-.005,t-.016,h-.008,d-.012,page],...(prop.title?[]:[['b',0,h*.72,d/2,t,.014,.009,'m+'],['b',0,h*.22,d/2,t,.01,.009,'m+']])];
    return [['b',0,0,0,t,.006,d,'m'],['b',0,h-.006,0,t,.006,d,'m'],['b',-t/2+.006,0,0,.012,h,d,'m'],['b',.004,.006,0,t-.02,h-.012,d-.008,page],['b',.0,h-.006,0,t*.6,.002,d*.5,'m+']];
   }
   function addProp(solid,glow,prop){
    const w=P.propWorld(palace,prop);if(!w)return;
    const pivot=[w.x,w.z],rad=w.rot*Math.PI/180,cs=Math.cos(rad),sn=Math.sin(rad),sp=P.propSpec(prop.type),main=prop.color||sp.color,mat=PROP_MAT[prop.type];
-   for(const part of propParts(prop,w)){
-    const raw=part.at(-1),colour=P.paint(raw,main),m=['m','m-','m+'].includes(raw)?mat:undefined;
-    if(part[0]==='b'){const [,x,y,z,bw,bh,bd]=part;solid.box(w.x+x,w.y+y,w.z+z,bw,bh,bd,colour,{rot:w.rot,pivot,mat:colour==='#1b1b20'?'screen':m})}
-    else if(part[0]==='c'){const [,x,y,z,r,h]=part;solid.cylinder(w.x+x*cs+z*sn,w.y+y,w.z-x*sn+z*cs,r,h,colour,{mat:m,segments:14})}
-    else{const [,x,y,z,r]=part;solid.sphere(w.x+x*cs+z*sn,w.y+y,w.z-x*sn+z*cs,r,colour,{segments:12,rings:8,mat:m})}
-   }
+   const frame={x:w.x,y:w.y,z:w.z,rot:w.rot,cs,sn,main,mat};
+   for(const part of propParts(prop,w))drawPart(solid,part,frame);
+   addLabels(solid,prop,w);
    if(prop.type==='candle')for(const [r,a] of [[.5,.05],[.3,.08]])glow.disc(w.x,w.z,r,w.y+.002,'#ffd596',a);
   }
   // A piece of furniture, part by part: boxes and cylinders placed round its centre, turned to face the way it faces.
   function addFurniture(solid,soft,f){
    const spec=P.spec(f.type),lift=spec.lift||0,pivot=[f.x,f.z],rad=f.rot*Math.PI/180,cs=Math.cos(rad),sn=Math.sin(rad);
-   for(const part of spec.parts){
-    const raw=part.at(-1),colour=P.paint(raw,f.color||spec.color),mat=['m','m-','m+'].includes(raw)?spec.mat:(part.screen?'screen':undefined);
-    if(part[0]==='b'){const [,x,y,z,w,h,d]=part;solid.box(f.x+x,lift+y,f.z+z,w,h,d,colour,{rot:f.rot,pivot,mat:colour==='#1b1b20'?'screen':mat})}
-    else{const [,x,y,z,r,h]=part;solid.cylinder(f.x+x*cs+z*sn,lift+y,f.z-x*sn+z*cs,r,h,colour,{mat,segments:16})}
-   }
+   const frame={x:f.x,y:lift,z:f.z,rot:f.rot,cs,sn,main:f.color||spec.color,mat:spec.mat};
+   for(const part of spec.parts)drawPart(solid,part,frame);
    // a soft shadow on the floor under anything that stands on it
    if(P.layerOf(f)==='floor'){
     const fp=P.footprint(f),onRug=palace.furniture.some(g=>P.layerOf(g)==='rug'&&fp.x0>=P.footprint(g).x0-.01&&fp.x1<=P.footprint(g).x1+.01&&fp.z0>=P.footprint(g).z0-.01&&fp.z1<=P.footprint(g).z1+.01);
@@ -205,6 +255,7 @@ const Palace3D=(()=>{
    for(let x=Math.floor(b.x0)-3;x<=Math.ceil(b.x1)+3;x++)grid.line([x,.012,Math.floor(b.z0)-3],[x,.012,Math.ceil(b.z1)+3],'#d7d4cc');
    for(let z=Math.floor(b.z0)-3;z<=Math.ceil(b.z1)+3;z++)grid.line([Math.floor(b.x0)-3,.012,z],[Math.ceil(b.x1)+3,.012,z],'#d7d4cc');
    for(const name of ['glow','ground','garden','solid','walls','flat','ceil','soft'])view.set(name,meshes[name]);view.set('grid',grid,'lines');
+   if(atlas.dirty&&view.setAtlas){view.setAtlas(atlas.canvas);atlas.dirty=false}
    state.rects=P.colliders(palace);state.sun=sunMatrix();state.dirty=true;
   }
   // Places to remember bob gently above their furniture.
@@ -407,7 +458,7 @@ const Palace3D=(()=>{
   function setOverlay(o){state.overlay=o||{};state.dirty=true}
   function snapshot(){draw();return canvas.toDataURL('image/png')}
   function dispose(){disposed=true;cancelAnimationFrame(raf);view.dispose()}
-  const api={canvas,state,rebuild,hideProp,setOverlay,setMode,getMode:()=>state.mode,frame,zoomAt,panBy,lookBy,turnBy,flyTo,setTarget,setKey,toWorld,toScreen,ray,aim,pickFurniture,pickProp,pickRoom,pickWall,pickHandle,snapshot,dispose,redraw:()=>{state.dirty=true},step,draw,
+  const api={labelCount:()=>atlas.slots.size,canvas,state,rebuild,hideProp,setOverlay,setMode,getMode:()=>state.mode,frame,zoomAt,panBy,lookBy,turnBy,flyTo,setTarget,setKey,toWorld,toScreen,ray,aim,pickFurniture,pickProp,pickRoom,pickWall,pickHandle,snapshot,dispose,redraw:()=>{state.dirty=true},step,draw,
    walk:state.walk,plan:state.plan,setLabels:on=>{state.labels=on},setGrid:on=>{state.gridOn=on;state.dirty=true}};
   rebuild();frame();raf=requestAnimationFrame(loop);
   return api;

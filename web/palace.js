@@ -297,12 +297,13 @@
   // What is written in a book: pages to edit, and ways to fill them from the subject's own material.
   function renderPages(box,q){
    box.append(el('small','pe-label','Pages · '+q.pages.length));
+   const write=el('div','pe-actions');
+   write.append(button('✎ Write in it',()=>readProp(q,false,true),'primary','Open the book and write on its pages, with equations drawn as you type'),button('Read it',()=>readProp(q),'','Take it down and read it'));box.append(write);
+   // a short list of what is on each page; click one to open the book there and write
    q.pages.forEach((pg,i)=>{
-    const row=el('div','pe-page-row'),ta=el('textarea','pe-input');ta.rows=3;ta.value=pg.text||'';ta.placeholder='Page '+(i+1);ta.setAttribute('aria-label','Page '+(i+1));ta.onchange=()=>{pg.text=ta.value;commit()};
-    row.append(ta,button('✕',()=>{q.pages.splice(i,1);commit()},'pe-x','Remove this page'));box.append(row,preview(ta));
+    const first=String(pg.text||'').replace(/\s+/g,' ').trim();
+    box.append(button((i+1)+' · '+(first?first.slice(0,46)+(first.length>46?'…':''):'(blank)'),()=>readProp(q,false,true,i+1),'pe-pageline','Write on page '+(i+1)));
    });
-   const actions=el('div','pe-actions');
-   actions.append(button('+ Add a page',()=>{q.pages.push({text:''});commit()},'pe-add-write'),button('Read it',()=>readProp(q),'primary'));box.append(actions);
    const fill=el('div','pe-pick');
    const notes=(state.notes||[]).filter(n=>!palace.projectId||n.projectId===palace.projectId||!n.projectId).filter(n=>(n.blocks||[]).some(b=>b.type==='text'&&b.text));
    if(notes.length)fill.append(picker('Pages from a note',notes.map(n=>({id:n.id,label:n.title||'Untitled',make:()=>({title:n.title,pages:PalaceBook.paginate(n.blocks.filter(b=>b.type==='text'&&b.text).map(b=>b.text).join('\n\n'))})})),item=>fillPages(q,item.make())));
@@ -319,11 +320,13 @@
   }
   // Taking a book down: it comes off its shelf in front of you and opens. Anything else just shows what it stands for.
   let reading=null;
-  function readProp(q,fromScreen=true){
+  function readProp(q,fromScreen=true,edit=false,page=0){
    if(reading||!q)return;lookOff();const sp=P.PROPS[q.type],w=P.propWorld(palace,q);
    hideCard();hud.classList.remove('is-on');const pt=fromScreen&&w&&ctl.getMode()==='walk'?ctl.toScreen(w.x,w.y+w.h/2,w.z):null,r=canvas.getBoundingClientRect();
    ctl.hideProp(q.id);
-   reading=PalaceBook.open({title:q.title||sp.name,detail:q.detail,pages:q.pages||[],color:q.color||sp.color,origin:pt?{x:r.left+pt.x,y:r.top+pt.y}:null,mount:root,onClose:()=>{reading=null;ctl.hideProp(null);canvas.focus()}});
+   reading=PalaceBook.open({title:q.title||sp.name,detail:q.detail,pages:q.pages||[],color:q.color||sp.color,origin:pt?{x:r.left+pt.x,y:r.top+pt.y}:null,mount:root,editable:true,edit,page,
+    onChange:({title,detail,pages})=>{q.title=title.trim();q.detail=detail.trim();q.pages=pages;const st=P.stationOf(palace,q.id);if(st){st.title=q.title||sp.name;st.detail=q.detail}commit()},
+    onClose:()=>{reading=null;ctl.hideProp(null);canvas.focus()}});
   }
   function showPropCard(q){
    const sp=P.PROPS[q.type],host=palace.furniture.find(g=>g.id===q.hostId),st=P.stationOf(palace,q.id);

@@ -23,7 +23,7 @@ const Mini3D=(()=>{
   return [(n>>16&255)/255,(n>>8&255)/255,(n&255)/255,alpha];
  }
  // What a surface is made of: patterns drawn by the graphics card, so no pictures are needed.
- const MATERIAL={plain:0,wood:1,tile:2,carpet:3,paint:4,fabric:5,timber:6,rug:7,glass:8,grass:9,metal:10,ceramic:11,screen:12,leaf:13,brick:14,paper:15};
+ const MATERIAL={plain:0,wood:1,tile:2,carpet:3,paint:4,fabric:5,timber:6,rug:7,glass:8,grass:9,metal:10,ceramic:11,screen:12,leaf:13,brick:14,paper:15,label:16};
 
  // ── Geometry: triangles with a normal, a colour and a material each ──────────
  // (x y z, nx ny nz, r g b a, material)
@@ -38,12 +38,27 @@ const Mini3D=(()=>{
   // Draw something with a material, then put the old one back.
   using(mat,draw){const before=this.mat;if(mat!=null)this.mat=typeof mat==='string'?(MATERIAL[mat]??0):mat;draw();this.mat=before}
   // A box standing on y0, centred on (cx,cz), turned about the vertical axis by `rot` degrees around (px,pz).
-  box(cx,y0,cz,w,h,d,colour,{rot=0,pivot=[cx,cz],alpha=1,top,bottom=false,mat}={}){
+  box(cx,y0,cz,w,h,d,colour,{rot=0,pivot=[cx,cz],alpha=1,top,bottom=false,mat,bevel=0}={}){
    this.using(mat,()=>{
     const base=parse(colour,alpha),t=top?parse(top,alpha):null,r=rot*Math.PI/180,cs=Math.cos(r),sn=Math.sin(r);
     const x0=cx-w/2,x1=cx+w/2,z0=cz-d/2,z1=cz+d/2,y1=y0+h;
     const at=(x,y,z)=>{const dx=x-pivot[0],dz=z-pivot[1];return [pivot[0]+dx*cs+dz*sn,y,pivot[1]-dx*sn+dz*cs]};
     const nrm=(x,y,z)=>[x*cs+z*sn,y,-x*sn+z*cs];
+    if(bevel>0){
+     // soft top edges: the sides stop a little short, a narrower top sits above, and four sloped strips join them
+     const b=Math.min(bevel,w/2-1e-3,d/2-1e-3,h/2-1e-3),yb=y1-b,k=.7071,top2=t||base;
+     this.quad(at(x0+b,y1,z1-b),at(x1-b,y1,z1-b),at(x1-b,y1,z0+b),at(x0+b,y1,z0+b),nrm(0,1,0),top2);
+     this.quad(at(x0,yb,z1),at(x1,yb,z1),at(x1-b,y1,z1-b),at(x0+b,y1,z1-b),nrm(0,k,k),base);
+     this.quad(at(x1,yb,z0),at(x0,yb,z0),at(x0+b,y1,z0+b),at(x1-b,y1,z0+b),nrm(0,k,-k),base);
+     this.quad(at(x1,yb,z1),at(x1,yb,z0),at(x1-b,y1,z0+b),at(x1-b,y1,z1-b),nrm(k,k,0),base);
+     this.quad(at(x0,yb,z0),at(x0,yb,z1),at(x0+b,y1,z1-b),at(x0+b,y1,z0+b),nrm(-k,k,0),base);
+     if(bottom)this.quad(at(x0,y0,z0),at(x1,y0,z0),at(x1,y0,z1),at(x0,y0,z1),nrm(0,-1,0),base);
+     this.quad(at(x0,y0,z1),at(x1,y0,z1),at(x1,yb,z1),at(x0,yb,z1),nrm(0,0,1),base);
+     this.quad(at(x1,y0,z0),at(x0,y0,z0),at(x0,yb,z0),at(x1,yb,z0),nrm(0,0,-1),base);
+     this.quad(at(x1,y0,z1),at(x1,y0,z0),at(x1,yb,z0),at(x1,yb,z1),nrm(1,0,0),base);
+     this.quad(at(x0,y0,z0),at(x0,y0,z1),at(x0,yb,z1),at(x0,yb,z0),nrm(-1,0,0),base);
+     return;
+    }
     this.quad(at(x0,y1,z1),at(x1,y1,z1),at(x1,y1,z0),at(x0,y1,z0),nrm(0,1,0),t||base);
     if(bottom)this.quad(at(x0,y0,z0),at(x1,y0,z0),at(x1,y0,z1),at(x0,y0,z1),nrm(0,-1,0),base);
     this.quad(at(x0,y0,z1),at(x1,y0,z1),at(x1,y1,z1),at(x0,y1,z1),nrm(0,0,1),base);
@@ -82,6 +97,10 @@ const Mini3D=(()=>{
     }
    });
   }
+  // A rectangle that shows part of the picture atlas (book spines and covers): four corners [x,y,z] with a [u,v] each, 0..1.
+  labelQuad(corners,uvs,normal){
+   const c=uvs.map(([u,v])=>[u,v,0,1]);this.using('label',()=>{for(const k of [0,1,2,0,2,3])this.vertex(...corners[k],...normal,c[k])});
+  }
   // A small octahedron (a diamond): used to mark places in the house.
   diamond(cx,cy,cz,r,colour,{tall=1.5}={}){
    const c=parse(colour),top=[cx,cy+r*tall,cz],bot=[cx,cy-r*tall,cz],p=[[cx+r,cy,cz],[cx,cy,cz+r],[cx-r,cy,cz],[cx,cy,cz-r]];
@@ -112,7 +131,7 @@ const Mini3D=(()=>{
   varying vec3 vWorld;varying vec3 vNormal;varying vec4 vColor;varying float vMat;varying vec4 vShadow;
   uniform vec3 uLight;uniform vec3 uSun;uniform vec3 uSky;uniform vec3 uGround;uniform float uAmbient;uniform float uGain;
   uniform vec3 uEye;uniform vec3 uFogColor;uniform vec2 uFog;
-  uniform float uShadowOn;uniform sampler2D uShadowMap;uniform float uTexel;uniform float uStrength;uniform float uPatterns;
+  uniform sampler2D uAtlas;uniform float uShadowOn;uniform sampler2D uShadowMap;uniform float uTexel;uniform float uStrength;uniform float uPatterns;
   float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
   float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hash(i),hash(i+vec2(1.0,0.0)),f.x),mix(hash(i+vec2(0.0,1.0)),hash(i+vec2(1.0,1.0)),f.x),f.y);}
   float unpack(vec4 c){return dot(c,vec4(1.0,1.0/255.0,1.0/65025.0,1.0/16581375.0));}
@@ -120,6 +139,7 @@ const Mini3D=(()=>{
   void main(){
    vec3 albedo=vColor.rgb;
    bool lit=length(vNormal)>0.01;
+   if(is(16.0))albedo=texture2D(uAtlas,vColor.rg).rgb;
    vec2 fp=vWorld.xz;vec2 wp=vec2(vWorld.x+vWorld.z,vWorld.y);
    // on a level surface texture runs across the floor; on an upright one it runs up the wall
    if(lit&&abs(normalize(vNormal).y)>0.7)wp=fp;
@@ -142,7 +162,7 @@ const Mini3D=(()=>{
     }else if(is(5.0)){ // fabric
      albedo*=0.9+0.16*noise(wp*130.0)+0.05*noise(wp*14.0);
     }else if(is(6.0)){ // wood grain
-     albedo*=0.88+0.2*noise(vec2(vWorld.x*2.0+vWorld.z*2.0,vWorld.y*34.0+vWorld.x*3.0))+0.05*noise(vec2(vWorld.x*30.0+vWorld.z*30.0,vWorld.y*8.0));shine=0.12;
+     float along=vWorld.x+vWorld.z;float gy=vWorld.y*26.0+noise(vec2(along*3.0,vWorld.y*5.0))*3.0;albedo*=0.93+0.1*noise(vec2(along*1.6,gy))+0.04*noise(vec2(along*24.0,vWorld.y*70.0));shine=0.22;
     }else if(is(7.0)){ // rug weave
      albedo*=0.86+0.1*sin(fp.x*90.0)*sin(fp.y*90.0)+0.1*noise(fp*50.0);
     }else if(is(9.0)){ // grass
@@ -195,7 +215,20 @@ const Mini3D=(()=>{
   const U=name=>gl.getUniformLocation(program,name);
   const loc={pos:gl.getAttribLocation(program,'aPos'),normal:gl.getAttribLocation(program,'aNormal'),color:gl.getAttribLocation(program,'aColor'),mat:gl.getAttribLocation(program,'aMat'),
    matrix:U('uMatrix'),lightMatrix:U('uLightMatrix'),eye:U('uEye'),light:U('uLight'),sun:U('uSun'),sky:U('uSky'),ground:U('uGround'),ambient:U('uAmbient'),gain:U('uGain'),fogColor:U('uFogColor'),fog:U('uFog'),
-   shadowOn:U('uShadowOn'),patterns:U('uPatterns'),shadowMap:U('uShadowMap'),texel:U('uTexel'),strength:U('uStrength')};
+   shadowOn:U('uShadowOn'),patterns:U('uPatterns'),shadowMap:U('uShadowMap'),atlas:U('uAtlas'),texel:U('uTexel'),strength:U('uStrength')};
+  // a picture atlas for labels (book spines and covers); a single white pixel until there is one
+  const atlasTex=gl.createTexture();gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,atlasTex);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([255,255,255,255]));
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.activeTexture(gl.TEXTURE0);
+  function setAtlas(source){
+   gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,atlasTex);
+   gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,source);
+   gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+   const pow2=n=>(n&(n-1))===0;
+   if(pow2(source.width)&&pow2(source.height)){gl.generateMipmap(gl.TEXTURE_2D);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR)}
+   const aniso=gl.getExtension('EXT_texture_filter_anisotropic');if(aniso)gl.texParameterf(gl.TEXTURE_2D,aniso.TEXTURE_MAX_ANISOTROPY_EXT,4);
+   gl.activeTexture(gl.TEXTURE0);
+  }
   const dloc={pos:gl.getAttribLocation(depth,'aPos'),lightMatrix:gl.getUniformLocation(depth,'uLightMatrix')};
   const buffers=new Map(),STRIDE=44;
   // the shadow map: where the sun can see, drawn into a texture
@@ -251,6 +284,7 @@ const Mini3D=(()=>{
    gl.uniform3fv(loc.fogColor,fog?fog.color:clear);gl.uniform2f(loc.fog,fog?fog.start:1e6,fog?fog.end:2e6);
    gl.uniform1f(loc.shadowOn,shadowing?1:0);gl.uniform1f(loc.patterns,patterns?1:0);gl.uniform1f(loc.texel,1/SHADOW);gl.uniform1f(loc.strength,shadows?.strength??.8);
    if(shadowing){gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,shadow.texture);gl.uniform1i(loc.shadowMap,0)}
+   gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,atlasTex);gl.uniform1i(loc.atlas,1);gl.activeTexture(gl.TEXTURE0);
    for(const name of layers){
     const entry=buffers.get(name.replace(/[~!]$/,''));if(!entry||!entry.count)continue;
     const soft=name.endsWith('~'),top=name.endsWith('!');
@@ -261,7 +295,7 @@ const Mini3D=(()=>{
    gl.depthMask(true);gl.enable(gl.DEPTH_TEST);gl.disable(gl.BLEND);
   }
   function dispose(){for(const e of buffers.values())gl.deleteBuffer(e.buffer);buffers.clear();gl.deleteProgram(program);gl.deleteProgram(depth)}
-  return {gl,set,draw,dispose,size,canvas};
+  return {gl,set,draw,dispose,size,canvas,setAtlas};
  }
  return {Mesh,create,perspective,ortho,lookAt,multiply,transform,parse,MATERIAL};
 })();
