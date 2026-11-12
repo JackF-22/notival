@@ -58,3 +58,8 @@
 .translit-keys kbd{font:12px ui-monospace,Menlo,monospace;padding:1px 6px;margin-right:4px;border:1px solid var(--line);border-radius:5px;background:var(--bg)}
 .translit-help small{color:var(--muted);font-size:12px;line-height:1.5}
 .vocab-keys{width:30px;padding:0!important}
+.vocab-sentence{font-size:12.5px;color:var(--muted);line-height:1.45;margin-top:2px}
+.vocab-needs{margin:0;padding:9px 12px;border-radius:10px;background:color-mix(in srgb,#e3b23c 20%,var(--bg));font-size:12.5px;line-height:1.45}
+.vocab-needs[hidden]{display:none}
+.vocab-review{color:var(--ink)!important;border-color:var(--accent,var(--green))!important}
+.vocab-review[hidden]{display:none}

@@ -204,6 +204,20 @@ const catchUp=M.plan(bigPool,swamped,{},{now:T0});assert.equal(catchUp.new,0,'a 
 const shaky=M.plan(bigPool,some,{reviewLog:mkLog(30,i=>({rating:i%2?'Again':'Good'}))},{now:T0,limit:99});assert(/shaky/i.test(shaky.note),'poor recent accuracy slows new questions');
 assert.equal(M.plan(bigPool,some,{reviewLog:mkLog(30,()=>({rating:'Good',ms:6000}))},{now:T0,minutes:2}).queue.length,20,'two minutes at six seconds each');
 assert(M.plan(bigPool,some,{},{now:T0}).seconds>0);
+// ── Vocabulary becomes questions, in order ──
+const vstate={projects:[{id:'ru',language:{code:'ru'}}],vocab:[{id:'w1',term:'привет',meaning:'hello',projectId:'ru',sentence:'Привет, как дела?'},{id:'w2',term:'спасибо',meaning:'thank you',projectId:'ru'},{id:'w3',term:'hmm',meaning:'',projectId:'ru'}],reviews:{}};
+let vitems=M.collect(vstate,{projectId:'ru'});
+assert.equal(vitems.length,2,'only words with a meaning are asked, and only recognition at first');
+assert.deepEqual(Array.from(vitems.map(i=>i.id)),['vocab:w1:know','vocab:w2:know']);
+assert.equal(vitems[0].prompt,'What does “привет” mean?');assert.equal(vitems[0].answer,'hello');assert.equal(vitems[0].lang,'ru');
+vstate.reviews['vocab:w1:know']={stability:3,interval:3,due:1,reviewedAt:0};
+vitems=M.collect(vstate,{projectId:'ru'});assert(vitems.some(i=>i.id==='vocab:w1:say'),'once recognised, saying it is asked');assert(!vitems.some(i=>i.id==='vocab:w2:say'));
+const vsay=vitems.find(i=>i.id==='vocab:w1:say');assert.equal(vsay.answer,'привет');assert.equal(M.check(vsay,'приве́т'),'correct','stress marks are fine');assert.equal(M.check(vsay,'privet'),'wrong');
+assert(!vitems.some(i=>i.type==='cloze'),'the sentence comes last');
+vstate.reviews['vocab:w1:say']={stability:4,interval:4,due:1,reviewedAt:0};
+const vcloze=M.collect(vstate,{projectId:'ru'}).find(i=>i.type==='cloze');assert(vcloze,'once it can be said, it is used in its sentence');assert.equal(vcloze.blank,'Привет');assert.equal(M.clozeParts(vcloze).after,', как дела?');assert.equal(M.check(vcloze,'привет'),'correct');
+assert.equal(M.collect(vstate,{projectId:'other'}).length,0,'vocab stays with its subject');assert.equal(M.collect(vstate,{notes:[]}).filter(i=>i.origin==='vocab').length,0,'and is not part of a note\'s questions');
+vstate.suspended={'vocab:w2:know':true};assert(!M.collect(vstate,{projectId:'ru'}).some(i=>i.id==='vocab:w2:know'),'set-aside words are skipped');
 // Accents and ё do not count against an answer
 assert.equal(M.check({type:'qa',prompt:'water',answer:'вода́'},'вода'),'correct');assert.equal(M.check({type:'qa',prompt:'all',answer:'всё'},'все'),'correct');
 assert.equal(M.check({type:'qa',prompt:'my',answer:'мой'},'мои'),'wrong','й and и stay different letters');

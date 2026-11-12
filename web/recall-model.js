@@ -70,7 +70,31 @@ const RecallModel=(()=>{
    const note=all.find(n=>n.id===card.noteId);
    push({id:card.id,type:card.kind==='authored'||card.kind==='question'?'qa':'passage',prompt:state.reviewPrompts?.[card.id]||card.question,answer:card.answer,noteId:card.noteId,blockId:card.blockId,projectId:note?.projectId||null,unitId:note?.unitId||null,origin:card.kind==='authored'?'made':'legacy',kind:card.kind});
   }
+  if(!notes&&!unitId)for(const item of vocabItems(state,{projectId}))push(item);
   return out.filter(item=>!state.suspended?.[item.id]&&!(exclude&&item.projectId&&exclude.has(item.projectId)));
+ }
+ // ── Vocabulary: words become questions, in the order you learn them ───────────────────────────────────
+ // First recognising the word (what does it mean?), once that has stuck saying it (how do you say…?), and once that
+ // has stuck using it: the example sentence with the word left out.
+ const stable=(review,days)=>!!review&&(review.stability||review.interval||0)>=days;
+ function vocabItems(state,{projectId=null}={}){
+  const out=[],reviews=state.reviews||{};
+  for(const word of state.vocab||[]){
+   const term=squash(word.term||''),meaning=squash(word.meaning||'');
+   if(!term||!meaning||(projectId&&word.projectId!==projectId))continue;
+   const lang=(state.projects||[]).find(p=>p.id===word.projectId)?.language?.code||'';
+   const base={projectId:word.projectId||null,noteId:word.noteId||null,unitId:null,origin:'vocab',vocabId:word.id,lang,created:word.added||0};
+   const know={...base,id:'vocab:'+word.id+':know',type:'qa',dir:'know',prompt:'What does \u201c'+term+'\u201d mean?',answer:meaning};
+   out.push(know);
+   const say={...base,id:'vocab:'+word.id+':say',type:'qa',dir:'say',prompt:'How do you say \u201c'+meaning+'\u201d?',answer:term};
+   if(stable(reviews[know.id],2)||reviews[say.id])out.push(say);
+   const at=word.sentence?String(word.sentence).toLowerCase().indexOf(term.toLowerCase()):-1;
+   if(at>=0&&(stable(reviews[say.id],3)||reviews['vocab:'+word.id+':use'])){
+    const sentence=squash(word.sentence);const start=sentence.toLowerCase().indexOf(term.toLowerCase());
+    if(start>=0)out.push({...base,id:'vocab:'+word.id+':use',type:'cloze',dir:'use',text:sentence,blank:sentence.slice(start,start+term.length),hint:meaning,prompt:'',answer:sentence.slice(start,start+term.length)});
+   }
+  }
+  return out;
  }
  // Every item, suspended or not, for the question bank.
  function collectAll(state,scope){return collect({...state,suspended:{}},scope)}
@@ -413,5 +437,5 @@ const RecallModel=(()=>{
   return {total:results.length,correct,pct:results.length?Math.round(correct/results.length*100):0,missed:results.filter(r=>r.rating==='Again').map(r=>r.item),restudy:[...byNote].map(([noteId,count])=>({noteId,count})).sort((a,b)=>b.count-a.count)};
  }
 
- return {parseMarkup,noteItems,collect,collectAll,clozeParts,promptText,newItem,validItem,suggest,suggestAll,schedule,preview,retrievability,status,isDue,queue,stats,weakTopics,logReview,plan,accuracy,retention,calibration,paceSeconds,usualMs,examFor,optionsFor,readiness,forecast,leeches,bestTime,byMood,MOODS,forget,daysFor,memory,reviewedToday,newToday,allowance,workload,DEFAULT_NEW_PER_DAY,hasMath,check,checkable,suggestedGrade,coverage,distractors,format,summarize,normalize,sentences,GRADES};
+ return {parseMarkup,noteItems,vocabItems,collect,collectAll,clozeParts,promptText,newItem,validItem,suggest,suggestAll,schedule,preview,retrievability,status,isDue,queue,stats,weakTopics,logReview,plan,accuracy,retention,calibration,paceSeconds,usualMs,examFor,optionsFor,readiness,forecast,leeches,bestTime,byMood,MOODS,forget,daysFor,memory,reviewedToday,newToday,allowance,workload,DEFAULT_NEW_PER_DAY,hasMath,check,checkable,suggestedGrade,coverage,distractors,format,summarize,normalize,sentences,GRADES};
 })();

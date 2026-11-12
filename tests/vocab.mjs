@@ -54,15 +54,16 @@ try{
   await evaluate(`window.marginVocab.add({term:'привет'})`);assert.equal(await evaluate(`state.vocab.length`),1);
   const size=await evaluate(`(()=>{const r=document.querySelector('.vocab-remove').getBoundingClientRect();return [r.width,r.height]})()`);
   assert.ok(size[0]>=30&&size[1]>=30,'the remove button is a comfortable target: '+size);
-  // Quiz needs two words with meanings, then walks through them
-  await evaluate(`window.marginVocab.add({term:'спасибо',meaning:'thank you'})`);
-  await evaluate(`[...document.querySelectorAll('#vocab-panel .vocab-chip')].find(b=>b.textContent==='Quiz').click()`);await wait(100);
-  assert.equal(await count('.vocab-card'),1);
-  for(let i=0;i<2;i++){await evaluate(`[...document.querySelectorAll('.vocab-quiz button')].find(b=>/Show the word/.test(b.textContent)).click()`);await evaluate(`[...document.querySelectorAll('.vocab-quiz button')].find(b=>b.textContent==='Knew it').click()`)}
-  assert.match(await text('.vocab-score'),/2 of 2 known/);
-  await evaluate(`[...document.querySelectorAll('.vocab-quiz button')].find(b=>b.textContent==='Done').click()`);
+  // Words are reviewed in Recall: the Review button shows what is waiting and opens it for this subject
+  await evaluate(`window.marginVocab.add({term:'спасибо',meaning:'thank you',sentence:'Спасибо за всё'})`);await wait(100);
+  assert.match(await text('#vocab-panel .vocab-review'),/Review · 2/,'two words are waiting');
+  assert.match(await text('#vocab-panel .vocab-sentence'),/Спасибо за всё/,'the example sentence is shown with the word');
+  await evaluate(`document.querySelector('#vocab-panel .vocab-review').click()`);await wait(250);
+  assert.equal(await evaluate(`document.querySelector('.recall-dialog').open`),true,'Review opens Recall for this subject');
+  assert.equal(await text('.recall-count'),'2');
+  await evaluate(`document.querySelector('.recall-dialog').close()`);
   await evaluate(`document.querySelector('.vocab-remove').click()`);assert.equal(await evaluate(`state.vocab.length`),1,'a word can be removed');
   // Hiding the drawer
   await evaluate(`document.querySelector('.vocab-close').click()`);assert.equal(await evaluate(`document.querySelector('#vocab-panel').hidden`),true);
-  console.log('PASS: vocab drawer — opens and hides, types Russian, adds from selection, edits, quizzes, removes.');
+  console.log('PASS: vocab drawer — opens and hides, types Russian, adds from selection, edits, goes to Recall for review, removes.');
 }finally{browser.kill();for(const pending of waiting.values())clearTimeout(pending.timer);await rm(profile,{recursive:true,force:true,maxRetries:10,retryDelay:100})}

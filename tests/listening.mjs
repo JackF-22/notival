@@ -67,6 +67,7 @@ try{
   // The word you missed goes to the vocab drawer
   await click('Add the 1 to learn');await wait(100);
   assert.deepEqual(await evaluate(`state.vocab.map(w=>w.term)`),['спасибо']);
+  assert.match(await evaluate(`state.vocab[0].sentence`),/Я хочу сказать тебе спасибо/,'the sentence the word was heard in is kept with it');
   // Text you add yourself wins over the draft
   await click('Try again');
   await evaluate(`(()=>{const t=document.querySelector('.listening-reference textarea');t.value='Привет, как дела? Я хочу тебе сказать спасибо.';t.dispatchEvent(new Event('change'))})()`);await wait(100);

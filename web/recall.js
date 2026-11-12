@@ -29,7 +29,7 @@
  const isMade=item=>item.origin==='made'&&(state.items||[]).some(i=>i.id===item.id);
  function setScope(o={}){ctx={project:o.project||null,notes:o.notes||null,title:o.title||o.project?.name||'All notes',unitId:o.unitId||'',exclude:o.exclude?new Set(o.exclude):null}}
  function unitLabel(item){const p=state.projects.find(p=>p.id===item.projectId);return p?.units?.find(u=>u.id===item.unitId)?.name||''}
- function sourceLabel(item){const n=item.noteId&&noteOf(item.noteId);return [n?(n.title||'Untitled'):'',unitLabel(item)].filter(Boolean).join(' · ')}
+ function sourceLabel(item){if(item.origin==='vocab')return 'Vocabulary';const n=item.noteId&&noteOf(item.noteId);return [n?(n.title||'Untitled'):'',unitLabel(item)].filter(Boolean).join(' · ')}
  function frame(title,subtitle,exit=()=>dialog.close()){
   const x=btn('×',exit,'dialog-close');x.title='Close';x.setAttribute('aria-label','Close');
   dialog.replaceChildren(x,el('small',subtitle||ctx.title,'recall-eyebrow'),el('h2',title));dialog.onkeydown=null;onKey=null;
@@ -152,7 +152,8 @@
  }
  function card(item){
   const shownAt=performance.now();let took=0;
-  const fmt=M.format(item,sess.pool,{quiz:sess.mode==='quiz'||sess.mode==='drill'||(sess.mode==='due'&&!reviews()[item.id])});
+  // Saying or using a word is typed, never picked from a list.
+  const fmt=M.format(item,sess.pool,{quiz:(sess.mode==='quiz'||sess.mode==='drill'||(sess.mode==='due'&&!reviews()[item.id]))&&!(item.origin==='vocab'&&item.dir!=='know')});
   chrome(item);dialog.onkeydown=null;
   const body=el('div',undefined,'recall-card');dialog.append(body);
   const source=sourceLabel(item);if(source)body.append(el('small',source,'recall-source'));
@@ -167,6 +168,10 @@
    body.append(rich('h3',item.prompt,'recall-prompt'));
    if(fmt.kind==='type'){field=el('input');field.type='text';field.autocomplete='off';field.placeholder='Your answer';field.setAttribute('aria-label','Your answer');body.append(field)}
    else if(fmt.kind==='self'){field=el('textarea');field.placeholder=item.type==='explain'||item.type==='passage'?'Explain it in your own words before you check…':'Say it from memory before you check…';field.setAttribute('aria-label','Your answer');body.append(field)}
+  }
+  // Typing a Russian word: let a Latin keyboard do it (privet → привет), and say so.
+  if(field&&field.tagName==='INPUT'&&item.origin==='vocab'&&item.lang==='ru'&&item.dir!=='know'&&typeof Translit!=='undefined'){
+   Translit.attach(field,()=>true);field.lang='ru';body.append(el('small','Type with Latin letters: privet → привет','recall-hint'));
   }
   const controls=el('div',undefined,'recall-actions');body.append(controls);
   let phase='ask';

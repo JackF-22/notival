@@ -252,6 +252,11 @@
   return box;
  }
 
+ // The sentence a word came from, so it can be learned in context.
+ function sentenceWith(word){
+  const text=reference(selected||{})?.text||'',key=M.normalize(word);
+  return (text.match(/[^.!?…]+[.!?…]*/g)||[]).map(part=>part.trim()).find(part=>M.words(part).some(w=>w.key===key))||'';
+ }
  function results(clip,state_){
   const {result,source}=state_,box=el('div','listening-results');
   box.append(el('div','listening-score',result.percent+'%'),el('small','listening-hint',source==='draft'?'Compared with the Mac\'s draft, which can be wrong.':'Compared with the correct text.'));
@@ -263,7 +268,7 @@
    if(item.written&&item.state!=='right'){const fix=el('small','',item.written);w.append(fix)}
    w.onclick=()=>{
     if(timed&&audio){audio.currentTime=timed[index].start||0;audio.play()}
-    window.marginVocab?.add({term:item.word.toLowerCase(),projectId:ctx});toast?.('Added “'+item.word.toLowerCase()+'” to your vocab');
+    window.marginVocab?.add({term:item.word.toLowerCase(),projectId:ctx,sentence:sentenceWith(item.word)});toast?.('Added “'+item.word.toLowerCase()+'” to your vocab');
    };
    line.append(w,' ');
   });
@@ -271,7 +276,7 @@
   if(result.extra.length)box.append(el('small','listening-hint','Words you wrote that aren\'t in the text: '+result.extra.join(', ')));
   const learn=M.toLearn(result);
   const actions=el('div','listening-actions');
-  if(learn.length)actions.append(button('Add the '+learn.length+' to learn to vocab',()=>{for(const word of learn)window.marginVocab?.add({term:word,projectId:ctx});toast?.('Added '+learn.length+' words to your vocab')},'primary'));
+  if(learn.length)actions.append(button('Add the '+learn.length+' to learn to vocab',()=>{for(const word of learn)window.marginVocab?.add({term:word,projectId:ctx,sentence:sentenceWith(word)});toast?.('Added '+learn.length+' words to your vocab')},'primary'));
   actions.append(button('Try again',()=>{checked=null;paint()}));box.append(actions);
   if(clip.work.en?.trim())box.append(el('small','listening-hint','Your English:'),el('p','listening-english',clip.work.en));
   box.append(el('small','listening-hint','Tap a word to hear it (with the Mac’s draft) and add it to your vocab.'));
