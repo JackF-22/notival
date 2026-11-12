@@ -860,6 +860,29 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
       self.js("window.marginImportBackup", backup)
      } catch { self.js("window.marginError", error.localizedDescription) }
     }
+   case "chooseAudio":
+    let panel=NSOpenPanel();panel.canChooseFiles=true;panel.canChooseDirectories=false;panel.allowsMultipleSelection=false;panel.prompt="Add Voice Message"
+    panel.allowedContentTypes=[.audio,.mpeg4Audio,.mpeg4Movie,.movie,.mp3,.wav,.aiff]
+    panel.beginSheetModal(for:window){response in
+     guard response == .OK, let url=panel.url else{self.js("window.marginAudioChosen",["cancelled":true]);return}
+     Listening.importClip(url,into:Listening.directory(next:self.storage)){result in DispatchQueue.main.async{switch result{
+      case .success(let clip):self.js("window.marginAudioChosen",["id":clip.id,"name":clip.name,"duration":clip.duration])
+      case .failure(let error):self.js("window.marginAudioChosen",["error":error.localizedDescription])}}}
+    }
+   case "loadAudio":
+    let id=body["id"] as? String ?? ""
+    DispatchQueue.global(qos:.userInitiated).async{
+     if let url=Listening.file(id,in:Listening.directory(next:self.storage)),let data=try? Data(contentsOf:url){DispatchQueue.main.async{self.js("window.marginAudioData",["id":id,"data":data.base64EncodedString(),"mime":"audio/mp4"])}}
+     else{DispatchQueue.main.async{self.js("window.marginAudioData",["id":id,"error":"This voice message's audio file is missing."])}}
+    }
+   case "transcribeAudio":
+    let id=body["id"] as? String ?? "",locale=body["locale"] as? String ?? "ru-RU",allowServer=body["allowServer"] as? Bool ?? false
+    guard let url=Listening.file(id,in:Listening.directory(next:storage)) else{js("window.marginTranscript",["id":id,"error":"This voice message's audio file is missing."]);return}
+    Listening.transcribe(url,locale:locale,allowServer:allowServer){result in DispatchQueue.main.async{switch result{
+     case .success(let draft):self.js("window.marginTranscript",["id":id,"text":draft.text,"words":draft.words,"onDevice":draft.onDevice])
+     case .failure(let error):self.js("window.marginTranscript",["id":id,"error":error.localizedDescription,"code":(error as NSError).code])}}}
+   case "deleteAudio":
+    if let url=Listening.file(body["id"] as? String ?? "",in:Listening.directory(next:storage)){try? FileManager.default.removeItem(at:url)}
    case "attachMaterials":
     let subjectID=body["subjectID"] as? String ?? "",unitID=body["unitID"] as? String ?? ""
     let finder={[weak self] in
