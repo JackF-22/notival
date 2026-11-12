@@ -72,7 +72,17 @@
   const lead=el('div',undefined,'recall-lead');
   lead.append(el('strong',String(ready),'recall-count'),el('span',ready?(ready===1?'question ready':'questions ready'):'All caught up'));dialog.append(lead);
   const when=nextDue(list),limitHit=stats.new>0&&!allowance();
-  dialog.append(el('p',session?(session<ready?session+' in this session · ':'')+(work.new?work.new+' new · ':'')+made+' in total':[when?'Next review '+when+'.':'Nothing is due yet.',limitHit?'Today’s new-question limit is reached.':''].filter(Boolean).join(' '),'recall-note'));
+  dialog.append(el('p',session?made+(made===1?' question':' questions')+' in total':[when?'Next review '+when+'.':'Nothing is due yet.',limitHit?'Today’s new-question limit is reached.':''].filter(Boolean).join(' '),'recall-note'));
+  if(session){
+   // How are you feeling? It decides how big today's session is.
+   const feel=el('div',undefined,'recall-mood'),mood=moodNow();feel.append(el('small','How are you feeling today?','recall-label'));
+   const chips=el('div',undefined,'recall-mood-chips');
+   for(const [key,info] of Object.entries(M.MOODS)){const chip=btn(info.label,()=>{state.recallMood={day:today(),value:key};persist();hub()},'recall-chip');chip.setAttribute('aria-pressed',String(key===mood));chips.append(chip)}
+   feel.append(chips);
+   const plan=M.plan(list,reviews(),state,{mood}),minutes=Math.max(1,Math.round(plan.seconds/60));
+   feel.append(el('small',plan.queue.length+' in this session · about '+minutes+' min'+(plan.new?' · '+plan.new+' new':'')+(plan.note?' · '+plan.note:''),'recall-plan'));
+   dialog.append(feel);
+  }
   const row=el('div',undefined,'recall-actions');
   row.append(session?btn('Start',()=>start('due',15),'primary'):btn('Practice anyway',()=>start('quiz',10),'primary'));dialog.append(row);
   const links=el('div',undefined,'recall-links');
@@ -82,16 +92,55 @@
   for(const n of new Set([5,10,20,40,Number(state.recallNewPerDay)||M.DEFAULT_NEW_PER_DAY].sort((a,b)=>a-b))){const o=el('option',String(n));o.value=String(n);limitSelect.append(o)}
   limitSelect.value=String(Number(state.recallNewPerDay)||M.DEFAULT_NEW_PER_DAY);limitSelect.onchange=()=>{state.recallNewPerDay=Number(limitSelect.value);persist();hub()};
   limit.className='recall-limit';limit.append(limitSelect);dialog.append(limit);
+  memoryPanel(list);
+ }
+ // How you feel today shapes the session. It is asked once a day and can be changed whenever.
+ const today=()=>new Date().toISOString().slice(0,10);
+ const moodNow=()=>state.recallMood?.day===today()?state.recallMood.value:'ok';
+ // ── Memory: what the system has learned about you ───────────────────────────
+ const DAY_NAMES=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+ function memoryPanel(list){
+  const stat=M.retention(state),cal=M.calibration(state),forecast=M.forecast(list,reviews()),leeches=M.leeches(list,reviews()),exam=ctx.project?M.examFor(state,ctx.project.id):null;
+  const known=list.filter(i=>reviews()[i.id]).length;if(!known&&!stat.count)return;
+  const box=el('details',undefined,'recall-memory');
+  box.append(el('summary','Memory'+(stat.pct!=null?' · '+stat.pct+'% recalled lately':'')));
+  const tiles=el('div',undefined,'recall-tiles');
+  for(const [value,label] of [[stat.pct!=null?stat.pct+'%':'—','Recalled (30 days)'],[String(M.reviewedToday(state)),'Reviewed today'],[String(list.filter(i=>reviews()[i.id]&&M.status(reviews()[i.id])==='mature').length),'Well known']]){const t=el('div',undefined,'recall-tile');t.append(el('strong',value),el('small',label));tiles.append(t)}
+  box.append(tiles);
+  // The week ahead: how many reviews fall due each day
+  const max=Math.max(1,...forecast),bars=el('div',undefined,'recall-forecast');bars.setAttribute('role','img');bars.setAttribute('aria-label','Reviews due over the next week: '+forecast.join(', '));
+  forecast.forEach((count,i)=>{const col=el('div'),bar=el('span');bar.style.height=Math.max(3,Math.round(count/max*38))+'px';bar.title=count+' due';col.append(el('small',String(count||'')),bar,el('small',i===0?'Today':DAY_NAMES[(new Date().getDay()+i)%7]));bars.append(col)});
+  box.append(el('small','The week ahead','recall-label'),bars);
+  // Insights are only said once there is something real to say.
+  const notes=[],time=M.bestTime(state),moods=M.byMood(state);
+  if(time)notes.push('You remember best in the '+time.best.name+' ('+time.best.pct+'% vs '+time.worst.pct+'% in the '+time.worst.name+').');
+  if(moods)notes.push('On tired days you recall '+moods.tired.pct+'% against '+moods.fresh.pct+'% when fresh, so a lighter session on those days is worth it.');
+  if(cal.factor<.9)notes.push('You forget a little faster than average, so reviews come back sooner for you.');
+  else if(cal.factor>1.1)notes.push('You hold on to things well, so your reviews are spaced further apart.');
+  for(const text of notes)box.append(el('p',text,'recall-insight'));
+  if(exam){
+   const ready=M.readiness(list,reviews(),exam.ts);
+   if(ready.pct!=null){
+    const line=el('p',undefined,'recall-insight recall-exam-line');line.append(el('b',exam.title+' '+(exam.days<=0?'is today':exam.days===1?'is tomorrow':'is in '+exam.days+' days')),' \u2014 if you stopped now you\u2019d remember about '+ready.pct+'% of it'+(ready.shaky.length?', with '+ready.shaky.length+' shaky.':'.'));
+    if(ready.shaky.length)line.append(' ',btn('Review the shaky ones',()=>run({mode:'weak',list:ready.shaky.slice(0,15),pool:list}),'recall-link'));
+    box.append(line);
+   }
+  }
+  if(leeches.length){const line=el('p',undefined,'recall-insight');line.append(leeches.length+(leeches.length===1?' question keeps':' questions keep')+' slipping. ',btn('See them',()=>bank(),'recall-link'));box.append(line)}
+  dialog.append(box);
  }
  function start(modeName,limit){
-  const list=M.collect(state,scope()),picked=M.queue(list,reviews(),{mode:modeName,limit,newLimit:modeName==='due'?allowance():limit});
+  const list=M.collect(state,scope());
+  // A normal review is planned: the likeliest-forgotten first, sized to your mood, backlog and recent accuracy.
+  const planned=modeName==='due'?M.plan(list,reviews(),state,{mood:moodNow()}):null;
+  const picked=planned?planned.queue:M.queue(list,reviews(),{mode:modeName,limit,newLimit:modeName==='due'?allowance():limit});
   if(!picked.length){toast('Nothing to ask yet');return}
   run({mode:modeName,list:picked,pool:list});
  }
 
  // ── Session ─────────────────────────────────────────────────────────────────
  function run({mode:modeName,list,pool}){
-  sess={mode:modeName,queue:list.slice(),total:list.length,results:[],asked:new Set(),pool:pool||M.collect(state,scope())};
+  sess={mode:modeName,queue:list.slice(),total:list.length,results:[],asked:new Set(),pool:pool||M.collect(state,scope()),mood:moodNow()};
   next();
  }
  function next(){sess.queue.length?card(sess.queue[0]):summary()}
@@ -102,6 +151,7 @@
   dialog.replaceChildren(x,top,bar);
  }
  function card(item){
+  const shownAt=performance.now();let took=0;
   const fmt=M.format(item,sess.pool,{quiz:sess.mode==='quiz'||sess.mode==='drill'||(sess.mode==='due'&&!reviews()[item.id])});
   chrome(item);dialog.onkeydown=null;
   const body=el('div',undefined,'recall-card');dialog.append(body);
@@ -136,14 +186,14 @@
   requestAnimationFrame(()=>field?.focus());
 
   function choose(choice,button){
-   const right=choice===fmt.answer;phase='graded';
+   const right=choice===fmt.answer;phase='graded';took=Math.round(performance.now()-shownAt);
    for(const b of body.querySelectorAll('.recall-choice')){b.disabled=true;if(b.dataset.choice===fmt.answer)b.classList.add('is-right')}
    if(!right)button.classList.add('is-wrong');
    if(gap){gap.textContent=item.blank||'';gap.classList.add(right?'is-right':'is-wrong')}
    feedback(right?'correct':'wrong','',{auto:true});
   }
   function reveal(typed,result,skipped=false){
-   if(phase!=='ask')return;phase='graded';
+   if(phase!=='ask')return;phase='graded';took=Math.round(performance.now()-shownAt);
    if(field){field.readOnly=true;field.classList.add('is-'+(result||'checked'))}
    controls.remove();
    feedback(result,typed,{skipped});
@@ -164,15 +214,27 @@
    }
    if(item.noteId&&noteOf(item.noteId))panel.append(btn('Open in note',()=>goTo(item.noteId,item.blockId),'recall-link'));
    const grades=el('div',undefined,'recall-grades');panel.append(grades);
-   const prev=reviews()[item.id],forecast=M.preview(prev),suggested=skipped?'Again':M.suggestedGrade(result);
+   const prev=reviews()[item.id],opts=M.optionsFor(state,item),forecast=M.preview(prev,Date.now(),opts);
+   // A right answer that took far longer than usual was probably a struggle: suggest Hard, and say why.
+   const usual=M.usualMs(state),slow=!skipped&&!!usual&&took>Math.max(8000,usual*2.5)&&(result==='correct'||result==='close');
+   const suggested=skipped?'Again':slow&&M.suggestedGrade(result)==='Good'?'Hard':M.suggestedGrade(result);
+   // An item that keeps slipping needs a different approach, not more of the same.
+   if(prev&&prev.lapses>=4){
+    const leech=el('div',undefined,'recall-leech');leech.append(el('strong','This one keeps slipping'),el('span','You\u2019ve missed it '+prev.lapses+' times. Rewording it, or setting it aside for now, usually works better than more repeats.'));
+    const acts=el('div',undefined,'recall-leech-actions');
+    if(item.origin!=='vocab'&&item.type!=='cloze')acts.append(btn('Reword',()=>reword(item)));
+    acts.append(btn('Set aside',()=>{state.suspended??={};state.suspended[item.id]=true;persist();sess.queue.shift();next()}));leech.append(acts);panel.append(leech);
+   }
    if(auto){
     const go=btn('Continue',()=>rate(result==='correct'?'Good':'Again'),'primary');grades.append(go);
     if(result==='correct')grades.append(btn('Too easy',()=>rate('Easy')));
+    if(result==='correct'&&slow)grades.append(btn('Took a while',()=>rate('Hard')));
     requestAnimationFrame(()=>go.focus());
     onKey=e=>{if(e.key==='Enter'&&document.activeElement!==go){e.preventDefault();go.click()}};
    }else{
-    grades.append(el('small','How well did you know it?','recall-label'));
+    grades.append(el('small',slow?'That took a while \u2014 Hard may be more honest.':'How well did you know it?','recall-label'));
     M.GRADES.forEach((g,i)=>{const b=btn('',()=>rate(g),'recall-grade'+(g===suggested?' is-suggested':''));b.append(el('kbd',String(i+1)),el('span',g),el('small',forecast[g]));grades.append(b)});
+    if(opts.examDays!=null&&opts.examDays<=60){const exam=M.examFor(state,item.projectId);if(exam)grades.append(el('small',exam.title+' is '+(exam.days<=0?'today':exam.days===1?'tomorrow':'in '+exam.days+' days')+', so this comes back sooner.','recall-exam'))}
     requestAnimationFrame(()=>grades.querySelector('.is-suggested')?.focus());
     onKey=e=>{const k=Number(e.key);if(k>=1&&k<=4&&!e.metaKey&&!e.ctrlKey){e.preventDefault();rate(M.GRADES[k-1])}};
    }
@@ -180,7 +242,9 @@
   function rate(grade){
    onKey=null;
    const first=!reviews()[item.id];
-   reviews()[item.id]=M.schedule(reviews()[item.id],grade);M.logReview(state,item.id,grade,sess.mode,Date.now(),first);persist();
+   const before=reviews()[item.id],when=Date.now(),opts=M.optionsFor(state,item,when);
+   M.logReview(state,item.id,grade,sess.mode,when,first,{ms:took,mood:sess.mood,...(before&&before.due<=when+DAY/2?{r:+M.retrievability(before,when).toFixed(3)}:{})});
+   reviews()[item.id]=M.schedule(before,grade,when,opts);persist();
    if(!sess.asked.has(item.id)){sess.asked.add(item.id);sess.results.push({item,rating:grade})}
    sess.queue.shift();
    if(grade==='Again'&&!sess.queue.some(q=>q.id===item.id)&&(sess.mode==='due'||sess.mode==='weak'))sess.queue.push(item);

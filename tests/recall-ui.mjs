@@ -38,7 +38,7 @@ try{
   // Hub counts every item written in note markup; plain paragraphs (the Membranes note) are not turned into questions on their own
   await evaluate(`marginRecall.hub({project:state.projects[0]})`);await wait(120);
   assert.equal(await text('.recall-count'),'7');
-  assert.match(await text('.recall-dialog'),/7 in total/);
+  assert.match(await text('.recall-dialog'),/7 questions in total/);
   await shot('hub');
   assert.equal(await evaluate(`!!document.querySelector('.recall-dialog select[aria-label=Unit]')`),true);
   // New questions are rationed per day; the picker changes the limit and the count follows
@@ -46,7 +46,7 @@ try{
   const savedReviews=await evaluate(`JSON.stringify(state.reviews)`);
   await evaluate(`state.reviews={};state.reviewLog=[];marginRecall.hub({project:state.projects[0]})`);await wait(100);
   await evaluate(`(()=>{const s=document.querySelector('.recall-dialog select[aria-label="New questions per day"]');s.value='5';s.dispatchEvent(new Event('change'))})()`);await wait(120);
-  assert.equal(await evaluate(`state.recallNewPerDay`),5);assert.equal(await text('.recall-count'),'5');assert.match(await text('.recall-dialog'),/5 new · 7 in total/);
+  assert.equal(await evaluate(`state.recallNewPerDay`),5);assert.equal(await text('.recall-count'),'5');assert.match(await text('.recall-dialog'),/5 new/);
   await clickText('.recall-actions button','Start');await wait(100);
   assert.match(await text('.recall-top'),/1 of 5/,'a session holds only today’s allowance of new questions');
   await evaluate(`document.querySelector('.recall-dialog').close();state.recallNewPerDay=10;state.reviews=${savedReviews};state.reviewLog=[];marginRecall.hub({project:state.projects[0]})`);await wait(100);
@@ -95,7 +95,7 @@ try{
   await shot('summary');
   const saved=await evaluate(`JSON.stringify(Object.keys(state.reviews).length)`);assert.equal(Number(saved),7);
   assert.equal(await evaluate(`state.reviewLog.length`),7);
-  assert.equal(await evaluate(`state.reviews[Object.keys(state.reviews)[0]].interval`),3);
+  assert.ok(await evaluate(`state.reviews[Object.keys(state.reviews)[0]].interval`)>=3,'a good review of an item due long ago schedules it further out');
 
   // Hub now says everything is caught up; a quiz still works and offers multiple choice
   await evaluate(`marginRecall.hub({project:state.projects[0]})`);await wait(80);

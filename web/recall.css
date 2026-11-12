@@ -121,3 +121,24 @@
 
 .recall-math{display:inline-block;max-width:100%;overflow-x:auto;overflow-y:hidden;vertical-align:middle}
 .recall-math.is-display{display:block;margin:.5em 0;text-align:center}
+/* How you feel, and what the system has learned about you */
+.recall-mood{display:grid;gap:8px;margin:2px 0 14px}
+.recall-mood-chips{display:flex;gap:8px}
+.recall-chip{height:32px;padding:0 16px;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--muted);font:inherit;font-size:13px;cursor:pointer}
+.recall-chip[aria-pressed=true]{color:var(--ink);border-color:var(--accent,var(--green));background:color-mix(in srgb,var(--accent,var(--green)) 9%,transparent)}
+.recall-plan{color:var(--muted);font-size:12.5px;line-height:1.5}
+.recall-memory{margin-top:18px;padding-top:12px;border-top:1px solid var(--line)}
+.recall-memory summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);padding:4px 0;list-style:none}
+.recall-memory summary::before{content:'›';display:inline-block;width:14px;transition:transform .15s}
+.recall-memory[open] summary::before{transform:rotate(90deg)}
+.recall-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:10px 0 14px}
+.recall-tile{display:grid;gap:2px;padding:12px;border:1px solid var(--line);border-radius:12px}
+.recall-tile strong{font-size:22px;font-weight:700;letter-spacing:-.01em}.recall-tile small{color:var(--muted);font-size:11.5px}
+.recall-forecast{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;align-items:end;margin:6px 0 14px}
+.recall-forecast>div{display:grid;justify-items:center;align-content:end;gap:3px;min-height:70px}
+.recall-forecast span{display:block;width:100%;max-width:28px;border-radius:5px 5px 2px 2px;background:var(--accent,var(--green));opacity:.75}
+.recall-forecast small{font-size:10.5px;color:var(--muted);line-height:1}
+.recall-insight{margin:8px 0;font-size:13px;line-height:1.55;color:var(--ink)}
+.recall-leech{display:grid;gap:6px;margin:10px 0;padding:11px 13px;border-radius:11px;background:color-mix(in srgb,#e3b23c 20%,var(--bg));font-size:13px;line-height:1.5}
+.recall-leech-actions{display:flex;gap:8px}
+.recall-exam{display:block;margin-top:8px;color:var(--muted);font-size:12px}

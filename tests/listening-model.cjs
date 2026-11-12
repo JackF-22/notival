@@ -16,5 +16,6 @@ c=M.compare('Как дела','как у тебя дела');
 assert.deepEqual(c.words.map(w=>w.state),['right','right']);assert.deepEqual(c.extra,['у','тебя'],'extra words are listed');
 assert.equal(M.compare('','').percent,0);
 assert.equal(M.normalize('вода́'),'вода','stress marks are ignored');
+assert.notEqual(M.normalize('мой'),M.normalize('мои'),'й and и are different letters');assert.equal(M.normalize('й'),'й');
 assert.deepEqual(M.toLearn(M.compare('Я люблю твою улыбку','я люблю')),['твою','улыбку']);
 console.log('PASS: listening checks — right, close (endings), wrong, missed and extra words, and ё/stress/punctuation ignored.');

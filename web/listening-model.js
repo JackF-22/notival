@@ -1,10 +1,10 @@
 // Checking what someone heard: lines the words up with what was said and scores the match. Pure functions, no window.
 const ListeningModel=(()=>{
  // Words as they are compared: lower case, ё as е, no stress marks or punctuation.
- const normalize=word=>String(word||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/ё/g,'е').replace(/[^\p{L}\p{N}]+/gu,'');
+ const normalize=word=>String(word||'').normalize('NFC').replace(/[\u0300\u0301]/g,'').toLowerCase().replace(/ё/g,'е').replace(/[^\p{L}\p{N}]+/gu,'');
  // The words of a text, each with the text as written and the form used to compare.
  function words(text){
-  return (String(text||'').match(/[\p{L}\p{N}][\p{L}\p{N}̀-ͯ'’-]*/gu)||[]).map(raw=>({raw,key:normalize(raw)})).filter(word=>word.key);
+  return (String(text||'').match(/[\p{L}\p{N}][\p{L}\p{N}\u0300\u0301'’-]*/gu)||[]).map(raw=>({raw,key:normalize(raw)})).filter(word=>word.key);
  }
  const similar=(a,b)=>{
   if(a===b)return 1;

@@ -36,18 +36,29 @@ state.suspended={m1:true};assert(!M.collect(state,{projectId:'p'}).some(i=>i.id=
 // Test-pack scope: only items from the chosen notes
 assert(M.collect({...state,suspended:{}},{notes:[a]}).every(i=>i.noteId==='Bio'));
 
-// Scheduler
-let r=M.schedule(null,'Good',now);assert.equal(r.interval,1);
-r=M.schedule(r,'Good',now+DAY);assert.equal(r.interval,3);
-r=M.schedule(r,'Good',now+4*DAY);assert.equal(r.interval,Math.round(3*2.5));
-const lapsed=M.schedule(r,'Again',r.due);assert.equal(lapsed.interval,0);assert.equal(lapsed.lapses,1);assert(lapsed.ease<2.5);assert.equal(lapsed.due,r.due+600000);
+// Scheduler (a memory model: stability and difficulty per item, with learning steps)
+let r=M.schedule(null,'Good',now);assert.equal(r.interval,1,'a new item is checked again after a day');assert(r.stability>0&&r.difficulty>=1&&r.difficulty<=10);
+r=M.schedule(r,'Good',r.due);assert(r.interval>=5&&r.interval<=20,'a good review at the right time stretches it to a week or more: '+r.interval);
+const before=r.interval;r=M.schedule(r,'Good',r.due);assert(r.interval>before*1.5,'and it keeps growing: '+before+' → '+r.interval);
+const lapsed=M.schedule(r,'Again',r.due);assert.equal(lapsed.interval,0);assert.equal(lapsed.lapses,1);assert(lapsed.stability<r.stability,'forgetting shrinks stability');assert(lapsed.difficulty>r.difficulty,'and makes it harder');assert.equal(lapsed.due,r.due+600000);
+const back=M.schedule(lapsed,'Good',lapsed.due+600000);assert.equal(back.interval,1,'after a lapse it is confirmed the next day');
 assert(M.schedule(null,'Easy',now).interval>M.schedule(null,'Good',now).interval);
-assert.equal(M.schedule({interval:170,reps:5,ease:2.5},'Easy',now).interval,180);
-const early=M.schedule(r,'Good',r.reviewedAt+DAY);assert.equal(early.due,r.due);assert.equal(early.interval,r.interval);
+assert.equal(M.schedule({interval:170,reps:5,ease:2.5},'Easy',now).interval,180,'intervals stop at 180 days');
+const early=M.schedule(r,'Good',r.reviewedAt+DAY);assert.equal(early.due,r.due);assert.equal(early.interval,r.interval,'practising early changes nothing');
 assert.equal(M.schedule({interval:80,due:0},'Again',100).due,600100);   // legacy records still work
+const legacy=M.schedule({interval:10,due:now,ease:2.5,reps:3,reviewedAt:now-10*DAY,lapses:0},'Good',now);assert(legacy.interval>10&&legacy.stability>10,'an older record carries on from its interval');
+const easyHard=[M.schedule(r,'Hard',r.due),M.schedule(r,'Good',r.due),M.schedule(r,'Easy',r.due)].map(x=>x.interval);assert(easyHard[0]<=easyHard[1]&&easyHard[1]<=easyHard[2],'Hard ≤ Good ≤ Easy: '+easyHard);
+// A review made later than due earns more than one made on time, and an easy item grows faster than a hard one
+const late2=M.schedule(r,'Good',r.due+10*DAY);assert(late2.stability>M.schedule(r,'Good',r.due).stability,'remembering after a long gap is worth more');
+const easy1={...r,difficulty:2},hard1={...r,difficulty:9};assert(M.schedule(easy1,'Good',r.due).stability>M.schedule(hard1,'Good',r.due).stability);
 assert.equal(Object.keys(M.preview(null,now)).join(),'Again,Hard,Good,Easy');
-// Retrievability falls to ~90% at the due date and status reflects it
-const rev=M.schedule(null,'Good',now);assert(Math.abs(M.retrievability(rev,rev.due)-.9)<1e-9);assert(M.retrievability(rev,now)>M.retrievability(rev,now+3*DAY));
+// A test coming up caps how far an item can drift; your calibration stretches or shrinks the rest
+const noExam=M.schedule(r,'Good',r.due),withExam=M.schedule(r,'Good',r.due,{examDays:6});assert.equal(withExam.interval,3,'six days to a test: look again within three');assert(noExam.interval>withExam.interval);
+assert(M.schedule(r,'Good',r.due,{factor:.7}).interval<noExam.interval&&M.schedule(r,'Good',r.due,{factor:1.3}).interval>noExam.interval);
+assert(M.schedule(r,'Good',r.due,{retention:.95}).interval<noExam.interval,'asking for higher retention reviews sooner');
+assert(Math.abs(M.forget(10,10)-.9)<1e-9&&Math.abs(M.daysFor(10,.9)-10)<1e-9,'90% at the stability, by definition');
+// Retrievability falls over time and status reflects it
+const rev=M.schedule(null,'Good',now);assert(M.retrievability(rev,rev.due)<1&&M.retrievability(rev,now)>M.retrievability(rev,now+3*DAY));
 assert.equal(M.status(undefined,now),'new');assert.equal(M.status(M.schedule(null,'Again',now),now),'weak');assert.equal(M.status(rev,rev.due+1),'due');
 
 // Queue: overdue first, new capped, weak mode, quiz fills up
@@ -150,4 +161,50 @@ assert.equal(M.queue(backlog,late,{now:day,limit:15,newLimit:10}).length,15,'a s
 assert.equal(M.stats(backlog,late,day,3).ready,33);assert.equal(M.stats(backlog,late,day).ready,40);
 assert.equal(M.workload(backlog,late,day,0).ready,30);
 
+// ── Knowing you ──
+const T0=new Date(2026,0,15,10,0,0).getTime();
+const mkLog=(n,fn)=>Array.from({length:n},(_,i)=>({id:'x'+i,t:T0-i*3600000,first:false,mode:'due',...fn(i)}));
+// Calibration: doing worse than predicted shrinks intervals; better stretches them; too little data does nothing
+assert.equal(M.calibration({reviewLog:mkLog(10,()=>({rating:'Good',r:.9}))},T0).factor,1,'under 40 reviews: no change');
+const worse=M.calibration({reviewLog:mkLog(100,i=>({rating:i%4===0?'Again':'Good',r:.9}))},T0);assert(worse.factor<1&&worse.factor>=.6,'75% vs 90% predicted shrinks intervals: '+worse.factor);
+const better=M.calibration({reviewLog:mkLog(100,i=>({rating:i%50===0?'Again':'Good',r:.8}))},T0);assert(better.factor>1&&better.factor<=1.4,'98% vs 80% predicted stretches them: '+better.factor);
+assert(Math.abs(M.calibration({reviewLog:mkLog(100,i=>({rating:i%10===0?'Again':'Good',r:.9}))},T0).factor-1)<.01,'on target: no change');
+// Accuracy, retention, pace
+assert.equal(M.accuracy({reviewLog:mkLog(5,()=>({rating:'Good'}))},T0),null,'too few to say');
+assert.equal(M.accuracy({reviewLog:mkLog(20,i=>({rating:i<5?'Again':'Good'}))},T0),.75);
+assert.equal(M.retention({reviewLog:mkLog(20,i=>({rating:i<5?'Again':'Good'}))},T0,30).pct,75);
+assert.equal(M.paceSeconds({}),12,'a sensible default');assert.equal(M.paceSeconds({reviewLog:mkLog(20,()=>({rating:'Good',ms:8000}))}),8);
+assert.equal(M.usualMs({reviewLog:mkLog(20,()=>({rating:'Good',ms:6000}))}),6000);
+// Tests coming up
+const exams={projects:[{id:'p',assessments:[{title:'Midterm',date:'2026-01-25'},{title:'Done',date:'2026-01-16',done:true},{title:'Final',date:'2026-03-01'}],packs:[]}]};
+const ex=M.examFor(exams,'p',T0);assert.equal(ex.title,'Midterm');assert.equal(ex.days,11,'the nearest test that is not finished');assert.equal(M.examFor(exams,'nope',T0),null);
+assert.equal(M.optionsFor({...exams},{projectId:'p'},T0).examDays,11);
+// If you stopped today: readiness for test day
+const items3=[{id:'a'},{id:'b'},{id:'c'}],revs3={a:M.schedule(null,'Good',T0),b:{...M.schedule(null,'Good',T0-30*DAY),reviewedAt:T0-30*DAY}};
+const ready=M.readiness(items3,revs3,T0+10*DAY,T0);assert.equal(ready.unseen,1);assert(ready.pct>0&&ready.pct<100);assert(ready.shaky.some(i=>i.id==='b'),'the one left for a month is shaky');
+// Forecast
+const startDay=new Date(T0).setHours(0,0,0,0);
+assert.deepEqual(Array.from(M.forecast([{id:'a'},{id:'b'},{id:'c'},{id:'d'}],{a:{due:T0-5*DAY},b:{due:startDay+3600000},c:{due:startDay+DAY+3600000},d:{due:startDay+9*DAY}},T0)),[2,1,0,0,0,0,0],'overdue counts today; beyond the week is left out');
+// Leeches
+assert.deepEqual(Array.from(M.leeches([{id:'a'},{id:'b'},{id:'c'}],{a:{lapses:6},b:{lapses:2},c:{lapses:4}}).map(i=>i.id)),['a','c']);
+// When you remember best, and tired days
+const timed=[...mkLog(30,i=>({rating:i%10===0?'Again':'Good',t:new Date(2026,0,10,8,i).getTime()})),...mkLog(30,i=>({rating:i%2?'Again':'Good',t:new Date(2026,0,10,20,i).getTime()}))];
+const bt=M.bestTime({reviewLog:timed},T0);assert.equal(bt.best.name,'morning');assert.equal(bt.worst.name,'evening');
+assert.equal(M.bestTime({reviewLog:timed.slice(0,30)},T0),null,'one time of day tells nothing');
+const moods=M.byMood({reviewLog:[...mkLog(20,()=>({rating:'Good',mood:'fresh'})),...mkLog(20,i=>({rating:i%2?'Again':'Good',mood:'tired'}))]},T0);assert(moods.fresh.pct>moods.tired.pct+10);
+assert.equal(M.byMood({reviewLog:mkLog(20,()=>({rating:'Good',mood:'ok'}))},T0),null);
+// Today's session is built for how you feel and what is waiting
+const bigPool=Array.from({length:60},(_,i)=>({id:'q'+i,noteId:'n'+(i%5),projectId:'p',type:'qa',prompt:'p',answer:'x'}));
+const some={};bigPool.slice(0,12).forEach(i=>some[i.id]={due:T0-DAY,interval:3,stability:3,reps:2,lapses:0,reviewedAt:T0-4*DAY,rating:'Good'});
+const ok=M.plan(bigPool,some,{},{now:T0});assert.equal(ok.queue.length,15);assert.equal(ok.reviews,12);assert.equal(ok.new,3,'ten new allowed, but the session is capped at 15');
+const tired=M.plan(bigPool,some,{},{now:T0,mood:'tired'});assert.equal(tired.new,0,'a tired day: no new questions');assert(tired.queue.length<=8);assert(/light/i.test(tired.note));
+const fresh2=M.plan(bigPool,{},{},{now:T0,mood:'fresh'});assert.equal(fresh2.new,15);
+const swamped={};bigPool.slice(0,45).forEach(i=>swamped[i.id]={due:T0-DAY,interval:3,stability:3,reps:2,lapses:0,reviewedAt:T0-4*DAY,rating:'Good'});
+const catchUp=M.plan(bigPool,swamped,{},{now:T0});assert.equal(catchUp.new,0,'a big backlog pauses new questions');assert(/catching up/i.test(catchUp.note));
+const shaky=M.plan(bigPool,some,{reviewLog:mkLog(30,i=>({rating:i%2?'Again':'Good'}))},{now:T0,limit:99});assert(/shaky/i.test(shaky.note),'poor recent accuracy slows new questions');
+assert.equal(M.plan(bigPool,some,{reviewLog:mkLog(30,()=>({rating:'Good',ms:6000}))},{now:T0,minutes:2}).queue.length,20,'two minutes at six seconds each');
+assert(M.plan(bigPool,some,{},{now:T0}).seconds>0);
+// Accents and ё do not count against an answer
+assert.equal(M.check({type:'qa',prompt:'water',answer:'вода́'},'вода'),'correct');assert.equal(M.check({type:'qa',prompt:'all',answer:'всё'},'все'),'correct');
+assert.equal(M.check({type:'qa',prompt:'my',answer:'мой'},'мои'),'wrong','й and и stay different letters');
 console.log('PASS: markup items, stable ids, scoping, scheduler, queues, answer checking, symbol/number answers, daily new limit, multiple choice, suggestions, question quality, summary.');

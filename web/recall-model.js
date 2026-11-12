@@ -6,7 +6,7 @@ const RecallModel=(()=>{
  const squash=text=>String(text).replace(/\s+/g,' ').trim();
  // Signs, decimal points, fractions and percents inside numbers survive (parked in private-use characters while the rest is stripped).
  const NUMBER_MARKS={'\uE000':'.','\uE001':'/','\uE002':'-','\uE003':'%'};
- const normalize=text=>squash(String(text).toLowerCase().replace(/[‘’]/g,"'").replace(/[−–—]/g,'-')
+ const normalize=text=>squash(String(text).normalize('NFC').replace(/[\u0300\u0301]/g,'').toLowerCase().replace(/ё/g,'е').replace(/[‘’]/g,"'").replace(/[−–—]/g,'-')
   .replace(/(\d),(?=\d{3}(?!\d))/g,'$1').replace(/(\d)\.(?=\d)/g,'$1\uE000').replace(/(\d)\/(?=\d)/g,'$1\uE001').replace(/(^|[\s(=])-(?=\d)/g,'$1\uE002').replace(/(\d)%/g,'$1\uE003')
   .replace(/[^\p{L}\p{N}' \uE000-\uE003]+/gu,' ').replace(/\b(?:the|a|an)\b/g,' ').replace(/[\uE000-\uE003]/g,c=>NUMBER_MARKS[c]));
  // Answers with no letters or digits (∫, →, +) are compared symbol for symbol.
@@ -163,27 +163,63 @@ const RecallModel=(()=>{
  }
  const suggest=(note,state={},limit=8)=>suggestAll([note],state,limit);
 
- // ── Scheduling (SM-2 family) ────────────────────────────────────────────────
- // Review state per item: {due, interval (days), ease, reps, lapses, reviewedAt, rating}. Older records lack ease/reps.
- function schedule(previous,rating,now=Date.now()){
-  const p=previous||{},interval=p.interval||0,reps=p.reps??(interval?1:0),ease=p.ease||2.5,lapses=p.lapses||0;
+ // ── Scheduling: a memory model (FSRS-4.5) ────────────────────────────────────
+ // Each item keeps two numbers about how well you know it: stability (how many days until you'd have a 90% chance of
+ // remembering it) and difficulty (1 easy … 10 hard). Reviewing at the right moment grows stability most. The weights
+ // are the published defaults, fitted on hundreds of millions of reviews; calibration() nudges them toward you.
+ // Review state: {due, interval (days), stability, difficulty, reps, lapses, reviewedAt, rating} (+ ease for older code).
+ const W=[0.4872,1.4003,3.7145,13.8206,5.1618,1.2298,0.8975,0.031,1.6474,0.1367,1.0461,2.1072,0.0793,0.3246,1.587,0.2272,2.8755];
+ const DECAY=-0.5,FACTOR=19/81,MAX_INTERVAL=180,clamp=(x,lo,hi)=>Math.min(hi,Math.max(lo,x));
+ const LEVEL={Again:1,Hard:2,Good:3,Easy:4};
+ // Chance of remembering after t days when stability is S; 90% at t = S.
+ const forget=(t,S)=>Math.pow(1+FACTOR*t/S,DECAY);
+ // Days until the chance of remembering falls to r.
+ const daysFor=(S,r=.9)=>S/FACTOR*(Math.pow(r,1/DECAY)-1);
+ // What we know about an item. Older records only had an interval and an ease factor: the interval was the time to 90%.
+ function memory(p){
+  if(p.stability>0)return {S:p.stability,D:clamp(p.difficulty||W[4],1,10)};
+  const S=p.interval>0?p.interval:0,ease=p.ease||2.5;
+  return {S,D:clamp(W[4]+(2.5-ease)*4,1,10)};
+ }
+ const easeFrom=D=>clamp(2.5-(D-W[4])/4,1.3,3);
+ // `retention` is the chance of remembering you aim for at each review (0.9 by default). `examDays` is how long until a
+ // test these items are for, and `factor` is your calibration: intervals shrink toward an exam so nothing is left to
+ // fade right before it.
+ function schedule(previous,rating,now=Date.now(),{retention=.9,examDays=null,factor=1}={}){
+  const p=previous||{},G=LEVEL[rating],lapses=p.lapses||0,reps=p.reps??(p.interval?1:0);
   const early=p.due&&now<p.due-DAY/2&&(rating==='Good'||rating==='Easy');
-  if(early)return {...p,ease,reps,lapses,reviewedAt:now,rating,practised:(p.practised||0)+1};
-  let next,e=ease,r=reps,l=lapses;
-  if(rating==='Again'){e=Math.max(1.3,ease-.2);r=0;l++;next=0}
-  else if(rating==='Hard'){e=Math.max(1.3,ease-.15);r=Math.max(reps,1);next=reps?Math.max(1,Math.round(interval*1.2)):1}
-  else if(rating==='Good'){r=reps+1;next=reps===0?1:reps===1?3:Math.round(Math.max(interval,1)*ease)}
-  else{e=ease+.15;r=reps+1;next=reps===0?4:Math.round(Math.max(interval,1)*ease*1.3)}
-  next=Math.min(180,next);
-  return {due:now+(next?next*DAY:10*MINUTE),interval:next,ease:e,reps:r,lapses:l,reviewedAt:now,rating};
+  if(early)return {...p,reps,lapses,reviewedAt:now,rating,practised:(p.practised||0)+1};
+  const known=memory(p),elapsed=p.reviewedAt?Math.max(0,(now-p.reviewedAt)/DAY):(p.interval||0);
+  let S,D,days;
+  const learning=known.S===0||reps===0;
+  if(known.S===0){
+   // The first time: Again comes back in ten minutes; the rest are checked again after a day (Easy after four).
+   S=W[G-1];D=clamp(W[4]-(G-3)*W[5],1,10);days=G===1?0:G===4?4:1;
+  }else{
+   const R=forget(elapsed,known.S);
+   D=clamp(W[7]*W[4]+(1-W[7])*(known.D-W[6]*(G-3)),1,10);
+   if(G===1){
+    S=clamp(Math.min(known.S,W[11]*Math.pow(known.D,-W[12])*(Math.pow(known.S+1,W[13])-1)*Math.exp(W[14]*(1-R))),.1,known.S);days=0;
+   }else{
+    const hard=G===2?W[15]:1,easy=G===4?W[16]:1;
+    // One good review can't more than eightfold what you knew.
+    S=Math.min(known.S*8,known.S*(1+Math.exp(W[8])*(11-known.D)*Math.pow(known.S,-W[9])*(Math.exp(W[10]*(1-R))-1)*hard*easy));
+    // Just back from a lapse: confirm tomorrow before trusting the new stability.
+    days=reps===0?(G===4?3:1):Math.max(G===2?1:2,daysFor(S,retention)*factor);
+   }
+  }
+  days=days?Math.min(MAX_INTERVAL,Math.max(1,Math.round(days))):0;
+  if(days&&examDays!=null&&examDays>=0&&examDays<=60)days=Math.min(days,Math.max(1,Math.floor(examDays/2)));
+  return {due:now+(days?days*DAY:10*MINUTE),interval:days,stability:S,difficulty:D,ease:easeFrom(D),reps:G===1?0:reps+1,lapses:G===1?lapses+1:lapses,reviewedAt:now,rating};
  }
- function preview(previous,now=Date.now()){
-  return Object.fromEntries(GRADES.map(g=>{const s=schedule(previous,g,now);return [g,s.interval?s.interval+'d':'10m']}));
+ function preview(previous,now=Date.now(),options){
+  return Object.fromEntries(GRADES.map(g=>{const s=schedule(previous,g,now,options);return [g,s.interval?s.interval+'d':'10m']}));
  }
- // Chance of recalling right now, 90% at the due date.
+ // Chance of recalling right now.
  function retrievability(review,now=Date.now()){
-  if(!review)return 0;const elapsed=Math.max(0,(now-(review.reviewedAt||now))/DAY),span=Math.max(review.interval||0,.17);
-  return Math.pow(.9,elapsed/span);
+  if(!review)return 0;
+  const elapsed=Math.max(0,(now-(review.reviewedAt||now))/DAY),known=memory(review);
+  return forget(elapsed,Math.max(known.S,.17));
  }
  function status(review,now=Date.now()){
   if(!review)return 'new';
@@ -224,9 +260,10 @@ const RecallModel=(()=>{
   for(const item of items){const rev=reviews[item.id];if(!rev||!item.noteId)continue;const t=by.get(item.noteId)||{noteId:item.noteId,count:0,sum:0};t.count++;t.sum+=retrievability(rev,now);by.set(item.noteId,t)}
   return [...by.values()].map(t=>({noteId:t.noteId,count:t.count,strength:t.sum/t.count})).filter(t=>t.strength<.85).sort((a,b)=>a.strength-b.strength).slice(0,limit);
  }
- // `first` marks the review that introduced a new item, which is what the daily new-item limit counts.
- function logReview(state,id,rating,mode,now=Date.now(),first=false){
-  state.reviewLog??=[];state.reviewLog.push({id,t:now,rating,mode,first});if(state.reviewLog.length>5000)state.reviewLog.splice(0,state.reviewLog.length-5000);
+ // `first` marks the review that introduced a new item, which is what the daily new-item limit counts. `extra` carries what
+ // we learn about the moment: ms (how long you took), r (the chance the model gave you of remembering), mood.
+ function logReview(state,id,rating,mode,now=Date.now(),first=false,extra={}){
+  state.reviewLog??=[];state.reviewLog.push({id,t:now,rating,mode,first,...extra});if(state.reviewLog.length>5000)state.reviewLog.splice(0,state.reviewLog.length-5000);
  }
  function reviewedToday(state,now=Date.now()){
   const start=new Date(now).setHours(0,0,0,0);return (state.reviewLog||[]).filter(e=>e.t>=start).length;
@@ -243,6 +280,93 @@ const RecallModel=(()=>{
   let due=0,fresh=0;
   for(const item of items){const r=reviews[item.id];if(!r)fresh++;else if(r.due<=now)due++}
   return {due,new:Math.min(fresh,newAllowance),ready:due+Math.min(fresh,newAllowance)};
+ }
+
+
+ // ── Knowing you: how the system learns from what happens ──────────────────────
+ const median=list=>{const sorted=[...list].sort((a,b)=>a-b),mid=Math.floor(sorted.length/2);return sorted.length?(sorted.length%2?sorted[mid]:(sorted[mid-1]+sorted[mid])/2):null};
+ const logOf=(state,now,days)=>(state.reviewLog||[]).filter(e=>!e.first&&(days==null||e.t>=now-days*DAY));
+ const right=e=>e.rating!=='Again';
+ // The share of repeat reviews you got right lately (null until there are enough to say).
+ function accuracy(state,now=Date.now(),{n=50}={}){
+  const list=logOf(state,now).slice(-n);return list.length>=10?list.filter(right).length/list.length:null;
+ }
+ // Retention over the last `days`, as a share and a count.
+ function retention(state,now=Date.now(),days=30){
+  const list=logOf(state,now,days);return {pct:list.length?Math.round(list.filter(right).length/list.length*100):null,count:list.length};
+ }
+ // The model predicts a chance of remembering at each review. If you do better or worse than that, stretch or shrink
+ // intervals to match: forgetting follows p^(t/S), so the factor is ln(predicted)/ln(actual).
+ function calibration(state,now=Date.now()){
+  const list=logOf(state,now).filter(e=>typeof e.r==='number').slice(-300);
+  if(list.length<40)return {factor:1,n:list.length,predicted:null,actual:null};
+  const predicted=list.reduce((sum,e)=>sum+e.r,0)/list.length,actual=list.filter(right).length/list.length;
+  if(predicted>=.99||predicted<=.3||actual<=.3||actual>=.999)return {factor:1,n:list.length,predicted,actual};
+  return {factor:clamp(Math.log(predicted)/Math.log(actual),.6,1.4),n:list.length,predicted,actual};
+ }
+ // Seconds a review takes you, so a session can be sized to the time you have.
+ function paceSeconds(state){
+  const times=(state.reviewLog||[]).slice(-100).map(e=>e.ms).filter(ms=>ms>500&&ms<120000);
+  return times.length>=8?clamp(median(times)/1000,5,60):12;
+ }
+ // How long a card usually takes when you do know it (for noticing a hesitant "Good").
+ const usualMs=state=>{const times=(state.reviewLog||[]).slice(-200).filter(e=>right(e)&&e.ms>500&&e.ms<120000).map(e=>e.ms);return times.length>=15?median(times):null};
+ // The soonest test, quiz or deadline these items are for: {days, title, ts} or null.
+ function examFor(state,projectId,now=Date.now()){
+  const project=(state.projects||[]).find(p=>p.id===projectId);if(!project)return null;
+  const dated=[...(project.assessments||[]),...(project.packs||[])].filter(x=>x.date&&!x.done).map(x=>({title:x.title||'Test',ts:new Date(x.date+'T12:00:00').getTime()}))
+   .filter(x=>x.ts>=now-DAY/2).sort((a,b)=>a.ts-b.ts);
+  return dated.length?{...dated[0],days:Math.max(0,Math.ceil((dated[0].ts-now)/DAY))}:null;
+ }
+ // The scheduling options for one item right now: your calibration and how close its test is.
+ function optionsFor(state,item,now=Date.now()){
+  const exam=item.projectId?examFor(state,item.projectId,now):null;
+  return {retention:Number(state.recallRetention)||.9,examDays:exam?exam.days:null,factor:calibration(state,now).factor};
+ }
+ // If you stopped studying today, how much would you remember on test day?
+ function readiness(items,reviews={},ts,now=Date.now()){
+  const seen=items.filter(i=>reviews[i.id]),at=i=>{const known=memory(reviews[i.id]);return forget(Math.max(0,(ts-(reviews[i.id].reviewedAt||now))/DAY),Math.max(known.S,.17))};
+  const chances=seen.map(i=>({item:i,chance:at(i)}));
+  return {pct:chances.length?Math.round(chances.reduce((sum,c)=>sum+c.chance,0)/chances.length*100):null,shaky:chances.filter(c=>c.chance<.8).sort((a,b)=>a.chance-b.chance).map(c=>c.item),unseen:items.length-seen.length};
+ }
+ // Reviews coming due each day, today first (anything overdue counts today).
+ function forecast(items,reviews={},now=Date.now(),days=7){
+  const start=new Date(now).setHours(0,0,0,0),counts=new Array(days).fill(0);
+  for(const item of items){const r=reviews[item.id];if(!r)continue;const index=Math.max(0,Math.floor((r.due-start)/DAY));if(index<days)counts[index]++}
+  return counts;
+ }
+ // Items that keep slipping: missed several times.
+ function leeches(items,reviews={},limit=5){
+  return items.filter(i=>(reviews[i.id]?.lapses||0)>=4).sort((a,b)=>reviews[b.id].lapses-reviews[a.id].lapses).slice(0,limit);
+ }
+ const PARTS=[['morning',5,12],['afternoon',12,17],['evening',17,22],['night',22,29]];
+ const partOf=t=>{let h=new Date(t).getHours();if(h<5)h+=24;return PARTS.find(([,from,to])=>h>=from&&h<to)[0]};
+ // When you remember best, once there is enough to tell (two times of day, 15+ reviews each, 10+ points apart).
+ function bestTime(state,now=Date.now()){
+  const by={};for(const e of logOf(state,now,90)){const k=partOf(e.t);(by[k]??=[]).push(e)}
+  const rows=Object.entries(by).filter(([,l])=>l.length>=15).map(([name,l])=>({name,pct:Math.round(l.filter(right).length/l.length*100),count:l.length})).sort((a,b)=>b.pct-a.pct);
+  return rows.length>=2&&rows[0].pct-rows.at(-1).pct>=10?{best:rows[0],worst:rows.at(-1)}:null;
+ }
+ // Do you remember less on tired days? Said only when it shows.
+ function byMood(state,now=Date.now()){
+  const rate=mood=>{const l=logOf(state,now,90).filter(e=>e.mood===mood);return l.length>=15?{pct:Math.round(l.filter(right).length/l.length*100),count:l.length}:null};
+  const fresh=rate('fresh'),tired=rate('tired');return fresh&&tired&&fresh.pct-tired.pct>=10?{fresh,tired}:null;
+ }
+ const MOODS={fresh:{label:'Fresh',limit:20,newScale:1.5},ok:{label:'OK',limit:15,newScale:1},tired:{label:'Tired',limit:8,newScale:0}};
+ // Build today's session: the ones you're most likely to have forgotten first, sized to how you feel, how much is
+ // waiting, how well recall has been going, and (if you give it) how many minutes you have.
+ function plan(items,reviews={},state={},{now=Date.now(),mood='ok',minutes=null}={}){
+  const due=items.filter(i=>reviews[i.id]&&reviews[i.id].due<=now).length,recent=accuracy(state,now),pace=paceSeconds(state),feel=MOODS[mood]||MOODS.ok;
+  let scale=feel.newScale,note='';
+  if(mood==='tired')note='A light session: no new questions today.';
+  if(due>40){scale=0;note='Catching up first: new questions are paused until the backlog is smaller.'}
+  else if(due>20){scale=Math.min(scale,.5);note=note||'A lot is due, so fewer new questions today.'}
+  if(recent!=null&&recent<.7&&scale>.5){scale=.5;note=note||'Recall has been shaky lately, so fewer new questions.'}
+  const limit=minutes?Math.max(3,Math.floor(minutes*60/pace)):feel.limit;
+  const newLimit=Math.round(allowance(state,now)*scale);
+  const picked=queue(items,reviews,{mode:'due',now,limit,newLimit});
+  const fresh=picked.filter(i=>!reviews[i.id]).length;
+  return {queue:picked,reviews:picked.length-fresh,new:fresh,seconds:Math.round(picked.length*pace),backlog:due,note,mood};
  }
 
  // ── Answering ───────────────────────────────────────────────────────────────
@@ -289,5 +413,5 @@ const RecallModel=(()=>{
   return {total:results.length,correct,pct:results.length?Math.round(correct/results.length*100):0,missed:results.filter(r=>r.rating==='Again').map(r=>r.item),restudy:[...byNote].map(([noteId,count])=>({noteId,count})).sort((a,b)=>b.count-a.count)};
  }
 
- return {parseMarkup,noteItems,collect,collectAll,clozeParts,promptText,newItem,validItem,suggest,suggestAll,schedule,preview,retrievability,status,isDue,queue,stats,weakTopics,logReview,reviewedToday,newToday,allowance,workload,DEFAULT_NEW_PER_DAY,hasMath,check,checkable,suggestedGrade,coverage,distractors,format,summarize,normalize,sentences,GRADES};
+ return {parseMarkup,noteItems,collect,collectAll,clozeParts,promptText,newItem,validItem,suggest,suggestAll,schedule,preview,retrievability,status,isDue,queue,stats,weakTopics,logReview,plan,accuracy,retention,calibration,paceSeconds,usualMs,examFor,optionsFor,readiness,forecast,leeches,bestTime,byMood,MOODS,forget,daysFor,memory,reviewedToday,newToday,allowance,workload,DEFAULT_NEW_PER_DAY,hasMath,check,checkable,suggestedGrade,coverage,distractors,format,summarize,normalize,sentences,GRADES};
 })();
