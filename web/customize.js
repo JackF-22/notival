@@ -45,7 +45,8 @@ const Customize=(()=>{
    ['tab-notes','Notes',()=>$$('.student-tabs [data-feature="notes"]')],
    ['tab-materials','Materials',()=>$$('.student-tabs [data-feature="materials"]')],
    ['tab-tests','Test packs',()=>$$('.student-tabs [data-feature="tests"]')],
-   ['tab-synthesis','Synthesis',()=>$$('.student-tabs [data-feature="synthesis"]')]]},
+   ['tab-synthesis','Synthesis',()=>$$('.student-tabs [data-feature="synthesis"]')],
+   ['tab-palace','Memory palace',()=>$$('.student-tabs [data-feature="palace"]')]]},
   {title:'On a subject’s page',items:[
    ['w-recall','Recall',()=>$$('.subject-widgets .subject-recall')],
    ['w-plan','Study plan',()=>$$('.subject-widgets .subject-plan')],
@@ -59,8 +60,8 @@ const Customize=(()=>{
  // One-click starting points; every switch can still be changed afterwards.
  const presets=[
   {id:'everything',name:'Everything',hint:'All of Notival',hidden:[]},
-  {id:'simple',name:'Simple',hint:'Notes, subjects and the basics',hidden:['capture','questions','archive','backup','focus-menu','breadcrumb','saved','mind-map','note-questions','context','open-pdf','connect','mark-up','tab-tests','tab-synthesis','w-recall','w-plan','w-schedule','w-flags']},
-  {id:'writing',name:'Just writing',hint:'Almost nothing but the page',hidden:['capture','all-notes','questions','pinned','trash','archive','backup','history','focus-menu','breadcrumb','saved','pin','export-note','delete-note','mind-map','note-questions','open-pdf','note-tools','context','outline','vocab-button','text-style','highlight','checklist','align','insert','connect','mark-up','tab-materials','tab-tests','tab-synthesis','w-recall','w-plan','w-schedule','w-dates','w-flags','w-recent','w-units']}
+  {id:'simple',name:'Simple',hint:'Notes, subjects and the basics',hidden:['capture','questions','archive','backup','focus-menu','breadcrumb','saved','mind-map','note-questions','context','open-pdf','connect','mark-up','tab-tests','tab-synthesis','tab-palace','w-recall','w-plan','w-schedule','w-flags']},
+  {id:'writing',name:'Just writing',hint:'Almost nothing but the page',hidden:['capture','all-notes','questions','pinned','trash','archive','backup','history','focus-menu','breadcrumb','saved','pin','export-note','delete-note','mind-map','note-questions','open-pdf','note-tools','context','outline','vocab-button','text-style','highlight','checklist','align','insert','connect','mark-up','tab-materials','tab-tests','tab-synthesis','tab-palace','w-recall','w-plan','w-schedule','w-dates','w-flags','w-recent','w-units']}
  ];
  const all=groups.flatMap(group=>group.items);
  const KEY='notival-layout';

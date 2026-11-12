@@ -68,7 +68,7 @@ try{
   await evaluate(`localStorage.setItem('notival.vocab.practice',JSON.stringify({dir:'say',which:'all',count:0}));marginRecall.vocabPractice(state.projects[0])`);await wait(150);
   await click('Start');await wait(200);
   const p2=await text('.recall-prompt');assert.match(p2,/How do you say “/);
-  const target={'hello; hi':'privet','thank you':'spasibo','house':'dom','to eat':'est`'}[p2.match(/“(.+)”/)[1]];
+  const target={'hello; hi':'privet','thank you':'spasibo','house':'dom','to eat':"est'"}[p2.match(/“(.+)”/)[1]];
   await evaluate(`document.querySelector('.recall-card input').focus()`);await typeLatin(target);
   const got=await evaluate(`document.querySelector('.recall-card input').value`);assert.match(got,/^[а-яё\u0301]+$/,'typed in Cyrillic: '+got);
   await click('Check');await wait(100);assert.match(await text('.recall-result'),/Correct/);
