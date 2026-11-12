@@ -34,7 +34,8 @@ try{
   const sent=()=>evaluate(`JSON.stringify(window.__sent)`).then(JSON.parse);
   // A stand-in for the native side: remember what the page asks for.
   await evaluate(`window.__sent=[];window.__notivalHost=m=>window.__sent.push(m)`);
-  await evaluate(`document.querySelector('#open-listening').click()`);await wait(150);
+  await evaluate(`(()=>{state.projects=[{id:'ru',name:'Russian',icon:'🇷🇺',color:'#c4483c',description:'',units:[],materials:[],packs:[],assessments:[],checklist:[],language:{code:'ru',name:'Russian',locale:'ru-RU'}},{id:'bio',name:'Biology',icon:'🧬',color:'#4a9d6f',description:'',units:[],materials:[],packs:[],assessments:[],checklist:[]}];state.notes=[{id:'n1',title:'Lesson',projectId:'ru',updated:Date.now(),pinned:false,nodes:[],blocks:[{id:'b1',type:'text',text:'x',html:'<p>Hello privet world</p>'}]},{id:'n2',title:'Cells',projectId:'bio',updated:Date.now(),pinned:false,nodes:[],blocks:[{id:'b2',type:'text',text:'x',html:'<p>Cells</p>'}]}];state.vocab=[];state.listening=[];active='n1';render();setMode('write')})()`);await wait(300);
+  await evaluate(`document.querySelector('#note-listening').click()`);await wait(150);
   assert.equal(await evaluate(`document.querySelector('.listening-dialog').open`),true,'the Listening button opens the screen');
   assert.match(await text('.listening-empty'),/Add a voice message/);
   await click('+ Add a voice message');

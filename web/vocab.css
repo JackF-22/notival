@@ -1,5 +1,5 @@
 /* The vocab drawer: slides in from the right edge of a note, and out of the way again. */
-#vocab-panel{position:fixed;z-index:130;top:72px;right:0;bottom:0;width:min(340px,92vw);display:flex;flex-direction:column;gap:12px;padding:16px;background:var(--bg);color:var(--ink);border-left:1px solid var(--line);box-shadow:-10px 0 30px #0000001a;animation:vocab-in .18s ease-out}
+#vocab-panel{position:fixed;z-index:130;top:72px;right:0;bottom:0;width:min(340px,92vw);display:flex;flex-direction:column;background:var(--bg);color:var(--ink);border-left:1px solid var(--line);box-shadow:-10px 0 30px #0000001a;animation:vocab-in .18s ease-out}
 #vocab-panel[hidden]{display:none}
 @keyframes vocab-in{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
 @media(prefers-reduced-motion:reduce){#vocab-panel{animation:none}}
@@ -37,3 +37,10 @@
 /* With the drawer open, the note gives up the width it needs so nothing hides underneath it. */
 @media(min-width:1000px){body.vocab-open[data-view=note]:not(.pdf-workspace) main{padding-right:340px}}
 @media(min-width:1000px){body.vocab-open[data-view=note] article>#note-rail{display:none!important}body.vocab-open[data-view=note].note-outline-visible:not(.pdf-workspace) article,body.vocab-open[data-view=note].context-open:not(.pdf-workspace) article{display:block}}
+/* One vocab list: the same whether it sits on the subject page or in the drawer. */
+.vocab-view{display:flex;flex-direction:column;gap:12px;min-height:0}
+#vocab-panel{padding:0}
+#vocab-panel .vocab-view{flex:1;padding:16px}
+.subject-vocab .vocab-list{max-height:300px}
+.subject-vocab .vocab-quiz{min-height:260px}
+.vocab-view .vocab-chip[aria-pressed=false]{opacity:.8}

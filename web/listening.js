@@ -1,4 +1,4 @@
-// Listening practice: add a voice message (an iMessage voice note, a Voice Memo, an mp4/m4a…), listen as often as you
+// Listening practice for a language subject: add a voice message (an iMessage voice note, a Voice Memo, an mp4/m4a…), listen as often as you
 // like, write what you heard in Russian, then in English, and check. The Mac drafts the words so you have something to
 // check against; if she tells you what she actually said, paste it and that is used instead. Scoring: listening-model.js.
 (()=>{
@@ -6,20 +6,23 @@
  const el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!=null)n.textContent=text;return n};
  const button=(label,onclick,cls='',title='')=>{const b=el('button',cls,label);b.type='button';b.onclick=onclick;if(title){b.title=title;b.setAttribute('aria-label',title)}return b};
  const clips=()=>(state.listening??=[]);
+ const mine=()=>clips().filter(c=>c.projectId===ctx);
+ const subjectOf=id=>(state?.projects||[]).find(p=>p.id===id)||null;
+ const langOf=()=>subjectOf(ctx)?.language||{code:'ru',name:'Russian',locale:'ru-RU'};
  const post=message=>window.__notivalHost?window.__notivalHost(message):native(message);
  const pref=(key,fallback)=>{try{const raw=localStorage.getItem('notival.listening.'+key);return raw==null?fallback:JSON.parse(raw)}catch{return fallback}};
  const remember=(key,value)=>{try{localStorage.setItem('notival.listening.'+key,JSON.stringify(value))}catch{}};
  const clock=seconds=>{seconds=Math.max(0,Math.floor(seconds||0));return Math.floor(seconds/60)+':'+String(seconds%60).padStart(2,'0')};
  const prettyDate=time=>new Date(time).toLocaleDateString(undefined,{month:'short',day:'numeric'});
 
- let dialog=null,selected=null,audio=null,urls=new Map(),mark={a:null,b:null},loop=false,checked=null,pending=new Set(),notice='';
+ let ctx='',pendingSubject='',dialog=null,selected=null,audio=null,urls=new Map(),mark={a:null,b:null},loop=false,checked=null,pending=new Set(),notice='';
 
  // ── Messages from the app ──────────────────────────────────────────────────
  window.marginAudioChosen=data=>{
   if(!data||data.cancelled)return;
   if(data.error){notice=data.error;paint();return}
-  const clip={id:data.id,name:data.name||'Voice message',duration:data.duration||0,added:Date.now(),draft:null,reference:'',attempts:[],work:{ru:'',en:''}};
-  clips().unshift(clip);persist();open(clip.id);draft(clip);
+  const clip={id:data.id,projectId:pendingSubject||ctx,name:data.name||'Voice message',duration:data.duration||0,added:Date.now(),draft:null,reference:'',attempts:[],work:{ru:'',en:''}};
+  clips().unshift(clip);persist();open(clip.projectId,clip.id);draft(clip);
  };
  window.marginAudioData=data=>{
   if(!data)return;
@@ -37,7 +40,7 @@
  };
  function draft(clip,allowServer=false){
   pending.add(clip.id);delete clip.draftError;paint();
-  post({type:'transcribeAudio',id:clip.id,locale:'ru-RU',allowServer});
+  post({type:'transcribeAudio',id:clip.id,locale:(subjectOf(clip.projectId)?.language||langOf()).locale,allowServer});
  }
 
  // ── The screen ─────────────────────────────────────────────────────────────
@@ -46,9 +49,12 @@
   dialog.addEventListener('close',()=>{audio?.pause()});
   document.body.append(dialog);
  }
- function open(id){
+ // Clips made before subjects could be languages belong to the first language subject that opens them.
+ function adopt(subjectId){let changed=false;for(const clip of clips())if(!clip.projectId){clip.projectId=subjectId;changed=true}if(changed)persist()}
+ function open(subjectId,id){
   if(!dialog)build();
-  selected=clips().find(c=>c.id===id)||clips()[0]||null;checked=null;mark={a:null,b:null};loop=false;notice='';
+  ctx=subjectId;adopt(subjectId);
+  selected=mine().find(c=>c.id===id)||mine()[0]||null;checked=null;mark={a:null,b:null};loop=false;notice='';
   if(!dialog.open)dialog.showModal();
   paint();if(selected)load(selected);
  }
@@ -70,16 +76,16 @@
   if(!dialog)return;
   const keepScroll=dialog.querySelector('.listening-pane')?.scrollTop||0;
   dialog.replaceChildren();
-  const head=el('div','listening-head');head.append(el('h2','','Listening'),button('+ Add a voice message',()=>post({type:'chooseAudio'}),'primary','Add a voice message from a file'),button('✕',()=>dialog.close(),'listening-close','Close'));
+  const head=el('div','listening-head');head.append(el('h2','','Listening · '+langOf().name),button('+ Add a voice message',()=>{pendingSubject=ctx;post({type:'chooseAudio'})},'primary','Add a voice message from a file'),button('✕',()=>dialog.close(),'listening-close','Close'));
   dialog.append(head);
   if(notice)dialog.append(el('p','listening-notice',notice));
-  if(!clips().length){
+  if(!mine().length){
    const empty=el('div','listening-empty');
-   empty.append(el('p','','Add a voice message and practise: listen, write what you hear in Russian, then in English, and check.'),el('small','','Works with iMessage voice messages, Voice Memos and most audio or video files.'));
+   empty.append(el('p','','Add a voice message and practise: listen, write what you hear in '+langOf().name+', then in English, and check.'),el('small','','Works with iMessage voice messages, Voice Memos and most audio or video files.'));
    dialog.append(empty);return;
   }
   const body=el('div','listening-body'),rail=el('div','listening-rail'),pane=el('div','listening-pane');
-  for(const clip of clips()){
+  for(const clip of mine()){
    const best=clip.attempts.reduce((m,a)=>Math.max(m,a.percent),-1);
    const item=el('button','listening-clip'+(clip===selected?' is-selected':''));item.type='button';
    item.append(el('strong','',clip.name),el('small','',prettyDate(clip.added)+' · '+clock(clip.duration)+(best>=0?' · best '+best+'%':'')));
@@ -129,17 +135,18 @@
   const name=el('input','listening-name');name.value=clip.name;name.setAttribute('aria-label','Name');name.onchange=()=>{clip.name=name.value.trim()||'Voice message';persist();paint()};
   let armed=false,timer=0;
   const del=button('🗑',()=>{if(!armed){armed=true;del.textContent='Delete?';del.classList.add('is-armed');timer=setTimeout(()=>{armed=false;del.textContent='🗑';del.classList.remove('is-armed')},3000);return}
-   clearTimeout(timer);post({type:'deleteAudio',id:clip.id});state.listening=clips().filter(c=>c!==clip);persist();audio?.pause();audio=null;selected=clips()[0]||null;checked=null;paint();if(selected)load(selected)},'listening-delete','Delete this voice message');
+   clearTimeout(timer);post({type:'deleteAudio',id:clip.id});state.listening=clips().filter(c=>c!==clip);persist();audio?.pause();audio=null;selected=mine()[0]||null;checked=null;paint();if(selected)load(selected)},'listening-delete','Delete this voice message');
   titleRow.append(name,del);pane.append(titleRow,player(clip));
 
   // 1 · Russian
-  const ruBox=el('section','listening-step');ruBox.append(el('h3','','1 · Write what you hear'));
-  const ru=el('textarea','listening-text');ru.rows=3;ru.value=clip.work.ru||'';ru.placeholder='Что она говорит?';ru.lang='ru';ru.setAttribute('aria-label','What you heard, in Russian');ru.spellcheck=false;
+  const ruBox=el('section','listening-step');ruBox.append(el('h3','','1 · Write what you hear in '+langOf().name));
+  const ru=el('textarea','listening-text');ru.rows=3;ru.value=clip.work.ru||'';ru.placeholder=langOf().code==='ru'?'Что она говорит?':'What do you hear?';ru.lang=langOf().code;ru.setAttribute('aria-label','What you heard, in Russian');ru.spellcheck=false;
+  const russian=langOf().code==='ru';
   const latin=button('Type Latin → Кириллица',()=>{const on=latin.getAttribute('aria-pressed')!=='true';latin.setAttribute('aria-pressed',String(on));remember('translit',on)},'listening-chip','Type Russian with a Latin keyboard: privet becomes привет');
   latin.setAttribute('aria-pressed',String(pref('translit',true)));
-  Translit.attach(ru,()=>latin.getAttribute('aria-pressed')==='true');
+  if(russian)Translit.attach(ru,()=>latin.getAttribute('aria-pressed')==='true');
   ru.oninput=()=>{clip.work.ru=ru.value;persist()};
-  ruBox.append(ru,latin);
+  ruBox.append(ru);if(russian)ruBox.append(latin);
 
   // 2 · English
   const enBox=el('section','listening-step');enBox.append(el('h3','','2 · Say it in English'));
@@ -187,7 +194,7 @@
    else box.append(button('Try again',()=>draft(clip)));
   }
   else box.append(button('Draft the words on this Mac',()=>draft(clip)));
-  const hers=el('textarea','listening-text');hers.rows=2;hers.lang='ru';hers.value=clip.reference||'';hers.placeholder='Paste what she actually said (optional)';hers.setAttribute('aria-label','What she actually said');hers.spellcheck=false;
+  const hers=el('textarea','listening-text');hers.rows=2;hers.lang=langOf().code;hers.value=clip.reference||'';hers.placeholder='Paste what she actually said (optional)';hers.setAttribute('aria-label','What she actually said');hers.spellcheck=false;
   hers.onchange=()=>{clip.reference=hers.value;persist();if(checked&&!checked.none)checked=null;paint()};
   box.append(hers);
   return box;
@@ -196,7 +203,7 @@
  function results(clip,state_){
   const {result,source}=state_,box=el('div','listening-results');
   box.append(el('div','listening-score',result.percent+'%'),el('small','listening-hint',source==='draft'?'Compared with the Mac\'s draft, which can be wrong.':'Compared with her words.'));
-  const line=el('p','listening-line');line.lang='ru';
+  const line=el('p','listening-line');line.lang=langOf().code;
   const timed=source==='draft'&&clip.draft?.words?.length===result.words.length?clip.draft.words:null;
   result.words.forEach((item,index)=>{
    const w=el('button','listening-word is-'+item.state,item.word);w.type='button';
@@ -220,8 +227,30 @@
  }
 
  // ── Ways in ────────────────────────────────────────────────────────────────
- const nav=button('Listening',()=>open(clips()[0]?.id),'nav','Practise with voice messages');nav.id='open-listening';
- const questions=[...document.querySelectorAll('aside button')].find(b=>b.textContent.trim()==='Questions');
- if(questions)questions.after(nav);else $('#all')?.after(nav);
+ // On a language subject's page: its voice messages and a way to start.
+ window.marginListeningWidget=subject=>{
+  if(!subject?.language)return null;
+  const box=el('section','subject-listening'),head=el('div','widget-heading');
+  head.append(el('h2','','Listening'),button('+ Add',()=>{ctx=subject.id;pendingSubject=subject.id;post({type:'chooseAudio'})},'','Add a voice message'));
+  box.append(head);
+  adopt(subject.id);
+  const own=clips().filter(c=>c.projectId===subject.id);
+  if(!own.length)box.append(el('p','listening-widget-empty','Add a voice message to practise listening and writing.'));
+  for(const clip of own.slice(0,3)){
+   const best=clip.attempts.reduce((m,a)=>Math.max(m,a.percent),-1);
+   const row=el('button','listening-widget-clip');row.type='button';row.append(el('strong','',clip.name),el('small','',prettyDate(clip.added)+(best>=0?' · best '+best+'%':' · not tried yet')));
+   row.onclick=()=>open(subject.id,clip.id);box.append(row);
+  }
+  if(own.length>3)box.append(button('All '+own.length+' voice messages',()=>open(subject.id),'listening-widget-all'));
+  else if(own.length)box.append(button('Practise',()=>open(subject.id,own[0].id),'primary listening-widget-go'));
+  return box;
+ };
+ // In a language subject's notes: a button next to Vocab.
+ const noteSubject=()=>document.body.dataset.view==='note'?current()?.projectId||'':'';
+ const noteButton=button('Listening',()=>open(noteSubject()),'','Practise listening for this subject');noteButton.id='note-listening';
+ const vocabButton=$('#note-vocab');if(vocabButton)vocabButton.after(noteButton);else $('#note-questions')?.after(noteButton);
+ const syncButton=()=>{noteButton.hidden=!subjectOf(noteSubject())?.language};
+ const baseRender=render;render=function(){baseRender();syncButton()};syncButton();
+ new MutationObserver(syncButton).observe(document.body,{attributes:true,attributeFilter:['data-view']});
  window.marginListening={open,clips,paint};
 })();

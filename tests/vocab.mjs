@@ -30,13 +30,13 @@ try{
 
   const text=selector=>evaluate(`document.querySelector(${JSON.stringify(selector)})?.textContent||''`);
   const count=selector=>evaluate(`document.querySelectorAll(${JSON.stringify(selector)}).length`);
-  await note('<p>Hello privet world</p>');
-  assert.equal(await count('#note-vocab'),1,'there is a Vocab button for notes');
+  await evaluate(`(()=>{state.projects=[{id:'ru',name:'Russian',icon:'🇷🇺',color:'#c4483c',description:'',units:[],materials:[],packs:[],assessments:[],checklist:[],language:{code:'ru',name:'Russian',locale:'ru-RU'}},{id:'bio',name:'Biology',icon:'🧬',color:'#4a9d6f',description:'',units:[],materials:[],packs:[],assessments:[],checklist:[]}];state.notes=[{id:'n1',title:'Lesson',projectId:'ru',updated:Date.now(),pinned:false,nodes:[],blocks:[{id:'b1',type:'text',text:'x',html:'<p>Hello privet world</p>'}]},{id:'n2',title:'Cells',projectId:'bio',updated:Date.now(),pinned:false,nodes:[],blocks:[{id:'b2',type:'text',text:'x',html:'<p>Cells</p>'}]}];state.vocab=[];state.listening=[];active='n1';render();setMode('write')})()`);await wait(300);
+  assert.equal(await count('#note-vocab'),1,'there is a Vocab button in a language subject\'s notes');
   assert.equal(await evaluate(`document.querySelector('#vocab-panel')?.hidden??true`),true,'the drawer starts tucked away');
   await evaluate(`document.querySelector('#note-vocab').click()`);await wait(250);
   assert.equal(await evaluate(`document.querySelector('#vocab-panel').hidden`),false,'the Vocab button opens it');
   // Russian typing: Latin letters become Cyrillic in the Word box
-  await evaluate(`document.querySelector('#vocab-panel .vocab-head .vocab-chip').click()`);
+  assert.equal(await evaluate(`document.querySelector('#vocab-panel .vocab-head .vocab-chip').getAttribute('aria-pressed')`),'true','Russian typing is on for a Russian subject');
   await evaluate(`document.querySelector('#vocab-panel .vocab-form input').focus()`);
   for(const c of 'privet')await call('Input.dispatchKeyEvent',{type:'keyDown',key:c,text:c},sessionId);await wait(50);
   assert.equal(await evaluate(`document.querySelector('#vocab-panel .vocab-form input').value`),'привет');

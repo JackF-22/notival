@@ -55,3 +55,12 @@
 .listening-attempt{font-size:13px;color:var(--muted)}
 #open-listening{display:block}
 @media(max-width:720px){.listening-body{grid-template-columns:1fr}.listening-rail{display:flex;overflow:auto;border-right:0;border-bottom:1px solid var(--line)}.listening-player{grid-template-columns:auto minmax(0,1fr)}}
+/* On a language subject's page */
+.subject-listening .listening-widget-empty{margin:6px 0 10px;color:var(--muted);font-size:13px;line-height:1.5}
+.listening-widget-clip{display:grid;gap:1px;width:100%;text-align:left;padding:9px 6px;border:0;border-bottom:1px solid color-mix(in srgb,var(--line) 60%,transparent);border-radius:8px;background:transparent;color:inherit;font:inherit;cursor:pointer}
+.listening-widget-clip:hover{background:var(--soft)}
+.listening-widget-clip strong{font-size:14px;font-weight:600}
+.listening-widget-clip small{color:var(--muted);font-size:12px}
+.subject-listening .listening-widget-go,.subject-listening .listening-widget-all{margin-top:10px;height:34px;padding:0 16px;border:1px solid var(--line);border-radius:9px;background:transparent;color:inherit;font:inherit;font-size:13px;cursor:pointer}
+.subject-listening .listening-widget-go{background:var(--accent,var(--green));border-color:var(--accent,var(--green));color:var(--on-accent,#fff)}
+.subject-language-hint{display:block;color:var(--muted);font-size:12px;line-height:1.5;margin-top:6px}
