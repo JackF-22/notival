@@ -40,10 +40,13 @@ try{
   assert.equal(await evaluate(`[...document.querySelectorAll('.subject-widgets > section')].find(s=>/To do/.test(s.querySelector('h2')?.textContent)).offsetParent===null`),true,'the To do box is out of view');
   assert.deepEqual(await evaluate(`WidgetTuck.tucked()`),['todo']);
   assert.equal(await shown('#widget-tabs'),true,'a tab is waiting at the edge');
-  assert.equal(await evaluate(`document.querySelector('.widget-tab').textContent`),'To do');
-  await wait(400);assert.ok((await evaluate(`document.querySelector('.widget-tab').getBoundingClientRect().right`))<=await evaluate(`innerWidth`)+1,'the tab has slid fully into view');
-  const edge=await evaluate(`(()=>{const r=document.querySelector('.widget-tab').getBoundingClientRect();return Math.round(innerWidth-r.right)})()`);
-  assert.ok(edge<=1,'the tab sits on the right edge of the window: '+edge);
+  assert.equal(await evaluate(`document.querySelector('.widget-tab-label').textContent`),'To do');
+  await wait(400);
+  const spot=await evaluate(`(()=>{const r=document.querySelector('.widget-tab').getBoundingClientRect();return {top:Math.round(r.top),fromRight:Math.round(innerWidth-r.right)}})()`);
+  assert.ok(spot.top<100&&spot.top>=72,'the tab sits at the top, just under the header: '+JSON.stringify(spot));
+  assert.ok(spot.fromRight<=40&&spot.fromRight>=0,'and at the right: '+JSON.stringify(spot));
+  const handle=await evaluate(`(()=>{const r=document.querySelector('.subject-widgets .widget-tuck').getBoundingClientRect(),o=getComputedStyle(document.querySelector('.subject-widgets .widget-tuck')).opacity;return {w:Math.round(r.width),h:Math.round(r.height),o}})()`);
+  assert.ok(handle.w>=26&&handle.h>=60&&handle.o==='1','the push-out tab is big and fully visible: '+JSON.stringify(handle));
   assert.equal(await shown('.subject-widgets'),true,'the other boxes stay');
   // It is remembered, including on another subject page
   assert.deepEqual(await evaluate(`JSON.parse(localStorage.getItem('notival-tucked'))`),['todo']);
@@ -68,7 +71,7 @@ try{
   assert.equal(await evaluate(`!!document.querySelector('.global-todo > .widget-tuck')`),true,'Home\'s To do box has the tab');
   await evaluate(`document.querySelector('.global-todo > .widget-tuck').click()`);await wait(450);
   assert.equal(await evaluate(`document.querySelector('.global-todo').offsetParent===null`),true);
-  assert.equal(await evaluate(`document.querySelector('.widget-tab')?.textContent`),'To do','and it has its tab');
+  assert.equal(await evaluate(`document.querySelector('.widget-tab-label')?.textContent`),'To do','and it has its tab');
   await evaluate(`WidgetTuck.clear()`);
   console.log('PASS: boxes slide out to the right edge, leave a tab to bring them back, are remembered, and the page closes up around them.');
 }finally{browser.kill();for(const pending of waiting.values())clearTimeout(pending.timer);await rm(profile,{recursive:true,force:true,maxRetries:10,retryDelay:100})}

@@ -46,13 +46,13 @@ const WidgetTuck=(()=>{
    if(away)section.setAttribute('data-tucked','');else section.removeAttribute('data-tucked');
    if(away&&!section.hasAttribute('data-user-hidden'))tabs.push([key,titleOf(section)]);
   }
-  // The edge tabs: one per box that is tucked away on this page.
+  // The tabs at the top right: one per box that is tucked away on this page.
   const edge=ensureStrip(),signature=tabs.map(tab=>tab.join(':')).join('|');
   // Only rebuilt when the set of tabs changes, so a tab slides in once rather than restarting.
   if(signature!==shown){
    shown=signature;edge.replaceChildren();
    for(const [key,title] of tabs){
-    const tab=document.createElement('button');tab.type='button';tab.className='widget-tab';tab.textContent=title;tab.title='Bring back '+title;tab.setAttribute('aria-label','Bring back '+title);
+    const tab=document.createElement('button'),arrow=document.createElement('span'),label=document.createElement('span');tab.type='button';tab.className='widget-tab';arrow.className='widget-tab-arrow';arrow.textContent='‹';arrow.setAttribute('aria-hidden','true');label.className='widget-tab-label';label.textContent=title;tab.append(arrow,label);tab.title='Bring back '+title;tab.setAttribute('aria-label','Bring back '+title);
     tab.onclick=()=>untuck(key);edge.append(tab);
    }
   }
