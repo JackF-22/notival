@@ -60,6 +60,10 @@ const PalaceModel=(()=>{
  const FLOORS=['#c9a77c','#a98258','#d8d4cc','#b9c7c3','#c8b8d8','#cfc9a8'],WALLS=['#f2ede4','#e9eef2','#f0e6e1','#e6efe6','#f3efd9','#e4e0ee'];
  const ROOM_NAMES=['Living room','Kitchen','Bedroom','Bathroom','Study','Hall','Dining room','Pantry','Garage','Nursery','Attic','Library','Porch','Cellar'];
  const TINTS=['#b9876b','#6f8fb0','#7ea181','#c98f8f','#d6c28e','#8d8aa6','#a8a39a','#5f6b73'];
+ // What each piece is mostly made of, so it can be drawn with the right surface.
+ const MATERIALS={sofa:'fabric',armchair:'fabric','bed-double':'fabric','bed-single':'fabric','office-chair':'fabric','coffee-table':'timber','side-table':'timber','tv-unit':'timber',bookshelf:'timber',piano:'ceramic',nightstand:'timber',wardrobe:'timber',dresser:'timber',desk:'timber',chair:'timber','dining-table':'timber','kitchen-counter':'timber','kitchen-sink':'timber',stove:'metal',fridge:'metal','kitchen-island':'timber',bathtub:'ceramic',toilet:'ceramic',vanity:'ceramic',plant:'leaf',rug:'rug','round-rug':'rug','floor-lamp':'fabric',painting:'paper',clock:'ceramic',mirror:'ceramic',fireplace:'brick'};
+ for(const [type,mat] of Object.entries(MATERIALS))if(CATALOG[type])CATALOG[type].mat=mat;
+ const FLOOR_TYPES=['wood','tile','carpet','plain'];
  const spec=type=>CATALOG[type];
  // A colour made lighter or darker.
  function shade(hex,factor){
@@ -100,8 +104,8 @@ const PalaceModel=(()=>{
   const ok=[room.x,room.z,room.w,room.d].every(v=>Math.abs(v/G-Math.round(v/G))<1e-6);
   return ok&&room.w>=MIN_ROOM&&room.d>=MIN_ROOM&&!palace.rooms.some(r=>r.id!==ignoreId&&sameRect(r,room));
  }
- function addRoom(palace,{x,z,w,d,name,floor,wall}){
-  const room={id:makeId('r'),name:name||ROOM_NAMES.find(n=>!palace.rooms.some(r=>r.name===n))||'Room '+(palace.rooms.length+1),x:snap(x),z:snap(z),w:snap(w),d:snap(d),floor:floor||FLOORS[palace.rooms.length%FLOORS.length],wall:wall||WALLS[palace.rooms.length%WALLS.length]};
+ function addRoom(palace,{x,z,w,d,name,floor,wall,floorType}){
+  const room={id:makeId('r'),name:name||ROOM_NAMES.find(n=>!palace.rooms.some(r=>r.name===n))||'Room '+(palace.rooms.length+1),x:snap(x),z:snap(z),w:snap(w),d:snap(d),floor:floor||FLOORS[palace.rooms.length%FLOORS.length],wall:wall||WALLS[palace.rooms.length%WALLS.length],floorType:floorType||'wood'};
   if(!validRoom(palace,room))return null;
   palace.rooms.push(room);return room;
  }
@@ -353,9 +357,9 @@ const PalaceModel=(()=>{
  function blank(projectId,name){return {id:makeId('p'),projectId:projectId||'',name:name||'My palace',created:Date.now(),rooms:[],openings:[],furniture:[],stations:[],camera:null}}
  function starterHouse(projectId,name){
   const p=blank(projectId,name||'My house');
-  const room=(n,x,z,w,d,floor,wall)=>{const r=addRoom(p,{name:n,x,z,w,d,floor,wall});if(!r)throw new Error('starter room '+n);return r};
-  room('Living room',0,0,6,5,'#c9a77c','#f2ede4');room('Kitchen',6,0,4,5,'#d8d4cc','#f3efd9');room('Bedroom',0,5,4,4,'#c8b8d8','#e9eef2');
-  room('Bathroom',4,5,2,4,'#b9c7c3','#e6efe6');room('Study',6,5,4,4,'#a98258','#f0e6e1');
+  const room=(n,x,z,w,d,floor,wall,floorType)=>{const r=addRoom(p,{name:n,x,z,w,d,floor,wall,floorType});if(!r)throw new Error('starter room '+n);return r};
+  room('Living room',0,0,6,5,'#c9a77c','#efe8dc','wood');room('Kitchen',6,0,4,5,'#d9d6cf','#f1ecd6','tile');room('Bedroom',0,5,4,4,'#b9aec6','#e4eaee','carpet');
+  room('Bathroom',4,5,2,4,'#b7c7c4','#e1ede8','tile');room('Study',6,5,4,4,'#9b7650','#ece1d6','wood');
   const open=(kind,axis,at,from,to)=>p.openings.push({id:makeId('o'),kind,axis,at,from,to});
   open('door','x',0,2,3);open('arch','z',6,1.5,3);open('door','x',5,1,2);open('door','z',4,6,7);open('door','x',5,7,8);
   open('window','x',0,4,5.5);open('window','z',0,1,2.5);open('window','x',0,7.5,9);open('window','z',10,1,2.5);
@@ -397,6 +401,6 @@ const PalaceModel=(()=>{
   if(!palace.rooms.length)return {x0:0,z0:0,x1:10,z1:10};
   return {x0:Math.min(...palace.rooms.map(r=>r.x)),z0:Math.min(...palace.rooms.map(r=>r.z)),x1:Math.max(...palace.rooms.map(r=>r.x+r.w)),z1:Math.max(...palace.rooms.map(r=>r.z+r.d))};
  }
- return {G,HEIGHT,THICK,DOOR_TOP,ARCH_TOP,SILL,HEAD,RADIUS,CATALOG,FLOORS,WALLS,TINTS,ROOM_NAMES,spec,shade,paint,snap,roomAt,wallCells,wallRuns,validRoom,addRoom,resizeRoom,moveRoom,removeRoom,toggleOpening,openingAt,pruneOpenings,layerOf,footprint,roomOf,fitsInRoom,canPlace,wallSpot,flush,placeFurniture,moveFurniture,rotateFurniture,removeFurniture,recolour,swapFurniture,findSpot,addStation,stationsOn,removeStation,route,moveStation,entrance,walkOrder,autoPlace,colliders,blockedBy,slide,viewFrom,pick,blank,starterHouse,history,snapshot,restore,problems,bounds,makeId};
+ return {FLOOR_TYPES,G,HEIGHT,THICK,DOOR_TOP,ARCH_TOP,SILL,HEAD,RADIUS,CATALOG,FLOORS,WALLS,TINTS,ROOM_NAMES,spec,shade,paint,snap,roomAt,wallCells,wallRuns,validRoom,addRoom,resizeRoom,moveRoom,removeRoom,toggleOpening,openingAt,pruneOpenings,layerOf,footprint,roomOf,fitsInRoom,canPlace,wallSpot,flush,placeFurniture,moveFurniture,rotateFurniture,removeFurniture,recolour,swapFurniture,findSpot,addStation,stationsOn,removeStation,route,moveStation,entrance,walkOrder,autoPlace,colliders,blockedBy,slide,viewFrom,pick,blank,starterHouse,history,snapshot,restore,problems,bounds,makeId};
 })();
 if(typeof module!=='undefined')module.exports=PalaceModel;
