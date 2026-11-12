@@ -7,7 +7,6 @@ const Customize=(()=>{
  // [id, label, find()]: what each switch controls. A switch whose part isn't on screen right now still remembers.
  const groups=[
   {title:'Sidebar',items:[
-   ['study','Study',()=>$$('#study-nav')],
    ['capture','Where new notes are saved',()=>$$('.capture-destination')],
    ['search','Search box',()=>$$('.quick-search-trigger')],
    ['all-notes','All notes',()=>$$('#all')],
@@ -60,14 +59,15 @@ const Customize=(()=>{
  // One-click starting points; every switch can still be changed afterwards.
  const presets=[
   {id:'everything',name:'Everything',hint:'All of Notival',hidden:[]},
-  {id:'simple',name:'Simple',hint:'Notes, subjects and the basics',hidden:['study','capture','questions','archive','backup','focus-menu','breadcrumb','saved','mind-map','note-questions','context','open-pdf','connect','mark-up','tab-tests','tab-synthesis','w-recall','w-plan','w-schedule','w-flags']},
-  {id:'writing',name:'Just writing',hint:'Almost nothing but the page',hidden:['study','capture','all-notes','questions','pinned','trash','archive','backup','history','focus-menu','breadcrumb','saved','pin','export-note','delete-note','mind-map','note-questions','open-pdf','note-tools','context','outline','vocab-button','text-style','highlight','checklist','align','insert','connect','mark-up','tab-materials','tab-tests','tab-synthesis','w-recall','w-plan','w-schedule','w-dates','w-flags','w-recent','w-units']}
+  {id:'simple',name:'Simple',hint:'Notes, subjects and the basics',hidden:['capture','questions','archive','backup','focus-menu','breadcrumb','saved','mind-map','note-questions','context','open-pdf','connect','mark-up','tab-tests','tab-synthesis','w-recall','w-plan','w-schedule','w-flags']},
+  {id:'writing',name:'Just writing',hint:'Almost nothing but the page',hidden:['capture','all-notes','questions','pinned','trash','archive','backup','history','focus-menu','breadcrumb','saved','pin','export-note','delete-note','mind-map','note-questions','open-pdf','note-tools','context','outline','vocab-button','text-style','highlight','checklist','align','insert','connect','mark-up','tab-materials','tab-tests','tab-synthesis','w-recall','w-plan','w-schedule','w-dates','w-flags','w-recent','w-units']}
  ];
+ const all=groups.flatMap(group=>group.items);
  const KEY='notival-layout';
  let hidden=new Set();
  try{hidden=new Set(JSON.parse(localStorage.getItem(KEY)||'{}').hidden||[])}catch{}
+ for(const id of [...hidden])if(!all.some(item=>item[0]===id))hidden.delete(id);
  const save=()=>{try{localStorage.setItem(KEY,JSON.stringify({hidden:[...hidden]}))}catch{}};
- const all=groups.flatMap(group=>group.items);
 
  // Leftovers: a heading with nothing under it, and dividers with nothing between them.
  function tidy(){
@@ -107,7 +107,7 @@ const Customize=(()=>{
   for(const preset of presets){
    const active=preset.hidden.length===hidden.size&&preset.hidden.every(id=>hidden.has(id));
    const b=el('button','customize-preset');b.type='button';b.setAttribute('aria-pressed',String(active));b.append(el('strong','',preset.name),el('small','',preset.hint));
-   b.onclick=()=>{hidden=new Set(preset.hidden);save();apply();paint()};row.append(b);
+   b.onclick=()=>{hidden=new Set(preset.hidden);if(preset.id==='everything'&&typeof WidgetTuck!=='undefined')WidgetTuck.clear();save();apply();paint()};row.append(b);
   }
   dialog.append(row);
   const scroll=el('div','customize-groups');

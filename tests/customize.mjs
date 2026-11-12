@@ -62,12 +62,13 @@ try{
   await flip('pinned');await wait(80);assert.equal(await shown('#pinned'),true);
   // Presets
   await evaluate(`[...document.querySelectorAll('.customize-preset')].find(b=>/Simple/.test(b.textContent)).click()`);await wait(150);
-  for(const s of ['#study-nav','#archive','#open-pdf','#connect-passages','#map-tab'])assert.equal(await shown(s),false,s+' is hidden by Simple');
-  for(const s of ['#all','#trash','#new','.appearance-trigger','#heading-style'])assert.equal(await shown(s),true,s+' stays with Simple');
+  for(const s of ['#archive','#open-pdf','#connect-passages','#map-tab'])assert.equal(await shown(s),false,s+' is hidden by Simple');
+  for(const s of ['#study-nav','#home-button','#all','#trash','#new','.appearance-trigger','#heading-style'])assert.equal(await shown(s),true,s+' stays with Simple');
   await evaluate(`[...document.querySelectorAll('.customize-preset')].find(b=>/Just writing/.test(b.textContent)).click()`);await wait(150);
   assert.equal(await shown('.appearance-trigger'),true,'the way back to this panel is never hidden');
   assert.equal(await shown('#customize-open'),true,'including the top-bar button');
   assert.equal(await shown('#new'),true,'new note is never hidden');
+  assert.equal(await shown('#study-nav'),true,'Study is never hidden, so Home is never alone');
   assert.equal(await evaluate(`[...document.querySelectorAll('.section-label')].find(n=>n.textContent==='WORKSPACE').offsetParent===null`),true,'the heading goes when everything under it does');
   assert.equal(await evaluate(`(()=>{const v=[...document.querySelectorAll('#format-bar > *')].filter(c=>c.offsetParent!==null),gap=c=>c.classList.contains('format-gap');return !gap(v[0])&&!gap(v.at(-1))&&v.every((c,i)=>!(gap(c)&&v[i+1]&&gap(v[i+1])))})()`),true,'no stray dividers at the ends or in a row');
   // Subject page tabs and sections
