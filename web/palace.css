@@ -24,7 +24,7 @@
 .pe-back,.pe-icon,.pe-mode,.pe-tool,.pe-tab,.pe-item,.pe-actions button,.pe-pickitem,.pe-add-write,.pe-link,.pe-recall button,.pe-dialog button{border:1px solid var(--line);border-radius:9px;background:transparent;color:inherit;cursor:pointer;padding:7px 13px}
 .pe-back:hover,.pe-icon:hover,.pe-tool:hover,.pe-item:hover,.pe-pickitem:hover,.pe-actions button:hover{background:var(--soft)}
 .pe-icon{padding:6px 10px;font-size:15px}.pe-icon:disabled{opacity:.35;cursor:default}
-.pe-modes{display:flex;gap:2px;padding:3px;border:1px solid var(--line);border-radius:10px}
+.pe-modes,.pe-levels{display:flex;gap:2px;padding:3px;border:1px solid var(--line);border-radius:10px}
 .pe-mode{border:0;padding:6px 16px;color:var(--muted)}
 .pe-mode[aria-pressed=true]{background:var(--soft);color:var(--ink);font-weight:600}
 .palace-editor .primary{background:var(--accent,var(--green));border-color:var(--accent,var(--green));color:var(--on-accent,#fff)}
@@ -56,7 +56,7 @@
 .pe-nogl{margin:40px;color:var(--muted)}
 
 .pe-side{width:330px;flex:0 0 330px;display:flex;flex-direction:column;border-left:1px solid var(--line);min-height:0}
-.palace-editor[data-mode=walk] .pe-side{display:none}
+.palace-editor[data-mode=walk]:not([data-edit=true]) .pe-side{display:none}
 .pe-tabs{display:flex;gap:4px;padding:10px 12px 6px}
 .pe-tab{flex:1;border-color:transparent;color:var(--muted);padding:6px 8px;font-size:12.5px}
 .pe-tab[aria-pressed=true]{background:var(--soft);color:var(--ink);font-weight:600}
@@ -96,7 +96,6 @@
 @media(prefers-reduced-motion:reduce){.pe-hud{transition:none}}
 
 .pe-toolbar{position:absolute;left:14px;top:14px;display:flex;gap:4px;padding:5px;border:1px solid var(--line);border-radius:12px;background:color-mix(in srgb,var(--bg) 92%,transparent);box-shadow:0 4px 16px #0000001a}
-.palace-editor[data-mode=walk] .pe-toolbar{display:none}
 .pe-toolbar .pe-tool{border-color:transparent;padding:6px 12px}
 
 /* ── Reading a book pulled off a shelf ───────────────────────────────────── */
@@ -133,3 +132,5 @@
 .pe-chip:hover{background:var(--hover,#0000000d)}
 .pe-check{display:flex;align-items:center;gap:8px;font-size:13px;margin:6px 0}
 .pe-page-row{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:start;margin-bottom:6px}
+
+.pe-levels .pe-mode{padding:6px 12px}.pe-addfloor{color:var(--accent,#6a5ae0)!important}

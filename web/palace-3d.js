@@ -9,8 +9,8 @@ const Palace3D=(()=>{
   let view;try{view=M.create(canvas)}catch(error){console.warn('3D is not available:',error);return null}
   if(!view)return null;
   const bg=M.parse(background).slice(0,3),skyRgb=M.parse(sky).slice(0,3);
-  const meshes={glow:new M.Mesh(),ground:new M.Mesh(),garden:new M.Mesh(),solid:new M.Mesh(),walls:new M.Mesh(),flat:new M.Mesh(),ceil:new M.Mesh(),soft:new M.Mesh(),grid:new M.Mesh(),over:new M.Mesh(),markers:new M.Mesh()};
-  const state={mode:'plan',plan:{cx:5,cz:4.5,scale:40},walk:{x:3,z:2,yaw:0,pitch:0},overlay:{},dirty:true,fly:null,target:null,keys:new Set(),time:0,rects:[],gridOn:true,labels:true};
+  const meshes={glow:new M.Mesh(),ground:new M.Mesh(),garden:new M.Mesh(),solid:new M.Mesh(),walls:new M.Mesh(),flat:new M.Mesh(),ceil:new M.Mesh(),soft:new M.Mesh(),grid:new M.Mesh(),over:new M.Mesh(),markers:new M.Mesh(),ghost:new M.Mesh()};
+  const state={level:0,camY:0,yoff:0,hidden:null,mode:'plan',plan:{cx:5,cz:4.5,scale:40},walk:{x:3,z:2,yaw:0,pitch:0},overlay:{},dirty:true,fly:null,target:null,keys:new Set(),time:0,rects:[],gridOn:true,labels:true};
   let raf=0,last=performance.now(),disposed=false,matrices=null;
 
   // ── Building the picture from the model ────────────────────────────────────
@@ -167,18 +167,40 @@ const Palace3D=(()=>{
   const sunDir=(()=>{const d=[.5,.78,.34],l=Math.hypot(...d);return d.map(v=>v/l)})();
   // The sun's view of the house, for shadows.
   function sunMatrix(){
-   const b=P.bounds(palace),c=[(b.x0+b.x1)/2,1.2,(b.z0+b.z1)/2],r=Math.hypot(b.x1-b.x0,b.z1-b.z0)/2+7,eye=[c[0]+sunDir[0]*r*1.6,c[1]+sunDir[1]*r*1.6,c[2]+sunDir[2]*r*1.6];
+   const b=P.bounds(palace),top=(P.levels(palace).at(-1)+1)*P.STOREY,c=[(b.x0+b.x1)/2,top/2,(b.z0+b.z1)/2],r=Math.hypot(b.x1-b.x0,b.z1-b.z0,top)/2+7,eye=[c[0]+sunDir[0]*r*1.6,c[1]+sunDir[1]*r*1.6,c[2]+sunDir[2]*r*1.6];
    return M.multiply(M.ortho(-r,r,-r,r,.1,r*3.6),M.lookAt(eye,c,[0,1,0]));
   }
   const FLOOR_MATERIAL={wood:'wood',tile:'tile',carpet:'carpet',plain:0};
-  function rebuild(){
-   for(const m of [meshes.glow,meshes.ground,meshes.garden,meshes.solid,meshes.walls,meshes.flat,meshes.ceil,meshes.soft,meshes.grid])m.clear();
-   const {glow,ground,garden,solid,walls,flat,ceil,soft,grid}=meshes,b=P.bounds(palace);
-   for(const r of palace.rooms){solid.floor(r.x,r.z,r.x+r.w,r.z+r.d,.02,r.floor,1,FLOOR_MATERIAL[r.floorType||'wood']);ceil.ceiling(r.x,r.z,r.x+r.w,r.z+r.d,P.HEIGHT,'#f3efe6','paint')}
-   addGarden(garden,ground);
+  // One floor of the house: its floors, ceilings, walls, furniture and the things on it.
+  function buildFloor(n){
+   const {glow,solid,walls,flat,ceil,soft}=meshes;
+   for(const r of palace.rooms){
+    solid.floor(r.x,r.z,r.x+r.w,r.z+r.d,.02,r.floor,1,FLOOR_MATERIAL[r.floorType||'wood']);ceil.ceiling(r.x,r.z,r.x+r.w,r.z+r.d,P.HEIGHT,'#f3efe6','paint');
+    // the slab the upstairs rooms stand on
+    if(n>P.levels(palace)[0])solid.box(r.x+r.w/2,-(P.STOREY-P.HEIGHT),r.z+r.d/2,r.w,P.STOREY-P.HEIGHT-.0,r.d,'#d8d4cc',{bottom:true});
+   }
    addWalls(walls,soft);addPlanWalls(flat);addCorners(glow);
    for(const f of palace.furniture)addFurniture(solid,soft,f);
    for(const q of P.propsOf(palace))if(q.id!==state.hidden)addProp(solid,meshes.glow,q);
+  }
+  function rebuild(){
+   const all=[meshes.glow,meshes.ground,meshes.garden,meshes.solid,meshes.walls,meshes.flat,meshes.ceil,meshes.soft,meshes.grid];
+   for(const m of all)m.clear();
+   const {ground,garden,grid}=meshes,b=P.bounds(palace),here=P.levelOf(palace),levels=P.levels(palace);
+   state.level=here;state.yoff=state.mode==='walk'?here*P.STOREY:0;
+   addGarden(garden,ground);
+   if(state.mode==='walk'&&levels.length>1){
+    // walking: the whole house, each floor lifted onto the one below
+    const sets=[meshes.glow,meshes.solid,meshes.walls,meshes.flat,meshes.ceil,meshes.soft];
+    for(const n of levels){
+     const marks=sets.map(m=>m.count);
+     P.withLevel(palace,n,()=>buildFloor(n));
+     if(n!==0)sets.forEach((m,k)=>m.shiftY(n*P.STOREY,marks[k]));
+    }
+   }else{
+    buildFloor(here);
+    if(here!==0&&state.mode==='walk')[meshes.glow,meshes.solid,meshes.walls,meshes.flat,meshes.ceil,meshes.soft].forEach(m=>m.shiftY(here*P.STOREY));
+   }
    // a faint one-metre grid, seen only from above
    for(let x=Math.floor(b.x0)-3;x<=Math.ceil(b.x1)+3;x++)grid.line([x,.012,Math.floor(b.z0)-3],[x,.012,Math.ceil(b.z1)+3],'#d7d4cc');
    for(let z=Math.floor(b.z0)-3;z<=Math.ceil(b.z1)+3;z++)grid.line([Math.floor(b.x0)-3,.012,z],[Math.ceil(b.x1)+3,.012,z],'#d7d4cc');
@@ -192,7 +214,7 @@ const Palace3D=(()=>{
     const f=palace.furniture.find(g=>g.id===s.furnitureId);if(!f)return;any=true;
     const spec=P.spec(f.type),pw=s.propId?P.propWorld(palace,P.propsOf(palace).find(q=>q.id===s.propId)||{}):null,top=pw?pw.y+pw.h+(state.mode==='plan'?.55:.22):(spec.lift||0)+spec.h+(state.mode==='plan'?.55:.4),bob=Math.sin(state.time*2+k)*.05;
     const active=state.overlay.station===s.id;
-    m.diamond(pw?pw.x:f.x,top+bob,pw?pw.z:f.z,state.mode==='plan'?.24:.13,active?'#ffffff':GOLD,{tall:1.6});
+    m.diamond(pw?pw.x:f.x,top+bob+state.yoff,pw?pw.z:f.z,state.mode==='plan'?.24:.13,active?'#ffffff':GOLD,{tall:1.6});
    });
    view.set('markers',m);return any;
   }
@@ -220,11 +242,12 @@ const Palace3D=(()=>{
     return {view:M.lookAt([cx,40,cz],[cx,0,cz],[0,0,-1]),proj:M.ortho(-vw/2,vw/2,-vh/2,vh/2,1,80),eye:[cx,40,cz]};
    }
    const {x,z,yaw,pitch}=state.walk,cp=Math.cos(pitch),f=[Math.sin(yaw)*cp,Math.sin(pitch),Math.cos(yaw)*cp];
-   return {view:M.lookAt([x,EYE,z],[x+f[0],EYE+f[1],z+f[2]],[0,1,0]),proj:M.perspective(FOV,w/h,.05,120),eye:[x,EYE,z]};
+   const ey=state.camY+EYE;
+   return {view:M.lookAt([x,ey,z],[x+f[0],ey+f[1],z+f[2]],[0,1,0]),proj:M.perspective(FOV,w/h,.05,120),eye:[x,ey,z]};
   }
   function toScreen(x,y,z){
    if(!matrices)return null;
-   const t=M.transform(matrices.vp,x,y,z);if(t.w<=0)return null;
+   const t=M.transform(matrices.vp,x,y+state.yoff,z);if(t.w<=0)return null;
    return {x:(t.x*.5+.5)*canvas.clientWidth,y:(1-(t.y*.5+.5))*canvas.clientHeight};
   }
   function toWorld(px,py){
@@ -285,10 +308,17 @@ const Palace3D=(()=>{
    if(before){const after=toWorld(px,py);state.plan.cx+=before.x-after.x;state.plan.cz+=before.z-after.z}state.dirty=true;
   }
   function panBy(dx,dy){state.plan.cx-=dx/state.plan.scale;state.plan.cz-=dy/state.plan.scale;state.dirty=true}
-  function lookBy(dx,dy){state.walk.yaw=clampAngle(state.walk.yaw-dx*.0042);state.walk.pitch=Math.max(-1.2,Math.min(1.2,state.walk.pitch-dy*.0042));state.dirty=true}
+  // Dragging grabs the view: the spot under the pointer stays under it, so dragging right turns you left.
+  function lookBy(dx,dy,x0,y0){
+   const w=Math.max(1,canvas.clientWidth),h=Math.max(1,canvas.clientHeight),f=(h/2)/Math.tan(FOV/2),cx=w/2,cy=h/2;
+   // the angle each pixel is off the middle of the view, so the spot grabbed stays under the pointer even away from the centre
+   const a=(v,c)=>Math.atan((v-c)/f),px=x0??cx,py=y0??cy;
+   state.walk.yaw=clampAngle(state.walk.yaw+(a(px+dx,cx)-a(px,cx)));state.walk.pitch=Math.max(-1.3,Math.min(1.3,state.walk.pitch+(a(py+dy,cy)-a(py,cy))));state.dirty=true;
+  }
   function setMode(mode){
    state.mode=mode;state.target=null;state.fly=null;
    if(mode==='walk'&&!P.roomAt(palace,state.walk.x,state.walk.z)){const e=P.entrance(palace);if(e){state.walk.x=e.x;state.walk.z=e.z+(e.z<=0.01?.9:0);state.walk.yaw=0}}
+   rebuild();state.camY=state.yoff;
    if(mode==='plan')frame();
    state.dirty=true;
   }
@@ -300,6 +330,7 @@ const Palace3D=(()=>{
   const setKey=(key,down)=>{down?state.keys.add(key):state.keys.delete(key);if(down)state.target=null;state.dirty=true};
 
   function step(dt){
+   if(Math.abs(state.camY-state.yoff)>.005){state.camY+=(state.yoff-state.camY)*Math.min(1,dt*4.5);state.dirty=true}else state.camY=state.yoff;
    state.time+=dt;
    if(state.fly){
     const fly=state.fly;fly.t+=dt*1000;const k=Math.min(1,fly.t/fly.ms),e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
@@ -331,6 +362,25 @@ const Palace3D=(()=>{
     }
    }
   }
+  // Walking: soft coloured boxes for what you are about to place, what is selected, and what you are pointing at.
+  function buildGhost(){
+   const m=meshes.ghost;m.clear();const o=state.overlay,Y=state.yoff;
+   const box=(x0,y0,z0,x1,y1,z1,colour,alpha)=>m.box((x0+x1)/2,y0+Y,(z0+z1)/2,x1-x0,y1-y0,z1-z0,colour,{alpha});
+   if(o.edit&&o.furniture&&!o.prop){const f=palace.furniture.find(g=>g.id===o.furniture);if(f){const fp=P.footprint(f),s=P.spec(f.type),y=s.lift||0;box(fp.x0-.02,y-.01,fp.z0-.02,fp.x1+.02,y+s.h+.02,fp.z1+.02,ACCENT,.28)}}
+   if(o.edit&&o.prop){const q=P.propsOf(palace).find(g=>g.id===o.prop),w=q&&P.propWorld(palace,q);if(w){const t=(w.rot%180)!==0,hw=(t?w.d:w.w)/2+.015,hd=(t?w.w:w.d)/2+.015;box(w.x-hw,w.y-.01,w.z-hd,w.x+hw,w.y+w.h+.015,w.z+hd,ACCENT,.4)}}
+   if(o.hoverProp){const q=P.propsOf(palace).find(g=>g.id===o.hoverProp),w=q&&P.propWorld(palace,q);if(w){const t=(w.rot%180)!==0,hw=(t?w.d:w.w)/2+.02,hd=(t?w.w:w.d)/2+.02;box(w.x-hw,w.y-.01,w.z-hd,w.x+hw,w.y+w.h+.02,w.z+hd,'#fff0a0',.78)}}
+   if(o.ghost3){const g=o.ghost3;box(g.x0,g.y0,g.z0,g.x1,g.y1,g.z1,g.ok?'#3fb06b':'#d4584a',.45)}
+   view.set('ghost',m);
+  }
+  // What the pointer is aimed at while walking: the floor spot, and any furniture in the way (with the exact point hit).
+  function aim(px,py){
+   const r=ray(px,py),hit=P.pick(palace,r.origin,r.dir);let floor=null;
+   if(r.dir.y<-.01){const t=-r.origin.y/r.dir.y;floor={x:r.origin.x+r.dir.x*t,z:r.origin.z+r.dir.z*t,t}}
+   // where the pointer line leaves the room: the wall it is aimed at (for pictures and mirrors)
+   let wall=null;{const home=P.roomAt(palace,state.walk.x,state.walk.z);if(home){let last=null;for(let t=0;t<40;t+=.05){const x=r.origin.x+r.dir.x*t,z=r.origin.z+r.dir.z*t;if(P.roomAt(palace,x,z)!==home)break;last={x,z}}wall=last}}
+   const point=hit?{x:r.origin.x+r.dir.x*hit.t,y:r.origin.y+r.dir.y*hit.t,z:r.origin.z+r.dir.z*hit.t}:null;
+   return {floor,wall,furniture:hit?hit.furniture:null,point,ray:r};
+  }
   function draw(){
    const cam=cameras();matrices={vp:M.multiply(cam.proj,cam.view)};
    const markers=buildMarkers();
@@ -338,10 +388,11 @@ const Palace3D=(()=>{
     // from above: flat, even light, no shadows, so the plan is easy to read
     buildOverlay();view.draw({...cam,clear:bg,layers:[...(state.gridOn?['grid']:[]),'solid','flat','soft~','markers','over!'],ambient:.92,gain:1,sun:[.28,.28,.28],sky:[1,1,1],ground:[1,1,1],light:[.3,.9,.35],patterns:false});
    }else{
+    buildGhost();
     // from inside: warm sunlight through the windows, with shadows, and a soft fill so rooms are never black
-    view.draw({...cam,clear:skyRgb,layers:['ground','garden','solid','walls','ceil','soft~','glow~','markers'],ambient:.8,gain:1.0,sun:[1.05,.94,.8],sky:[.97,.95,.92],ground:[.86,.8,.72],light:sunDir,fog:{color:skyRgb,start:18,end:60},shadows:{matrix:state.sun,casters:['solid','walls','ceil','garden'],strength:.78}});
+    view.draw({...cam,clear:skyRgb,layers:['ground','garden','solid','walls','ceil','soft~','glow~','markers','ghost~'],ambient:.8,gain:1.0,sun:[1.05,.94,.8],sky:[.97,.95,.92],ground:[.86,.8,.72],light:sunDir,fog:{color:skyRgb,start:18,end:60},shadows:{matrix:state.sun,casters:['solid','walls','ceil','garden'],strength:.78}});
    }
-   state.dirty=false;state.animating=markers;
+   state.dirty=false;state.animating=markers||Math.abs(state.camY-state.yoff)>.005;
    onFrame?.(api);
   }
   function loop(now){
@@ -354,7 +405,7 @@ const Palace3D=(()=>{
   function setOverlay(o){state.overlay=o||{};state.dirty=true}
   function snapshot(){draw();return canvas.toDataURL('image/png')}
   function dispose(){disposed=true;cancelAnimationFrame(raf);view.dispose()}
-  const api={canvas,state,rebuild,hideProp,setOverlay,setMode,getMode:()=>state.mode,frame,zoomAt,panBy,lookBy,flyTo,setTarget,setKey,toWorld,toScreen,ray,pickFurniture,pickProp,pickRoom,pickWall,pickHandle,snapshot,dispose,redraw:()=>{state.dirty=true},step,draw,
+  const api={canvas,state,rebuild,hideProp,setOverlay,setMode,getMode:()=>state.mode,frame,zoomAt,panBy,lookBy,flyTo,setTarget,setKey,toWorld,toScreen,ray,aim,pickFurniture,pickProp,pickRoom,pickWall,pickHandle,snapshot,dispose,redraw:()=>{state.dirty=true},step,draw,
    walk:state.walk,plan:state.plan,setLabels:on=>{state.labels=on},setGrid:on=>{state.gridOn=on;state.dirty=true}};
   rebuild();frame();raf=requestAnimationFrame(loop);
   return api;

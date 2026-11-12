@@ -130,6 +130,45 @@ assert(hist.undo());assert.equal(q.furniture.length,1);assert(hist.undo());asser
 assert(hist.redo());assert.equal(q.furniture.length,1);P.removeFurniture(q,q.furniture[0].id);hist.record();assert.equal(hist.canRedo(),false,'a new change ends the redo trail');
 assert.deepEqual(P.bounds(g),{x0:0,z0:0,x1:10,z1:9});
 
+// ── Floors and staircases ──
+{
+ const h=P.starterHouse('s','x');const doors0=h.openings.filter(o=>o.kind==='door').length;const furniture0=h.furniture.length;
+ assert.deepEqual(P.levels(h),[0]);assert.equal(P.levelName(0),'Ground floor');assert.equal(P.levelName(1),'First floor');
+ assert.equal(P.setLevel(h,1),false,'there is no floor 1 yet');
+ const hist=P.history(h);
+ const lone=P.placeFurniture(h,'stairs-up',3,2);assert.equal(lone,null,'a staircase needs a floor above');
+ const n=P.addLevel(h);assert.equal(n,1);assert.deepEqual(P.levels(h),[0,1]);assert.equal(P.levelOf(h),0,'adding a floor does not move you');
+ assert(hist.record(),'adding a floor is an edit');
+ P.setLevel(h,1);assert.equal(h.rooms.length,5,'the same outline upstairs');assert.equal(h.furniture.length,0,'and empty');
+ const outside=h.openings.filter(o=>o.kind==='door'&&o.axis==='x'&&o.at===0);assert.equal(outside.length,0,'no front door upstairs');
+ assert(h.openings.some(o=>o.kind==='window'),'windows are copied');assert.deepEqual(P.problems(h),[]);
+ assert.equal(hist.record(),false,'going upstairs is not an edit');
+ P.setLevel(h,0);assert.equal(h.furniture.length,furniture0,'the ground floor is as it was');
+ // a staircase has two ends
+ const room=h.rooms.find(r=>r.name==='Study');P.removeFurniture(h,h.furniture.find(f=>f.type==='piano').id);
+ let st=null;for(const rot of [0,90])for(let x=room.x+.5;x<room.x+room.w&&!st;x+=.5)for(let z=room.z+.5;z<room.z+room.d&&!st;z+=.5)st=P.placeFurniture(h,'stairs-up',x,z,{rot});
+ assert(st&&st.link,'a staircase fits somewhere in the study');
+ const other=P.partnerOf(h,st);assert(other&&other.level===1&&other.furniture.type==='stairs-down'&&other.furniture.x===st.x&&other.furniture.z===st.z&&other.furniture.rot===st.rot,'with a stairwell above it');
+ assert.equal(P.partnerOf(h,other.furniture).furniture.id,st.id,'and the stairs lead back down');
+ assert.equal(P.swapFurniture(h,st.id,'sofa'),null,'a staircase cannot be swapped');
+ assert.deepEqual(P.problems(h),[]);
+ // moving and turning it moves the stairwell too
+ const before={x:st.x,z:st.z};const moved=P.moveFurniture(h,st.id,st.x+.5,st.z);if(moved){const o=P.partnerOf(h,st);assert.equal(o.furniture.x,st.x,'the stairwell follows')}
+ const r0=st.rot;if(P.rotateFurniture(h,st.id)){const o=P.partnerOf(h,st);assert.equal(o.furniture.rot,st.rot,'and turns with it')}
+ // stations remember their floor, and the history keeps every floor
+ P.setLevel(h,1);const up=P.placeFurniture(h,'sofa',2,2)||P.placeFurniture(h,'sofa',3,2.5)||P.placeFurniture(h,'sofa',2,6);assert(up,'a sofa upstairs');
+ const stn=P.addStation(h,up.id,{title:'upstairs thing'});assert.equal(stn.level,1);assert(hist.record());
+ P.setLevel(h,0);assert.deepEqual(P.problems(h),[],'stations upstairs do not count against the floor below');
+ assert(hist.undo(),'undo');assert.equal(P.levelOf(h),0,'undo keeps you on your floor');P.setLevel(h,1);assert.equal(h.furniture.some(f=>f.type==='sofa'),false,'the sofa upstairs is gone');assert.equal(h.stations.some(q=>q.title==='upstairs thing'),false);P.setLevel(h,0);
+ assert(hist.redo());P.setLevel(h,1);assert(h.furniture.some(f=>f.type==='sofa'),'and back');P.setLevel(h,0);
+ // removing the staircase removes both ends
+ P.removeFurniture(h,st.id);assert.equal(P.partnerOf(h,{link:st.link,id:'x'}),null);P.setLevel(h,1);assert.equal(h.furniture.some(f=>f.type==='stairs-down'),false,'the stairwell goes too');P.setLevel(h,0);
+ // a second floor, and an old palace with no floors at all
+ assert.equal(P.addLevel(h),2);assert.deepEqual(P.levels(h),[0,1,2]);assert.equal(P.levelName(2),'Second floor');
+ const old=P.starterHouse('s','old');delete old.level;delete old.floors;assert.deepEqual(P.levels(old),[0]);assert.equal(P.placeFurniture(old,'plant',1,1)?1:1,1);
+ const copy=JSON.parse(JSON.stringify(h));assert.deepEqual(P.levels(copy),[0,1,2],'floors survive saving');
+}
+
 // ── Props on furniture ──
 {
  const h=P.blank('s','props');P.addRoom(h,{x:0,z:0,w:6,d:5});
@@ -179,4 +218,4 @@ assert.deepEqual(P.bounds(g),{x0:0,z0:0,x1:10,z1:9});
  // removing a room takes its props
  const r2=P.blank('s','r');const room=P.addRoom(r2,{x:0,z:0,w:4,d:4});const dk3=P.placeFurniture(r2,'desk',2,2);P.placeProp(r2,'mug',dk3.id,{});P.removeRoom(r2,room.id);assert.equal(P.propsOf(r2).length,0);
 }
-console.log('PASS: palace model — catalogue, starter house, shared walls and openings, rooms, furniture rules (flush, wall-hung, rugs), stations and route, auto-placement in walking order, collisions and sliding, viewpoints, picking, undo, and props on furniture.');
+console.log('PASS: palace model — catalogue, starter house, shared walls and openings, rooms, furniture rules (flush, wall-hung, rugs), stations and route, auto-placement in walking order, collisions and sliding, viewpoints, picking, undo, props on furniture, and floors with staircases.');

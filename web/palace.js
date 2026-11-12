@@ -46,7 +46,7 @@
   stage.append(canvas,labels,toolbar,hud,card,recallBox);
   const body=el('div','pe-body');body.append(stage,side);root.append(top,body);document.body.append(root);
 
-  const S={tool:'select',tab:'build',room:null,furniture:null,prop:null,station:null,drag:null,space:false,recall:null,labelNodes:[],hudTimer:0,collapsed:false};
+  const S={edit:false,placing:null,tool:'select',tab:'build',room:null,furniture:null,prop:null,station:null,drag:null,space:false,recall:null,labelNodes:[],hudTimer:0,collapsed:false};
   let ctl=null;
   const toast_=message=>window.toast?.(message);
   const furnitureName=f=>P.spec(f.type)?.name||f.type;
@@ -57,7 +57,7 @@
    if(history.record())persist();
    ctl?.rebuild();renderTop();renderSide();overlay();
   }
-  function overlay(extra={}){ctl?.setOverlay({room:S.room,furniture:S.furniture,prop:S.prop,station:S.station,...extra})}
+  function overlay(extra={}){ctl?.setOverlay({room:S.room,furniture:S.furniture,prop:S.prop,station:S.station,edit:S.edit&&ctl.getMode()==='walk',...S.hover,...extra})}
 
   // ── The top bar ──────────────────────────────────────────────────────────
   const nameInput=el('input','pe-name');nameInput.value=palace.name;nameInput.setAttribute('aria-label','Palace name');
@@ -70,14 +70,43 @@
    const modes=el('div','pe-modes');
    for(const [id,label] of [['plan','Plan'],['walk','Walk']]){const b=button(label,()=>setMode(id),'pe-mode');b.setAttribute('aria-pressed',String(ctl?.getMode()===id));modeButtons[id]=b;modes.append(b)}
    undo.disabled=!history.canUndo();redo.disabled=!history.canRedo();
-   top.append(button('← Back',()=>close(),'pe-back','Back to the subject'),nameInput,modes,undo,redo,el('span','pe-spacer'),button('Recall walk',()=>startRecall(),'pe-walk primary','Walk the route and recall what you left at each stop'));
+   const floors=el('div','pe-levels');floors.setAttribute('role','group');floors.setAttribute('aria-label','Floors');
+   for(const n of P.levels(palace)){const b=button(n===0?'Ground':'Floor '+n,()=>goLevel(n),'pe-mode',P.levelName(n));b.setAttribute('aria-pressed',String(P.levelOf(palace)===n));floors.append(b)}
+   floors.append(button('+ Floor',()=>addLevel(),'pe-mode pe-addfloor','Add another floor on top of the house'));
+   top.append(button('← Back',()=>close(),'pe-back','Back to the subject'),nameInput,modes,floors,undo,redo,el('span','pe-spacer'),button('Recall walk',()=>startRecall(),'pe-walk primary','Walk the route and recall what you left at each stop'));
   }
   function setMode(mode){
    if(!ctl||ctl.getMode()===mode)return;
-   stopRecall(false);hideCard();ctl.setMode(mode);
+   stopRecall(false);hideCard();S.placing=null;S.hover={};ctl.setMode(mode);
    root.dataset.mode=mode;
    if(mode==='walk'){S.tool='select';hudShow('Drag to look · W A S D or arrows to walk · click the floor to go there · click a book to take it down, or a glowing marker to read it · Esc to go back')}
    renderTop();renderSide();renderToolbar();overlay();
+  }
+  function setEdit(on){
+   S.edit=on;S.placing=null;S.hover={};root.dataset.edit=String(on);hideCard();
+   if(on){S.tab='build';hudShow('Pick something in the panel, then click where it goes · click a thing to select it · R turns it · Esc cancels',9000)}
+   renderToolbar();renderSide();overlay();requestAnimationFrame(()=>ctl?.redraw());
+  }
+  // ── Floors ───────────────────────────────────────────────────────────────
+  function goLevel(n,quiet=false){
+   if(P.levelOf(palace)===n||!P.setLevel(palace,n))return false;
+   S.prop=null;S.furniture=null;S.room=null;S.placing=null;if(!S.recall)S.station=null;hideCardQuiet();
+   persist();ctl.rebuild();renderTop();renderSide();overlay();
+   if(!quiet)hudShow(P.levelName(n),2200);return true;
+  }
+  function hideCardQuiet(){card.hidden=true}
+  function addLevel(){
+   const n=P.addLevel(palace);commit();goLevel(n);
+   toast_(P.levelName(n)+' added with the same outline. Put a staircase on the floor below to link them.');
+  }
+  // Click a staircase in the walk-through: climb to the other end.
+  function useStairs(f){
+   const other=P.partnerOf(palace,f);if(!other){toast_('These stairs lead nowhere');return}
+   const id=other.furniture.id;P.setLevel(palace,other.level);
+   const g=palace.furniture.find(x=>x.id===id),v=P.viewFrom(palace,g);
+   S.prop=null;S.furniture=null;S.station=null;hideCardQuiet();
+   const room=P.roomAt(palace,v.x,v.z);ctl.walk.x=v.x;ctl.walk.z=v.z;ctl.walk.yaw=room?Math.atan2(room.x+room.w/2-v.x,room.z+room.d/2-v.z):v.yaw+Math.PI;ctl.walk.pitch=-.05;
+   persist();ctl.rebuild();renderTop();renderSide();overlay();hudShow(P.levelName(other.level),2200);
   }
   function hudShow(text,ms=7000){hud.textContent=text;hud.classList.add('is-on');clearTimeout(S.hudTimer);S.hudTimer=setTimeout(()=>hud.classList.remove('is-on'),ms)}
 
@@ -85,6 +114,10 @@
   const TOOLS=[['select','Select','Click to select; drag to move'],['room','Room','Drag out a new room'],['door','Door','Click a wall to add or remove a door'],['window','Window','Click a wall to add or remove a window'],['arch','Archway','Click a wall to add or remove an open archway']];
   function renderToolbar(){
    toolbar.replaceChildren();
+   if(ctl?.getMode()==='walk'){
+    for(const [edit,label,hint] of [[false,'Explore','Look around, take books down, read things'],[true,'Build','Add, move and change things while you walk']]){const b=button(label,()=>setEdit(edit),'pe-tool',hint);b.setAttribute('aria-pressed',String(S.edit===edit));toolbar.append(b)}
+    return;
+   }
    for(const [id,label,hint] of TOOLS){const b=button(label,()=>{S.tool=id;canvas.dataset.tool=id;overlay();renderToolbar()},'pe-tool',hint);b.setAttribute('aria-pressed',String(S.tool===id));toolbar.append(b)}
   }
   // ── The side panel ───────────────────────────────────────────────────────
@@ -97,8 +130,8 @@
    if(S.tab==='build')renderBuild(content);else if(S.tab==='selected')renderSelected(content);else renderRoute(content);
   }
   function renderBuild(box){
-   const groups=new Map();for(const [type,spec] of Object.entries(P.CATALOG)){if(!groups.has(spec.cat))groups.set(spec.cat,[]);groups.get(spec.cat).push([type,spec])}
-   box.append(el('small','pe-hint','Click a piece to add it, or drag it onto the plan.'));
+   const groups=new Map();for(const [type,spec] of Object.entries(P.CATALOG)){if(spec.hidden)continue;if(!groups.has(spec.cat))groups.set(spec.cat,[]);groups.get(spec.cat).push([type,spec])}
+   box.append(el('small','pe-hint',ctl?.getMode()==='walk'?'Click a piece, then click where it goes. R turns it, Esc cancels.':'Click a piece to add it, or drag it onto the plan.'));
    for(const [cat,items] of groups){
     const section=el('section','pe-cat');section.append(el('h3','',cat));const row=el('div','pe-items');
     for(const [type,spec] of items){
@@ -122,6 +155,7 @@
   }
   // Put a prop on the selected piece of furniture (or the one holding the selected prop).
   function addProp(type){
+   if(ctl.getMode()==='walk'){S.placing={kind:'prop',type};S.tab='build';hudShow('Point at a shelf or table and click · Esc cancels · hold Shift to place several',6000);renderSide();overlay();return}
    const host=palace.furniture.find(g=>g.id===S.furniture);
    if(!host){toast_('Select a piece of furniture first, or drag this onto one');return}
    if(!P.surfacesOf(host).length){toast_('Nothing can stand on a '+furnitureName(host).toLowerCase());return}
@@ -132,11 +166,22 @@
   const localOf=(f,x,z)=>{const rad=f.rot*Math.PI/180,dx=x-f.x,dz=z-f.z;return {lx:dx*Math.cos(rad)-dz*Math.sin(rad),lz:dx*Math.sin(rad)+dz*Math.cos(rad)}};
   function selectProp(id){const q=P.propsOf(palace).find(g=>g.id===id);if(!q)return;S.prop=id;S.furniture=q.hostId;S.room=null;S.station=null;S.tab='selected';renderSide();overlay()}
   function addFurniture(type){
+   if(ctl.getMode()==='walk'){S.placing={kind:'furniture',type,rot:0};S.tab='build';hudShow('Click where it goes · R turns it · Esc cancels · hold Shift to place several',6000);renderSide();overlay();return}
+   if(P.spec(type).link==='up')return addStairs();
    const room=palace.rooms.find(r=>r.id===S.room)||palace.rooms.find(r=>r.id===P.roomAt(palace,ctl.plan.cx,ctl.plan.cz)?.id)||palace.rooms[0];
    if(!room){toast_('Add a room first');return}
    const spot=P.findSpot(palace,type,room.id);if(!spot){toast_('There is no room left in '+room.name+' for that');return}
    const f=P.placeFurniture(palace,type,spot.x,spot.z);if(!f){toast_('That doesn\'t fit there');return}
    S.furniture=f.id;S.room=null;S.tab='selected';commit();
+  }
+  // A staircase needs a floor above, and room for both ends.
+  function addStairs(){
+   if(!P.levels(palace).includes(P.levelOf(palace)+1)){toast_('Add a floor above first (+ Floor), then put the staircase here');return}
+   const room=palace.rooms.find(r=>r.id===S.room)||palace.rooms[0];if(!room){toast_('Add a room first');return}
+   for(const rot of [0,90])for(let x=room.x+.5;x<room.x+room.w;x+=.5)for(let z=room.z+.5;z<room.z+room.d;z+=.5){
+    const f=P.placeFurniture(palace,'stairs-up',x,z,{rot});if(f){S.furniture=f.id;S.room=null;S.tab='selected';commit();return}
+   }
+   toast_('There is no room for a staircase here that fits on the floor above too');
   }
   function swatches(current,colours,onPick){
    const row=el('div','pe-swatches');
@@ -151,6 +196,8 @@
     const spec=P.spec(f.type);
     box.append(el('h3','pe-title',spec.name),el('small','pe-hint',roomNameOf(f)));
     const row=el('div','pe-actions');
+    if(ctl.getMode()==='walk')row.append(button('Move',()=>{S.placing={kind:'moveF',id:f.id};hudShow('Click where it should go · Esc cancels',5000);overlay()},'','Pick it up and put it somewhere else'));
+    if(f.link){const other=P.partnerOf(palace,f);if(other)row.append(button(other.level>P.levelOf(palace)?'Go upstairs':'Go downstairs',()=>ctl.getMode()==='walk'?useStairs(f):goLevel(other.level),'primary'))}
     if(P.layerOf(f)!=='wall')row.append(button('Rotate',()=>rotateSelected(),'','Turn 90° (R)'));
     row.append(button('Duplicate',()=>duplicateSelected(),'','Copy it next to this one (⌘D)'),button('Delete',()=>deleteSelected(),'pe-danger','Remove it (Delete)'));
     box.append(row);
@@ -159,7 +206,7 @@
     const swap=el('select','pe-select');swap.setAttribute('aria-label','Swap for another piece');const first=el('option','','Swap for…');first.value='';swap.append(first);
     for(const [t,s] of same){const o=el('option','',s.name);o.value=t;swap.append(o)}
     swap.onchange=()=>{if(!swap.value)return;if(!P.swapFurniture(palace,f.id,swap.value))toast_('That one doesn\'t fit here');commit()};
-    box.append(el('small','pe-label','Change it'),swap);
+    if(!f.link)box.append(el('small','pe-label','Change it'),swap);
     const onTop=P.propsOn(palace,f.id);
     if(onTop.length){box.append(el('small','pe-label','On it · '+onTop.length));const chips=el('div','pe-chips');for(const o of onTop)chips.append(button(o.title||P.PROPS[o.type].name,()=>selectProp(o.id),'pe-chip','Select it'));box.append(chips)}
     renderStations(box,f);
@@ -177,6 +224,7 @@
    const sp=P.PROPS[q.type],levels=P.surfacesOf(host);
    box.append(el('h3','pe-title',sp.name),el('small','pe-hint','On the '+furnitureName(host).toLowerCase()+' · '+roomNameOf(host)));
    const row=el('div','pe-actions');
+   if(ctl.getMode()==='walk')row.append(button('Move',()=>{S.placing={kind:'moveP',id:q.id};hudShow('Point at a shelf or table and click · Esc cancels',5000);overlay()},'','Pick it up and put it somewhere else'));
    row.append(button('Rotate',()=>rotateProp(),'','Turn 90° (R)'));
    if(levels.length>1)row.append(button('Up a level',()=>moveLevel(q,1),'','Put it on the shelf above'),button('Down a level',()=>moveLevel(q,-1),'','Put it on the shelf below'));
    row.append(button('Delete',()=>deleteProp(),'pe-danger','Remove it (Delete)'));box.append(row);
@@ -301,8 +349,8 @@
    box.append(actions);
    list.forEach((s,k)=>{
     const f=palace.furniture.find(g=>g.id===s.furnitureId),row=el('div','pe-route');
-    const open=button('',()=>{if(s.propId){selectProp(s.propId);S.station=s.id;return}S.prop=null;S.furniture=s.furnitureId;S.station=s.id;S.room=null;S.tab='selected';if(f&&ctl.getMode()==='plan'){ctl.plan.cx=f.x;ctl.plan.cz=f.z}renderSide();overlay()},'pe-route-open');
-    open.append(el('b','',String(k+1)),el('span','pe-route-title',s.title||'(empty)'),el('small','',f?furnitureName(f)+' · '+roomNameOf(f):''));
+    const open=button('',()=>{if((s.level||0)!==P.levelOf(palace))goLevel(s.level||0,true);const f=palace.furniture.find(g=>g.id===s.furnitureId);if(s.propId){selectProp(s.propId);S.station=s.id;return}S.prop=null;S.furniture=s.furnitureId;S.station=s.id;S.room=null;S.tab='selected';if(f&&ctl.getMode()==='plan'){ctl.plan.cx=f.x;ctl.plan.cz=f.z}renderSide();overlay()},'pe-route-open');
+    open.append(el('b','',String(k+1)),el('span','pe-route-title',s.title||'(empty)'),el('small','',f?furnitureName(f)+' · '+roomNameOf(f):P.levelName(s.level||0)));
     row.append(open,button('↑',()=>{P.moveStation(palace,s.id,-1);commit()},'pe-icon','Earlier'),button('↓',()=>{P.moveStation(palace,s.id,1);commit()},'pe-icon','Later'));box.append(row);
    });
   }
@@ -350,7 +398,9 @@
     recallBox.append(el('h3','',rc.ok+' of '+rc.list.length+' remembered'),el('p','pe-hint',rc.ok===rc.list.length?'You walked the whole house without a miss.':'The ones you missed are worth another walk.'));
     const row=el('div','pe-actions');row.append(button('Walk again',()=>{S.recall={i:0,shown:false,ok:0,miss:0,list:P.route(palace)};recallStep()},'primary'),button('Done',()=>{stopRecall()}));recallBox.append(row);return;
    }
-   const station=rc.list[rc.i],f=palace.furniture.find(g=>g.id===station.furnitureId),thing=station.propId?P.propsOf(palace).find(g=>g.id===station.propId):null;if(!f||(station.propId&&!thing)){rc.i++;recallStep();return}
+   const station=rc.list[rc.i];
+   if((station.level||0)!==P.levelOf(palace))goLevel(station.level||0,true);
+   const f=palace.furniture.find(g=>g.id===station.furnitureId),thing=station.propId?P.propsOf(palace).find(g=>g.id===station.propId):null;if(!f||(station.propId&&!thing)){rc.i++;recallStep();return}
    S.station=station.id;overlay();ctl.flyTo(P.viewFrom(palace,f),1000);
    recallBox.append(el('small','pe-card-where','Stop '+(rc.i+1)+' of '+rc.list.length+' · '+furnitureName(f)+' · '+roomNameOf(f)),el('h3','','What did you leave here?'));
    const r=resolve(station);
@@ -399,9 +449,10 @@
    select(null);S.drag={type:'pan',x:p.x,y:p.y,click:true};
   });
   canvas.addEventListener('pointermove',event=>{
-   const p=at(event),d=S.drag;
+   const p=at(event),d=S.drag;S.lastPoint=p;
    if(ctl.getMode()==='walk'){
-    if(d?.type==='look'){const dx=p.x-d.x,dy=p.y-d.y;if(Math.abs(dx)+Math.abs(dy)>3)d.moved=true;if(d.moved){ctl.lookBy(dx,dy);d.x=p.x;d.y=p.y}}
+    if(d?.type==='look'){const dx=p.x-d.x,dy=p.y-d.y;if(Math.abs(dx)+Math.abs(dy)>3)d.moved=true;if(d.moved){ctl.lookBy(dx,dy,d.x,d.y);d.x=p.x;d.y=p.y;canvas.style.cursor='grabbing'}}
+    else if(!d)walkHover(p);
     return;
    }
    const w=ctl.toWorld(p.x,p.y);if(!w)return;
@@ -436,7 +487,7 @@
   canvas.addEventListener('pointerup',event=>{
    const p=at(event),d=S.drag;S.drag=null;canvas.style.cursor='';if(!d)return;
    if(d.type==='look'){
-    if(!d.moved)walkClick(p);return;
+    if(!d.moved)walkClick(p,event);else canvas.style.cursor='';return;
    }
    if(d.type==='pan'){if(d.click&&!S.room&&!S.furniture)overlay();return}
    if(d.type==='click'){
@@ -472,11 +523,62 @@
     if(d.moved&&d.delta&&(d.delta.dx||d.delta.dz)){const r=palace.rooms.find(g=>g.id===d.id),moved=P.moveRoom(palace,d.id,r.x+d.delta.dx,r.z+d.delta.dz);if(!moved)toast_('It would overlap another room');commit()}else overlay();
    }
   });
-  // In the walk view a click goes to a place, or reads a stop.
-  function walkClick(p){
+  // ── Walking: what is under the pointer, and what a click does ─────────────
+  // Pointing at a book (or a staircase, or a stop) lights it up; while placing, a ghost shows where it would go.
+  function walkHover(p){
+   if(S.placing){const g=placement(p);S.hover={ghost3:g?g.box:null};S.aimed=g;overlay();canvas.style.cursor=g&&g.ok?'copy':'not-allowed';return}
+   const o=ctl.pickProp(p.x,p.y);let cursor='grab',tip='';
+   if(o){cursor='pointer';tip=(P.PROPS[o.type].read?'Take it down: ':'')+(o.title||P.PROPS[o.type].name)}
+   else if(!S.edit){const f=ctl.pickFurniture(p.x,p.y);if(f&&f.link){cursor='pointer';tip=P.spec(f.type).link==='up'?'Go upstairs':'Go downstairs'}else if(f&&P.stationsOn(palace,f.id).some(s=>!s.propId)){cursor='pointer'}}
+   else cursor='default';
+   const id=o?o.id:null;
+   if((S.hover.hoverProp||null)!==id){S.hover={hoverProp:id};overlay();if(tip)hudShow(tip,1800)}
+   canvas.style.cursor=cursor;
+  }
+  // Where the thing being placed would land if clicked now: {ok, box, place:fn}
+  function placement(p){
+   const pl=S.placing;if(!pl)return null;
+   const a=ctl.aim(p.x,p.y);
+   if(pl.kind==='furniture'||pl.kind==='moveF'){
+    const base=pl.kind==='moveF'?palace.furniture.find(g=>g.id===pl.id):{id:'?',type:pl.type,x:0,z:0,rot:pl.rot||0,color:P.spec(pl.type).color};if(!base)return null;
+    const spec=P.spec(base.type),wall=P.layerOf(base)==='wall',at=wall?a.wall:a.floor;if(!at)return null;
+    const c=candidate({...base,rot:pl.kind==='moveF'?base.rot:pl.rot||0},at.x,at.z);if(!c.next)return {ok:false,box:null};
+    const fp=P.footprint(c.next),y=spec.lift||0;
+    return {ok:c.ok,box:{x0:fp.x0,x1:fp.x1,z0:fp.z0,z1:fp.z1,y0:y,y1:y+spec.h,ok:c.ok},place:()=>pl.kind==='moveF'?P.moveFurniture(palace,base.id,at.x,at.z)&&base:P.placeFurniture(palace,pl.type,at.x,at.z,{rot:pl.rot||0})};
+   }
+   // a small thing: it goes on whatever furniture is under the pointer, on the shelf or top nearest the spot
+   const host=a.furniture;if(!host||!a.point||!P.surfacesOf(host).length)return {ok:false,box:null};
+   const levels=P.surfacesOf(host);let surface=0,best=-1e9;
+   levels.forEach((l,k)=>{const y=(P.spec(host.type).lift||0)+l.y;if(y<=a.point.y+.2&&y>best){best=y;surface=k}});
+   const t=localOf(host,a.point.x,a.point.z);
+   const proto=pl.kind==='moveP'?{...P.propsOf(palace).find(g=>g.id===pl.id),hostId:host.id}:{id:'?',type:pl.type,hostId:host.id,rot:0,...(pl.type==='book'?P.bookLike(P.propsOn(palace,host.id).length+2):{})};
+   if(!proto.type)return null;
+   const slot=P.findPropSlot(palace,proto,{surface,lx:t.lx,lz:t.lz});
+   if(!slot)return {ok:false,box:{x0:a.point.x-.06,x1:a.point.x+.06,z0:a.point.z-.06,z1:a.point.z+.06,y0:a.point.y,y1:a.point.y+.12,ok:false}};
+   const w=P.propWorld(palace,{...proto,...slot}),turned=(w.rot%180)!==0,hw=(turned?w.d:w.w)/2,hd=(turned?w.w:w.d)/2;
+   const opts={...slot,...(pl.type==='book'?{t:proto.t,ht:proto.ht,color:proto.color,title:proto.title,pages:proto.pages}:{})};
+   return {ok:true,box:{x0:w.x-hw,x1:w.x+hw,z0:w.z-hd,z1:w.z+hd,y0:w.y,y1:w.y+w.h,ok:true},place:()=>pl.kind==='moveP'?P.moveProp(palace,pl.id,host.id,slot)&&P.propsOf(palace).find(g=>g.id===pl.id):P.placeProp(palace,pl.type,host.id,opts)};
+  }
+  // In the walk view a click goes to a place, reads a stop, takes a book down, or (building) selects or places.
+  function walkClick(p,event){
+   if(S.placing){
+    const g=placement(p);if(!g||!g.ok||!g.place){toast_('It doesn\'t fit there');return}
+    const done=g.place();if(!done){toast_('It doesn\'t fit there');return}
+    const pl=S.placing,isProp=pl.kind==='prop'||pl.kind==='moveP'||!!done.hostId;
+    if(isProp){S.prop=done.id;S.furniture=done.hostId}else{S.prop=null;S.furniture=done.id}
+    S.room=null;if(!(event&&event.shiftKey)||pl.kind.startsWith('move'))S.placing=null;S.hover={};S.tab='selected';commit();return;
+   }
    const o=ctl.pickProp(p.x,p.y);
+   if(S.edit){
+    if(o){selectProp(o.id);return}
+    const f=ctl.pickFurniture(p.x,p.y);if(f){select('furniture',f.id);return}
+    select(null);
+    const r=ctl.ray(p.x,p.y);if(r.dir.y<-.01){const t=-r.origin.y/r.dir.y,x=r.origin.x+r.dir.x*t,z=r.origin.z+r.dir.z*t;if(P.roomAt(palace,x,z))ctl.setTarget(x,z)}
+    return;
+   }
    if(o){if(P.PROPS[o.type].read)readProp(o);else showPropCard(o);return}
    const f=ctl.pickFurniture(p.x,p.y);
+   if(f&&f.link){useStairs(f);return}
    if(f){const stations=P.stationsOn(palace,f.id).filter(s=>!s.propId);if(stations.length){showCard(f,stations[0]);return}hudShow(furnitureName(f)+' · '+roomNameOf(f)+(P.layerOf(f)==='wall'?'':' — nothing left here yet'),2500);return}
    const r=ctl.ray(p.x,p.y);if(r.dir.y<-.01){const t=-r.origin.y/r.dir.y,x=r.origin.x+r.dir.x*t,z=r.origin.z+r.dir.z*t;if(P.roomAt(palace,x,z)){hideCard();ctl.setTarget(x,z)}}
   }
@@ -512,6 +614,7 @@
     if(typing){event.target.blur();return}
     event.preventDefault();
     if(S.recall){stopRecall();return}
+    if(S.placing){S.placing=null;S.hover={};overlay();canvas.style.cursor='';return}
     if(!card.hidden){hideCard();return}
     if(ctl.getMode()==='walk'){setMode('plan');return}
     if(S.furniture||S.room){select(null);return}
@@ -520,7 +623,11 @@
    }
    if(typing)return;
    const k=keyName(event),mod=event.metaKey||event.ctrlKey;
-   if(ctl.getMode()==='walk'){if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright','q','e','shift'].includes(k)){event.preventDefault();ctl.setKey(k,true)}return}
+   if(ctl.getMode()==='walk'){
+    if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright','q','e','shift'].includes(k)&&!mod){event.preventDefault();ctl.setKey(k,true);return}
+    if(!S.edit)return;
+    if(k==='r'&&S.placing&&S.placing.kind!=='moveF'&&S.placing.kind!=='moveP'){S.placing.rot=((S.placing.rot||0)+90)%360;walkHover(S.lastPoint||{x:canvas.clientWidth/2,y:canvas.clientHeight/2});return}
+   }
    if(mod&&k==='z'){event.preventDefault();event.shiftKey?redo.click():undo.click();return}
    if(mod&&k==='d'){event.preventDefault();duplicateSelected();return}
    if(k===' '){S.space=true;event.preventDefault();return}
@@ -559,7 +666,7 @@
    stopRecall(false);window.removeEventListener('keydown',keydown,true);window.removeEventListener('keyup',keyup,true);resizer.disconnect();ctl?.dispose();root.remove();editor=null;
    if(subject&&window.marginSubjectTab)window.marginSubjectTab(subject.id,'palace');
   }
-  editor={close,palace,ctl,S,commit,select,selectProp,addProp,readProp,reader:()=>reading,history,addFurniture,startRecall,setMode,root,candidate,fillDialog,rotateSelected,deleteSelected,duplicateSelected};
+  editor={close,palace,ctl,S,commit,select,selectProp,goLevel,useStairs,setEdit,addLevel,addStairs,placement,walkHover,addProp,readProp,reader:()=>reading,history,addFurniture,startRecall,setMode,root,candidate,fillDialog,rotateSelected,deleteSelected,duplicateSelected};
   renderTop();renderSide();renderToolbar();overlay();
   requestAnimationFrame(()=>{ctl?.frame();canvas.focus()});
  }

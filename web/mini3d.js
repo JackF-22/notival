@@ -30,6 +30,8 @@ const Mini3D=(()=>{
  class Mesh{
   constructor(){this.data=[];this.count=0;this.mat=0}
   clear(){this.data=[];this.count=0}
+  // Lift everything added since vertex number `from` by dy (to stack one floor of a house above another).
+  shiftY(dy,from=0){for(let i=from*11+1;i<this.data.length;i+=11)this.data[i]+=dy}
   vertex(x,y,z,nx,ny,nz,c){this.data.push(x,y,z,nx,ny,nz,c[0],c[1],c[2],c[3],this.mat);this.count++}
   tri(a,b,c,n,colour){this.vertex(...a,...n,colour);this.vertex(...b,...n,colour);this.vertex(...c,...n,colour)}
   quad(a,b,c,d,n,colour){this.tri(a,b,c,n,colour);this.tri(a,c,d,n,colour)}

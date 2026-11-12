@@ -74,11 +74,51 @@ const S=(x,y,z,r,c)=>['s',x,y,z,r,c];
   fridge:{name:'Fridge',cat:'Kitchen',w:.7,d:.7,h:1.8,color:'#e9ecee',parts:[B(0,0,0,.7,1.8,.7,'m'),B(0,1.2,.351,.7,.015,.005,'#99a1a6'),B(.27,.5,.36,.03,.5,.03,'#99a1a6'),B(.27,1.3,.36,.03,.3,.03,'#99a1a6')],surfaces:[{x:0,z:0,w:.6,d:.6,y:1.8}]},
 
   'kitchen-island':{name:'Island',cat:'Kitchen',w:1.6,d:.8,h:.92,color:'#6f8fb0',parts:[B(0,0,0,1.6,.88,.8,'m'),B(0,.88,0,1.7,.04,.9,'#dcdad4')],surfaces:[{x:0,z:0,w:1.5,d:.8,y:.92}]},
+  'stairs-up':{name:'Staircase',cat:'Structure',w:1,d:3,h:2.6,color:'#b9876b',link:'up',parts:[...Array.from({length:10},(_,i)=>B(0,0,-1.35+i*.27+.135,.92,(i+1)*.26,.27,'m')),B(-.48,0,0,.04,.9,3,'m-'),B(.48,0,0,.04,.9,3,'m-')]},
+  'stairs-down':{name:'Stairwell',cat:'Structure',w:1,d:3,h:.95,color:'#b9876b',link:'down',hidden:true,parts:[B(0,0,0,.92,.02,3,'#1b1b20'),B(-.48,0,0,.04,.95,3,'m-'),B(.48,0,0,.04,.95,3,'m-'),B(0,.9,-1.48,.96,.05,.04,'m'),B(0,.9,1.48,.96,.05,.04,'m')]},
   bathtub:{name:'Bathtub',cat:'Bathroom',w:1.7,d:.75,h:.6,color:'#f1f3f4',parts:[B(0,0,0,1.7,.55,.75,'m'),B(0,.5,0,1.5,.04,.6,'#bfe0ee'),B(-.78,.55,0,.05,.1,.08,'#aab4ba')]},
   toilet:{name:'Toilet',cat:'Bathroom',w:.4,d:.65,h:.8,color:'#f3f5f6',parts:[B(0,.3,-.25,.38,.45,.16,'m'),B(0,0,.02,.34,.4,.5,'m'),B(0,.4,.05,.38,.04,.44,'#e4e7e8')]},
 
   vanity:{name:'Basin',cat:'Bathroom',w:.9,d:.5,h:.85,color:'#d8d4cc',parts:[B(0,0,0,.9,.8,.5,'m'),B(0,.8,0,.9,.05,.5,'#f1f3f4'),B(0,.84,0,.4,.02,.3,'#bfd0d8'),C(0,.85,-.2,.02,.12,'#aab4ba')],surfaces:[{x:-.3,z:0,w:.25,d:.4,y:.85},{x:.3,z:0,w:.25,d:.4,y:.85}]}
  };
+
+
+ // ── Levels ───────────────────────────────────────────────────────────────────
+ // A house can have several floors. The palace's own rooms, openings, furniture and props are always the floor you are on
+ // (so everything else works on one floor at a time); the other floors are kept in palace.floors until you go there.
+ const STOREY=3,FLOOR_KEYS=['rooms','openings','furniture','props'];
+ const floorsOf=palace=>(palace.floors??={});
+ const levelOf=palace=>palace.level||0;
+ function levels(palace){return [...new Set([levelOf(palace),...Object.keys(floorsOf(palace)).map(Number)])].sort((a,b)=>a-b)}
+ function levelName(n){return n===0?'Ground floor':n<0?(n===-1?'Basement':'Basement '+(-n)):['First','Second','Third','Fourth','Fifth','Sixth'][n-1]+' floor'}
+ function setLevel(palace,n){
+  const cur=levelOf(palace);if(n===cur)return true;if(!levels(palace).includes(n))return false;
+  const f=floorsOf(palace);f[cur]=Object.fromEntries(FLOOR_KEYS.map(k=>[k,palace[k]??[]]));
+  const next=f[n]||{};for(const k of FLOOR_KEYS)palace[k]=next[k]||[];delete f[n];palace.level=n;return true;
+ }
+ function withLevel(palace,n,fn){const cur=levelOf(palace);if(!setLevel(palace,n))return undefined;try{return fn()}finally{setLevel(palace,cur)}}
+ // Every floor's contents by level, for saving a step of undo.
+ const allFloors=palace=>{const out={};for(const n of levels(palace))out[n]=n===levelOf(palace)?Object.fromEntries(FLOOR_KEYS.map(k=>[k,palace[k]??[]])):floorsOf(palace)[n];return out};
+ // A new floor above the top one, with the same outline: its rooms, windows, archways and inside doors. Returns its level.
+ function addLevel(palace){
+  const top=levels(palace).at(-1),n=top+1;
+  const source=withLevel(palace,top,()=>({rooms:palace.rooms.map(r=>({...r})),cells:wallCells(palace),openings:palace.openings.map(o=>({...o}))}));
+  floorsOf(palace)[n]={rooms:[],openings:[],furniture:[],props:[]};
+  withLevel(palace,n,()=>{
+   source.rooms.forEach((r,i)=>{addRoom(palace,{name:(n===1?'Upstairs ':'Level '+n+' room ')+(i+1),x:r.x,z:r.z,w:r.w,d:r.d,floor:r.floor,wall:r.wall,floorType:r.floorType})});
+   for(const o of source.openings){
+    const outside=o.kind==='door'&&source.cells.some(c=>c.kind==='door'&&c.axis===o.axis&&c.at===o.at&&c.i>=Math.round(o.from/G)&&c.i<Math.round(o.to/G)&&(!c.a||!c.b));
+    if(!outside)palace.openings.push({...o,id:makeId('o')});
+   }
+  });
+  return n;
+ }
+ // The other end of a staircase: {level, furniture}, or null.
+ function partnerOf(palace,f){
+  if(!f.link)return null;
+  for(const [n,floor] of Object.entries(floorsOf(palace))){const g=(floor.furniture||[]).find(x=>x.link===f.link&&x.id!==f.id);if(g)return {level:Number(n),furniture:g}}
+  const g=palace.furniture.find(x=>x.link===f.link&&x.id!==f.id);return g?{level:levelOf(palace),furniture:g}:null;
+ }
 
  // ── Small things that sit on furniture ───────────────────────────────────────
  // A prop stands on a surface of a piece of furniture (a shelf, a desk top). w/d are its footprint, h its height. 'read' ones
@@ -250,6 +290,14 @@ const S=(x,y,z,r,c)=>['s',x,y,z,r,c];
   if(s.layer==='wall'){const spot=wallSpot(palace,type,x,z);if(!spot)return null;f={...f,x:round(spot.x),z:round(spot.z),rot:spot.rot}}
   else f=flush(palace,f);
   if(!canPlace(palace,f))return null;
+  if(s.link==='up'){
+   // a staircase has two ends: this one, and the stairwell on the floor above, in the same spot
+   const above=levelOf(palace)+1;if(!levels(palace).includes(above))return null;
+   f.link=makeId('l');
+   const top={id:makeId('f'),type:'stairs-down',x:f.x,z:f.z,rot:f.rot,color:f.color,link:f.link};
+   const ok=withLevel(palace,above,()=>{if(!canPlace(palace,top))return false;palace.furniture.push(top);return true});
+   if(!ok)return null;
+  }
   palace.furniture.push(f);return f;
  }
  function moveFurniture(palace,id,x,z){
@@ -258,20 +306,35 @@ const S=(x,y,z,r,c)=>['s',x,y,z,r,c];
   if(layerOf(f)==='wall'){const spot=wallSpot(palace,f.type,x,z);if(!spot)return null;next={...f,x:round(spot.x),z:round(spot.z),rot:spot.rot}}
   else next=flush(palace,next);
   if(!canPlace(palace,next,id))return null;
+  if(!movePartner(palace,f,next))return null;
   Object.assign(f,{x:next.x,z:next.z,rot:next.rot});return f;
+ }
+ // Both ends of a staircase move together, or not at all.
+ function movePartner(palace,f,next){
+  const other=partnerOf(palace,f);if(!other)return true;
+  const spot={...other.furniture,x:next.x,z:next.z,rot:next.rot};
+  const fine=withLevel(palace,other.level,()=>canPlace(palace,spot,other.furniture.id));
+  if(!fine)return false;
+  withLevel(palace,other.level,()=>{Object.assign(palace.furniture.find(g=>g.id===other.furniture.id),{x:next.x,z:next.z,rot:next.rot})});return true;
  }
  function rotateFurniture(palace,id){
   const f=palace.furniture.find(g=>g.id===id);if(!f||layerOf(f)==='wall')return null;
   const next=flush(palace,{...f,rot:(f.rot+90)%360});if(!canPlace(palace,next,id))return null;
+  if(!movePartner(palace,f,next))return null;
   Object.assign(f,{x:next.x,z:next.z,rot:next.rot});return f;
  }
- function removeFurniture(palace,id){
+ function dropFurniture(palace,id){
   palace.furniture=palace.furniture.filter(f=>f.id!==id);palace.stations=palace.stations.filter(s=>s.furnitureId!==id);palace.props=propsOf(palace).filter(q=>q.hostId!==id);
+ }
+ function removeFurniture(palace,id){
+  const gone=palace.furniture.find(f=>f.id===id),other=gone&&partnerOf(palace,gone);
+  if(other)withLevel(palace,other.level,()=>dropFurniture(palace,other.furniture.id));
+  dropFurniture(palace,id);
  }
  function recolour(palace,id,color){const f=palace.furniture.find(g=>g.id===id);if(f)f.color=color;return f||null}
  // Swap a piece for another kind in the same spot, if the new one fits (a bed for a sofa); stations stay with it.
  function swapFurniture(palace,id,type){
-  const f=palace.furniture.find(g=>g.id===id);if(!f||!spec(type)||layerOf(f)!==(spec(type).layer||'floor'))return null;
+  const f=palace.furniture.find(g=>g.id===id);if(!f||f.link||!spec(type)||spec(type).link||layerOf(f)!==(spec(type).layer||'floor'))return null;
   const next=flush(palace,{...f,type,color:spec(type).color});if(!canPlace(palace,next,id))return null;
   const keep=palace.furniture.map(g=>g.id===id?next:g);const probe={...palace,furniture:keep};
   // props that no longer fit where they were are moved to the nearest free spot, or the swap is refused
@@ -410,7 +473,7 @@ const S=(x,y,z,r,c)=>['s',x,y,z,r,c];
  function addStation(palace,furnitureId,fields={}){
   if(!palace.furniture.some(f=>f.id===furnitureId))return null;
   const order=Math.max(0,...palace.stations.map(s=>s.order))+1;
-  const station={id:makeId('s'),furnitureId,order,title:'',detail:'',image:'',link:null,...fields};
+  const station={id:makeId('s'),furnitureId,order,title:'',detail:'',image:'',link:null,level:levelOf(palace),...fields};
   palace.stations.push(station);return station;
  }
  const stationsOn=(palace,furnitureId)=>palace.stations.filter(s=>s.furnitureId===furnitureId);
@@ -513,7 +576,7 @@ const S=(x,y,z,r,c)=>['s',x,y,z,r,c];
  }
 
  // ── A new palace, and the starter house ──────────────────────────────────────
- function blank(projectId,name){return {id:makeId('p'),projectId:projectId||'',name:name||'My palace',created:Date.now(),rooms:[],openings:[],furniture:[],props:[],stations:[],camera:null}}
+ function blank(projectId,name){return {id:makeId('p'),projectId:projectId||'',name:name||'My palace',created:Date.now(),rooms:[],openings:[],furniture:[],props:[],stations:[],level:0,floors:{},camera:null}}
  function starterHouse(projectId,name){
   const p=blank(projectId,name||'My house');
   const room=(n,x,z,w,d,floor,wall,floorType)=>{const r=addRoom(p,{name:n,x,z,w,d,floor,wall,floorType});if(!r)throw new Error('starter room '+n);return r};
@@ -549,9 +612,14 @@ const S=(x,y,z,r,c)=>['s',x,y,z,r,c];
  }
 
  // ── Undo ─────────────────────────────────────────────────────────────────────
- const CONTENT=['name','rooms','openings','furniture','props','stations'];
- const snapshot=palace=>propsOf(palace)&&JSON.stringify(Object.fromEntries(CONTENT.map(k=>[k,palace[k]])));
- const restore=(palace,json)=>{const data=JSON.parse(json);for(const k of CONTENT)palace[k]=data[k]??(k==='props'?[]:undefined)};
+ const snapshot=palace=>propsOf(palace)&&JSON.stringify({name:palace.name,stations:palace.stations,all:allFloors(palace)});
+ // Put a step back. The floor you are standing on stays the one you are on (switching floor is not an edit).
+ const restore=(palace,json)=>{
+  const data=JSON.parse(json),cur=levelOf(palace),have=Object.keys(data.all).map(Number);
+  const here=have.includes(cur)?cur:have.reduce((a,b)=>Math.abs(b-cur)<Math.abs(a-cur)?b:a,have[0]);
+  palace.name=data.name;palace.stations=data.stations;palace.level=here;palace.floors={};
+  for(const n of have){if(n===here)for(const k of FLOOR_KEYS)palace[k]=data.all[n][k]||[];else palace.floors[n]=data.all[n]}
+ };
  function history(palace,limit=60){
   const past=[snapshot(palace)],future=[];
   return {
@@ -567,15 +635,15 @@ const S=(x,y,z,r,c)=>['s',x,y,z,r,c];
   const out=[];
   palace.rooms.forEach((r,i)=>{if(!validRoom(palace,r,r.id))out.push('room '+r.name+' is invalid or overlaps')});
   for(const f of palace.furniture)if(!canPlace(palace,f,f.id))out.push(f.type+' '+f.id+' does not fit');
-  for(const s of palace.stations)if(!palace.furniture.some(f=>f.id===s.furnitureId))out.push('station '+s.id+' has no furniture');
+  for(const s of palace.stations)if((s.level||0)===levelOf(palace)&&!palace.furniture.some(f=>f.id===s.furnitureId))out.push('station '+s.id+' has no furniture');
   for(const q of propsOf(palace))if(!propFits(palace,q,q.id))out.push(q.type+' '+q.id+' does not fit');
-  for(const s of palace.stations)if(s.propId&&!propsOf(palace).some(q=>q.id===s.propId))out.push('station '+s.id+' has no prop');
+  for(const s of palace.stations)if((s.level||0)===levelOf(palace)&&s.propId&&!propsOf(palace).some(q=>q.id===s.propId))out.push('station '+s.id+' has no prop');
   return out;
  }
  function bounds(palace){
   if(!palace.rooms.length)return {x0:0,z0:0,x1:10,z1:10};
   return {x0:Math.min(...palace.rooms.map(r=>r.x)),z0:Math.min(...palace.rooms.map(r=>r.z)),x1:Math.max(...palace.rooms.map(r=>r.x+r.w)),z1:Math.max(...palace.rooms.map(r=>r.z+r.d))};
  }
- return {PROPS,propSpec,propsOf,propsOn,surfacesOf,propSize,propFits,findPropSlot,placeProp,moveProp,rotateProp,removeProp,propWorld,pickProp,stationOf,toggleRoute,bookLike,clearance,FLOOR_TYPES,G,HEIGHT,THICK,DOOR_TOP,ARCH_TOP,SILL,HEAD,RADIUS,CATALOG,FLOORS,WALLS,TINTS,ROOM_NAMES,spec,shade,paint,snap,roomAt,wallCells,wallRuns,validRoom,addRoom,resizeRoom,moveRoom,removeRoom,toggleOpening,openingAt,pruneOpenings,layerOf,footprint,roomOf,fitsInRoom,canPlace,wallSpot,flush,placeFurniture,moveFurniture,rotateFurniture,removeFurniture,recolour,swapFurniture,findSpot,addStation,stationsOn,removeStation,route,moveStation,entrance,walkOrder,autoPlace,colliders,blockedBy,slide,viewFrom,pick,blank,starterHouse,history,snapshot,restore,problems,bounds,makeId};
+ return {STOREY,levels,levelName,setLevel,withLevel,addLevel,partnerOf,levelOf,PROPS,propSpec,propsOf,propsOn,surfacesOf,propSize,propFits,findPropSlot,placeProp,moveProp,rotateProp,removeProp,propWorld,pickProp,stationOf,toggleRoute,bookLike,clearance,FLOOR_TYPES,G,HEIGHT,THICK,DOOR_TOP,ARCH_TOP,SILL,HEAD,RADIUS,CATALOG,FLOORS,WALLS,TINTS,ROOM_NAMES,spec,shade,paint,snap,roomAt,wallCells,wallRuns,validRoom,addRoom,resizeRoom,moveRoom,removeRoom,toggleOpening,openingAt,pruneOpenings,layerOf,footprint,roomOf,fitsInRoom,canPlace,wallSpot,flush,placeFurniture,moveFurniture,rotateFurniture,removeFurniture,recolour,swapFurniture,findSpot,addStation,stationsOn,removeStation,route,moveStation,entrance,walkOrder,autoPlace,colliders,blockedBy,slide,viewFrom,pick,blank,starterHouse,history,snapshot,restore,problems,bounds,makeId};
 })();
 if(typeof module!=='undefined')module.exports=PalaceModel;
