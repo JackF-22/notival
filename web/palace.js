@@ -89,6 +89,7 @@
    root.dataset.mode=mode;
    if(mode==='walk'){if(!S.visited){S.visited=true;toFrontDoor()}S.tool='select';hudShow('Drag to look · W A S D or arrows to walk · click the floor to go there · click a book to take it down, or a glowing marker to read it · Esc to go back')}
    renderTop();renderSide();renderToolbar();overlay();
+   if(mode==='walk'&&!S.edit)lookOn();   // walking is mouse look: the mouse turns your head, with nothing to switch on
   }
   // ── Mouse look ───────────────────────────────────────────────────────────
   // The pointer is held in the middle and every movement of the mouse turns your head. In the app the Mac does the holding
@@ -98,13 +99,14 @@
   const aimPoint=p=>S.look?centre():p;
   function lookChanged(){
    root.dataset.look=String(S.look);S.hover={};S.drag=null;canvas.style.cursor='';
-   if(S.look)hudShow('Move the mouse to look · click what is under the dot · Esc or L lets go of the mouse',5000);
+   if(S.look)hudShow('Move the mouse to look around · click what is under the dot · Esc frees the mouse',5000);
+   else if(ctl?.getMode()==='walk'&&!S.edit&&!reading&&!S.recall&&bridge)hudShow('Click the view to look around again',4000);
    renderToolbar();overlay();ctl?.redraw();
   }
   function lookOn(){
    if(S.look||ctl?.getMode()!=='walk'||reading)return;
    if(bridge){bridge.postMessage({type:'mouseLook',on:true});S.look=true;lookChanged()}
-   else if(canvas.requestPointerLock)canvas.requestPointerLock();
+   else if(canvas.requestPointerLock){try{const r=canvas.requestPointerLock();r&&r.catch&&r.catch(()=>{})}catch{}}
   }
   function lookOff(){
    if(!S.look)return;
@@ -121,7 +123,7 @@
   };
   window.marginMouseLookEnded=()=>{if(S.look){S.look=false;lookChanged()}};
   function setEdit(on){
-   S.edit=on;S.placing=null;S.hover={};root.dataset.edit=String(on);hideCard();if(on)lookOff();
+   S.edit=on;S.placing=null;S.hover={};root.dataset.edit=String(on);hideCard();if(on)lookOff();else lookOn();   // building needs the pointer for the panel; exploring takes the mouse back
    if(on){S.tab='build';hudShow('Pick something in the panel, then click where it goes · click a thing to select it · R turns it · Esc cancels',9000)}
    renderToolbar();renderSide();overlay();requestAnimationFrame(()=>ctl?.redraw());
   }
@@ -161,7 +163,6 @@
    if(ctl?.getMode()==='walk'){
     for(const [edit,label,hint] of [[false,'Explore','Look around, take books down, read things'],[true,'Build','Add, move and change things while you walk']]){const b=button(label,()=>setEdit(edit),'pe-tool',hint);b.setAttribute('aria-pressed',String(S.edit===edit));toolbar.append(b)}
     const door=button('Front door',()=>{toFrontDoor();hudShow('The front door: where every walk begins',2200)},'pe-tool','Go back to the front door');toolbar.append(door);
-    const m=button('Mouse look',()=>S.look?lookOff():lookOn(),'pe-tool','Move the mouse to turn your head (L). Esc lets go of the mouse.');m.setAttribute('aria-pressed',String(S.look));toolbar.append(m);
     return;
    }
    for(const [id,label,hint] of TOOLS){const b=button(label,()=>{S.tool=id;canvas.dataset.tool=id;overlay();renderToolbar()},'pe-tool',hint);b.setAttribute('aria-pressed',String(S.tool===id));toolbar.append(b)}
@@ -326,7 +327,7 @@
    ctl.hideProp(q.id);
    reading=PalaceBook.open({title:q.title||sp.name,detail:q.detail,pages:q.pages||[],color:q.color||sp.color,origin:pt?{x:r.left+pt.x,y:r.top+pt.y}:null,mount:root,editable:true,edit,page,
     onChange:({title,detail,pages})=>{q.title=title.trim();q.detail=detail.trim();q.pages=pages;const st=P.stationOf(palace,q.id);if(st){st.title=q.title||sp.name;st.detail=q.detail}commit()},
-    onClose:()=>{reading=null;ctl.hideProp(null);canvas.focus()}});
+    onClose:()=>{reading=null;ctl.hideProp(null);canvas.focus();if(ctl.getMode()==='walk'&&!S.edit&&!S.recall)lookOn()}});
   }
   function showPropCard(q){
    const sp=P.PROPS[q.type],host=palace.furniture.find(g=>g.id===q.hostId),st=P.stationOf(palace,q.id);
@@ -437,10 +438,10 @@
   function startRecall(){
    const list=P.route(palace);if(!list.length){toast_('Leave something on the furniture first');S.tab='route';renderSide();return}
    if(ctl.getMode()!=='walk')setMode('walk');
-   toFrontDoor();
+   lookOff();toFrontDoor();
    S.recall={i:0,shown:false,ok:0,miss:0,list};recallStep();
   }
-  function stopRecall(summary=true){if(!S.recall)return;S.recall=null;recallBox.hidden=true;recallBox.replaceChildren();overlay()}
+  function stopRecall(summary=true){if(!S.recall)return;S.recall=null;recallBox.hidden=true;recallBox.replaceChildren();overlay();if(summary&&ctl.getMode()==='walk'&&!S.edit)lookOn()}
   function recallStep(){
    const rc=S.recall;if(!rc)return;hideCard();hud.classList.remove('is-on');recallBox.replaceChildren();recallBox.hidden=false;
    if(rc.i>=rc.list.length){
@@ -540,8 +541,9 @@
    if(d.type==='lookclick'){walkClick(centre(),event);return}
    if(d.type==='look'){
     if(d.moved){canvas.style.cursor='';return}
+    if(bridge&&!S.edit&&!S.look&&!reading&&!S.recall&&!S.placing){lookOn();return}   // a click on the free mouse just takes it back
     walkClick(p,event);
-    if(!S.edit&&!S.look&&!reading&&!S.placing)lookOn();
+    if(!S.edit&&!S.look&&!reading&&!S.placing&&!S.recall)lookOn();
     return;
    }
    if(d.type==='pan'){if(d.click&&!S.room&&!S.furniture)overlay();return}
@@ -683,7 +685,6 @@
    const k=keyName(event),mod=event.metaKey||event.ctrlKey;
    if(ctl.getMode()==='walk'){
     if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright','q','e','shift'].includes(k)&&!mod){event.preventDefault();ctl.setKey(k,true);return}
-    if(k==='l'&&!mod){S.look?lookOff():lookOn();return}
     if(!S.edit)return;
     if(k==='r'&&S.placing&&S.placing.kind!=='moveF'&&S.placing.kind!=='moveP'){S.placing.rot=((S.placing.rot||0)+90)%360;walkHover(S.lastPoint||{x:canvas.clientWidth/2,y:canvas.clientHeight/2});return}
    }
