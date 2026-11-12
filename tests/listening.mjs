@@ -67,18 +67,26 @@ try{
   // The word you missed goes to the vocab drawer
   await click('Add the 1 to learn');await wait(100);
   assert.deepEqual(await evaluate(`state.vocab.map(w=>w.term)`),['спасибо']);
-  // Her own words win over the draft
+  // Text you add yourself wins over the draft
   await click('Try again');
   await evaluate(`(()=>{const t=document.querySelector('.listening-reference textarea');t.value='Привет, как дела? Я хочу тебе сказать спасибо.';t.dispatchEvent(new Event('change'))})()`);await wait(100);
   await click('Check my answer');await wait(100);
-  assert.match(await text('.listening-hint'),/Compared with her words/);
+  assert.match(await text('.listening-hint'),/Compared with the correct text/);
   // A Mac without offline Russian says so and offers Apple's servers only on request
   await evaluate(`(()=>{state.listening[0].draft=null;marginTranscript({id:'${id}',error:'This Mac has no offline speech recognition for this language.',code:11})})()`);await wait(100);
   assert.match(await text('.listening-reference'),/System Settings → Keyboard → Dictation/);
   await click('Use Apple');
   const last=(await sent()).at(-1);assert.deepEqual([last.type,last.allowServer],['transcribeAudio',true]);
+  // A draft far too short for the audio is flagged, with a way to try again
+  await evaluate(`(()=>{const c=state.listening[0];c.duration=20;c.reference='';c.draftError=null;marginTranscript({id:'${id}',text:'Привет',words:[],onDevice:true})})()`);await wait(150);
+  assert.match(await text('.listening-warning'),/short for a 0:20 message/);
+  assert.equal(await evaluate(`[...document.querySelectorAll('.listening-warning button')].some(b=>/Apple/.test(b.textContent))`),true,'it offers the servers when the draft was made offline');
+  // The key guide for typing Russian
+  assert.equal(await evaluate(`document.querySelector('.translit-help').hidden`),true);
+  await click('Keys');assert.equal(await evaluate(`document.querySelector('.translit-help').hidden`),false);
+  assert.match(await text('.translit-help'),/Soft sign ь is the apostrophe key/);
   // A second click on delete confirms, then removes the message and its audio file
   await click('🗑');await click('Delete?');await wait(100);
   assert.equal(await evaluate(`state.listening.length`),0);assert.ok((await sent()).some(m=>m.type==='deleteAudio'&&m.id==='11111111-2222-3333-4444-555555555555'));
-  console.log('PASS: listening — add a voice message, play it, write Russian (Latin typing) and English, check against the draft or her words, learn missed words, offline-draft fallback, delete.');
+  console.log('PASS: listening — add a voice message, play it, write Russian (Latin typing) and English, check against the draft or text you add, learn missed words, offline-draft fallback, delete.');
 }finally{browser.kill();for(const pending of waiting.values())clearTimeout(pending.timer);await rm(profile,{recursive:true,force:true,maxRetries:10,retryDelay:100})}

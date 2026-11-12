@@ -64,3 +64,7 @@
 .subject-listening .listening-widget-go,.subject-listening .listening-widget-all{margin-top:10px;height:34px;padding:0 16px;border:1px solid var(--line);border-radius:9px;background:transparent;color:inherit;font:inherit;font-size:13px;cursor:pointer}
 .subject-listening .listening-widget-go{background:var(--accent,var(--green));border-color:var(--accent,var(--green));color:var(--on-accent,#fff)}
 .subject-language-hint{display:block;color:var(--muted);font-size:12px;line-height:1.5;margin-top:6px}
+
+.listening-chips{display:flex;gap:6px;flex-wrap:wrap}
+.listening-warning{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,#e3b23c 22%,var(--bg));font-size:13px}
+.listening-warning span{flex:1 1 220px}

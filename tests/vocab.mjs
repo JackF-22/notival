@@ -40,6 +40,8 @@ try{
   await evaluate(`document.querySelector('#vocab-panel .vocab-form input').focus()`);
   for(const c of 'privet')await call('Input.dispatchKeyEvent',{type:'keyDown',key:c,text:c},sessionId);await wait(50);
   assert.equal(await evaluate(`document.querySelector('#vocab-panel .vocab-form input').value`),'привет');
+  assert.equal(await evaluate(`document.querySelector('#vocab-panel .translit-help').hidden`),true,'the key guide starts closed');
+  await evaluate(`document.querySelector('#vocab-panel .vocab-keys').click()`);assert.equal(await evaluate(`document.querySelector('#vocab-panel .translit-help').hidden`),false);
   await key('Enter');await type('hello');await key('Enter');await wait(150);
   assert.deepEqual(await evaluate(`state.vocab.map(w=>[w.term,w.meaning])`),[['привет','hello']],'Enter after the meaning adds the word');
   assert.match(await text('.vocab-row'),/привет.*hello/);

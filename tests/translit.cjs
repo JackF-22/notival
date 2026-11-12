@@ -20,6 +20,7 @@ assert.equal(T.convert('Yabloko'),'Яблоко');
 assert.equal(T.convert('SHkola'),'Школа'.replace('Ш','Ш'));
 assert.equal(T.convert('ob"yem'),'объем');
 assert.equal(T.convert('Moskva 123!'),'Москва 123!');
+assert.equal(T.convert('ehto'),'это');assert.equal(T.convert('eheto'),'эето');assert.equal(T.convert("sem'"),'семь');assert.equal(T.convert('ob"yekt'),'объект');
 // "с"+"h" outside a pair stays readable: 'skhema' → 'схема' is not possible with sh rule, so ш wins (documented)
 assert.equal(T.convert('sh'),'ш');
 console.log('PASS: Latin typing becomes Cyrillic, with sh ch zh shch kh yo yu ya pairs and capitals.');

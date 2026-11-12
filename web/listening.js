@@ -1,6 +1,6 @@
 // Listening practice for a language subject: add a voice message (an iMessage voice note, a Voice Memo, an mp4/m4a…), listen as often as you
 // like, write what you heard in Russian, then in English, and check. The Mac drafts the words so you have something to
-// check against; if she tells you what she actually said, paste it and that is used instead. Scoring: listening-model.js.
+// check against; if you have the correct text (a transcript, or what the speaker tells you they said), add it and that is used instead. Scoring: listening-model.js.
 (()=>{
  const M=ListeningModel,$=s=>document.querySelector(s);
  const el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!=null)n.textContent=text;return n};
@@ -128,7 +128,7 @@
   n.bb.title=mark.b!=null?'End at '+clock(mark.b)+' (click to clear)':'Mark the end of a part to repeat';
   n.again.setAttribute('aria-pressed',String(loop));n.again.disabled=mark.a==null||mark.b==null;
  }
- const reference=clip=>clip.reference?.trim()?{text:clip.reference.trim(),source:'hers'}:clip.draft?.text?.trim()?{text:clip.draft.text.trim(),source:'draft'}:null;
+ const reference=clip=>clip.reference?.trim()?{text:clip.reference.trim(),source:'given'}:clip.draft?.text?.trim()?{text:clip.draft.text.trim(),source:'draft'}:null;
 
  function practice(pane,clip){
   const titleRow=el('div','listening-title');
@@ -146,7 +146,11 @@
   latin.setAttribute('aria-pressed',String(pref('translit',true)));
   if(russian)Translit.attach(ru,()=>latin.getAttribute('aria-pressed')==='true');
   ru.oninput=()=>{clip.work.ru=ru.value;persist()};
-  ruBox.append(ru);if(russian)ruBox.append(latin);
+  ruBox.append(ru);
+  if(russian){
+   const guide=Translit.help(),keys=button('Keys ?',()=>{guide.hidden=!guide.hidden;keys.setAttribute('aria-pressed',String(!guide.hidden))},'listening-chip','Which keys type which letters');keys.setAttribute('aria-pressed','false');
+   const row=el('div','listening-chips');row.append(latin,keys);ruBox.append(row,guide);
+  }
 
   // 2 · English
   const enBox=el('section','listening-step');enBox.append(el('h3','','2 · Say it in English'));
@@ -165,9 +169,9 @@
    clip.attempts.unshift({at:Date.now(),percent:result.percent,ru:clip.work.ru||'',en:clip.work.en||'',source:r.source});
    checked={result,source:r.source};persist();paint();
    },'primary listening-check'));
-   if(!ref)check.append(el('small','listening-hint',pending.has(clip.id)?'Drafting the words on this Mac…':'No words to check against yet. Draft them below, or paste what she actually said.'));
+   if(!ref)check.append(el('small','listening-hint',pending.has(clip.id)?'Drafting the words on this Mac…':'No words to check against yet. Draft them below, or add the correct text.'));
   }
-  else if(checked.none)check.append(el('small','listening-hint','No words to check against yet. Draft them below, or paste what she actually said.'),button('Back',()=>{checked=null;paint()}));
+  else if(checked.none)check.append(el('small','listening-hint','No words to check against yet. Draft them below, or add the correct text.'),button('Back',()=>{checked=null;paint()}));
   else check.append(results(clip,checked));
   pane.append(check);
   pane.append(reference_box(clip));
@@ -179,13 +183,22 @@
   syncPlayer();
  }
 
- // Where the right words come from: her own text, or the Mac's draft.
+ // Where the right words come from: text you add yourself, or the Mac's draft.
  function reference_box(clip){
   const box=el('section','listening-step listening-reference');box.append(el('h3','','The words'));
   if(pending.has(clip.id))box.append(el('small','listening-hint','Drafting the words on this Mac…'));
   else if(clip.draft){
-   const note=clip.draft.onDevice?'Drafted on this Mac. It can be wrong, so trust her over it.':'Drafted using Apple\'s servers. It can be wrong, so trust her over it.';
-   box.append(el('small','listening-hint',clip.reference?'The Mac\'s draft (not used, since you pasted her words):':note));
+   const note=clip.draft.onDevice?'Drafted on this Mac. It can be wrong, so listen and correct it if you can.':'Drafted using Apple\'s servers. It can be wrong, so listen and correct it if you can.';
+   box.append(el('small','listening-hint',clip.reference?'The Mac\'s draft (not used, since you added the correct text):':note));
+   // Speech is about two words a second. A draft far shorter than the audio has probably missed most of it.
+   const heard=M.words(clip.draft.text).length;
+   if(!clip.reference&&clip.duration>=6&&heard<clip.duration*.7){
+    const warn=el('div','listening-warning');
+    warn.append(el('span','',heard?'This draft is short for a '+clock(clip.duration)+' message: the Mac may have missed parts of it.':'The Mac did not pick up any words.'));
+    if(clip.draft.onDevice)warn.append(button('Try with Apple\'s servers',()=>draft(clip,true),'','Sends this audio to Apple for a better draft'));
+    warn.append(button('Try again',()=>draft(clip)));
+    box.append(warn,el('small','listening-hint','Or type the correct text below and it will be used instead.'));
+   }
    if(!checked||checked.none)box.append(el('p','listening-draft',clip.draft.text||'(no speech found)'));
   }
   else if(clip.draftError){
@@ -194,15 +207,15 @@
    else box.append(button('Try again',()=>draft(clip)));
   }
   else box.append(button('Draft the words on this Mac',()=>draft(clip)));
-  const hers=el('textarea','listening-text');hers.rows=2;hers.lang=langOf().code;hers.value=clip.reference||'';hers.placeholder='Paste what she actually said (optional)';hers.setAttribute('aria-label','What she actually said');hers.spellcheck=false;
-  hers.onchange=()=>{clip.reference=hers.value;persist();if(checked&&!checked.none)checked=null;paint()};
-  box.append(hers);
+  const given=el('textarea','listening-text');given.rows=2;given.lang=langOf().code;given.value=clip.reference||'';given.placeholder='The correct text, if you have it (optional)';given.setAttribute('aria-label','The correct text');given.spellcheck=false;
+  given.onchange=()=>{clip.reference=given.value;persist();if(checked&&!checked.none)checked=null;paint()};
+  box.append(given);
   return box;
  }
 
  function results(clip,state_){
   const {result,source}=state_,box=el('div','listening-results');
-  box.append(el('div','listening-score',result.percent+'%'),el('small','listening-hint',source==='draft'?'Compared with the Mac\'s draft, which can be wrong.':'Compared with her words.'));
+  box.append(el('div','listening-score',result.percent+'%'),el('small','listening-hint',source==='draft'?'Compared with the Mac\'s draft, which can be wrong.':'Compared with the correct text.'));
   const line=el('p','listening-line');line.lang=langOf().code;
   const timed=source==='draft'&&clip.draft?.words?.length===result.words.length?clip.draft.words:null;
   result.words.forEach((item,index)=>{
@@ -216,7 +229,7 @@
    line.append(w,' ');
   });
   box.append(line);
-  if(result.extra.length)box.append(el('small','listening-hint','Words you wrote that she didn\'t say: '+result.extra.join(', ')));
+  if(result.extra.length)box.append(el('small','listening-hint','Words you wrote that aren\'t in the text: '+result.extra.join(', ')));
   const learn=M.toLearn(result);
   const actions=el('div','listening-actions');
   if(learn.length)actions.append(button('Add the '+learn.length+' to learn to vocab',()=>{for(const word of learn)window.marginVocab?.add({term:word});toast?.('Added '+learn.length+' words to your vocab')},'primary'));

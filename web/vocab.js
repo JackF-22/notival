@@ -32,12 +32,14 @@
  function view(subjectId,{drawer=false,onClose}={}){
   adopt(subjectId);
   const root=el('div','vocab-view'+(drawer?' is-drawer':''));
-  let filter='',quiz=null,termInput,meaningInput,list,quizBox,search,form,tools,title,russian=null;
+  let filter='',quiz=null,termInput,meaningInput,list,quizBox,search,form,tools,title,russian=null,guide=null;
   const lang=languageOf(subjectId),isRussian=lang?.code==='ru';
   const head=el('div','vocab-head');title=el('h2');head.append(title);
   if(isRussian){
    russian=button('РУ',()=>{russian.setAttribute('aria-pressed',String(russian.getAttribute('aria-pressed')!=='true'));remember('translit',russian.getAttribute('aria-pressed')==='true')},'vocab-chip','Type Russian with a Latin keyboard (privet → привет)');
    russian.setAttribute('aria-pressed',String(pref('translit',true)));head.append(russian);
+   const keys=button('?',()=>{guide.hidden=!guide.hidden;keys.setAttribute('aria-pressed',String(!guide.hidden))},'vocab-chip vocab-keys','Which keys type which letters');keys.setAttribute('aria-pressed','false');head.append(keys);
+   guide=Translit.help();
   }
   head.append(button('Quiz',()=>startQuiz(),'vocab-chip','Test yourself on these words'));
   if(drawer)head.append(button('✕',()=>onClose?.(),'vocab-close','Hide vocab'));
@@ -54,7 +56,7 @@
   search=el('input');search.type='search';search.placeholder='Search';search.setAttribute('aria-label','Search vocab');search.oninput=()=>{filter=search.value.trim().toLowerCase();refresh()};
   tools.append(search);
   list=el('div','vocab-list');quizBox=el('div','vocab-quiz');quizBox.hidden=true;
-  root.append(head,form,tools,list,quizBox);
+  root.append(head,...(guide?[guide]:[]),form,tools,list,quizBox);
 
   const visible=()=>wordsOf(subjectId).filter(word=>!filter||(word.term+' '+word.meaning).toLowerCase().includes(filter));
   function refresh(){

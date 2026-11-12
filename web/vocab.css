@@ -49,3 +49,12 @@
 .language-field small:first-child{font-size:11px;letter-spacing:.06em;color:var(--muted)}
 .language-field select{font:inherit;font-size:14px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);width:100%}
 .language-field .language-hint{min-height:1.4em;color:var(--muted);font-size:12px;line-height:1.4}
+
+/* The key guide for typing Russian */
+.translit-help{display:grid;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--soft)}
+.translit-help[hidden]{display:none}
+.translit-keys{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:13px}
+.translit-keys span{white-space:nowrap}
+.translit-keys kbd{font:12px ui-monospace,Menlo,monospace;padding:1px 6px;margin-right:4px;border:1px solid var(--line);border-radius:5px;background:var(--bg)}
+.translit-help small{color:var(--muted);font-size:12px;line-height:1.5}
+.vocab-keys{width:30px;padding:0!important}

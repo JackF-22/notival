@@ -65,20 +65,21 @@ struct Draft { let text: String; let words: [[String: Any]]; let onDevice: Bool 
    let lock = NSLock()
    func finish(_ outcome: Result<Draft, Error>) { lock.lock(); defer { lock.unlock() }; guard !finished else { return }; finished = true; watchdog?.cancel(); task?.cancel(); completion(outcome) }
    var watchdog: DispatchWorkItem?
+   var latest: SFTranscription?
+   func draft(_ t: SFTranscription) -> Draft { Draft(text: t.formattedString, words: t.segments.map { ["text": $0.substring, "start": $0.timestamp, "duration": $0.duration, "confidence": Double($0.confidence)] as [String: Any] }, onDevice: offline) }
    // The offline model is sometimes listed but not downloaded: then nothing ever comes back. Give it a while, then say so.
    func arm(_ seconds: Double) {
     watchdog?.cancel()
-    let item = DispatchWorkItem { finish(.failure(NSError(domain: "Listening", code: offline ? 11 : 12, userInfo: [NSLocalizedDescriptionKey: offline ? "This Mac hasn't downloaded offline speech recognition for this language." : "Speech recognition didn't answer. Check your connection and try again."]))) }
+    // If it stalls part-way, keep what it had heard rather than nothing.
+    let item = DispatchWorkItem { if let latest, !latest.formattedString.isEmpty { finish(.success(draft(latest))); return }; finish(.failure(NSError(domain: "Listening", code: offline ? 11 : 12, userInfo: [NSLocalizedDescriptionKey: offline ? "This Mac hasn't downloaded offline speech recognition for this language." : "Speech recognition didn't answer. Check your connection and try again."]))) }
     watchdog = item; DispatchQueue.global().asyncAfter(deadline: .now() + seconds, execute: item)
    }
    arm(20)
    task = recognizer.recognitionTask(with: request) { result, error in
     if let result {
      arm(20)
-     if result.isFinal {
-      let words = result.bestTranscription.segments.map { ["text": $0.substring, "start": $0.timestamp, "duration": $0.duration, "confidence": Double($0.confidence)] as [String: Any] }
-      finish(.success(Draft(text: result.bestTranscription.formattedString, words: words, onDevice: offline)))
-     }
+     latest = result.bestTranscription
+     if result.isFinal { finish(.success(draft(result.bestTranscription))) }
     } else if let error {
      let text = (error as NSError).localizedDescription.lowercased()
      if text.contains("no speech") { finish(.success(Draft(text: "", words: [], onDevice: offline))) }

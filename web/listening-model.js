@@ -43,7 +43,7 @@ const ListeningModel=(()=>{
   const points=result.reduce((sum,item)=>sum+(item.state==='right'?1:item.state==='close'?.5:0),0);
   return {words:result,extra:spare,total:n,percent:n?Math.round(points/n*100):0};
  }
- // Her words as a list of distinct words you could learn: the ones missed or wrong.
+ // The words worth learning from a check: the ones missed, wrong or close.
  const toLearn=comparison=>[...new Set(comparison.words.filter(item=>item.state==='missed'||item.state==='wrong'||item.state==='close').map(item=>item.word.toLowerCase()))];
  return {normalize,words,compare,toLearn};
 })();
