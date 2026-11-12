@@ -315,6 +315,8 @@ const Palace3D=(()=>{
    const a=(v,c)=>Math.atan((v-c)/f),px=x0??cx,py=y0??cy;
    state.walk.yaw=clampAngle(state.walk.yaw+(a(px+dx,cx)-a(px,cx)));state.walk.pitch=Math.max(-1.3,Math.min(1.3,state.walk.pitch+(a(py+dy,cy)-a(py,cy))));state.dirty=true;
   }
+  // Mouse look: every movement of the mouse turns the head (right turns right, up looks up).
+  function turnBy(dx,dy){state.walk.yaw=clampAngle(state.walk.yaw-dx*.0024);state.walk.pitch=Math.max(-1.3,Math.min(1.3,state.walk.pitch-dy*.0024));state.dirty=true}
   function setMode(mode){
    state.mode=mode;state.target=null;state.fly=null;
    if(mode==='walk'&&!P.roomAt(palace,state.walk.x,state.walk.z)){const e=P.entrance(palace);if(e){state.walk.x=e.x;state.walk.z=e.z+(e.z<=0.01?.9:0);state.walk.yaw=0}}
@@ -405,7 +407,7 @@ const Palace3D=(()=>{
   function setOverlay(o){state.overlay=o||{};state.dirty=true}
   function snapshot(){draw();return canvas.toDataURL('image/png')}
   function dispose(){disposed=true;cancelAnimationFrame(raf);view.dispose()}
-  const api={canvas,state,rebuild,hideProp,setOverlay,setMode,getMode:()=>state.mode,frame,zoomAt,panBy,lookBy,flyTo,setTarget,setKey,toWorld,toScreen,ray,aim,pickFurniture,pickProp,pickRoom,pickWall,pickHandle,snapshot,dispose,redraw:()=>{state.dirty=true},step,draw,
+  const api={canvas,state,rebuild,hideProp,setOverlay,setMode,getMode:()=>state.mode,frame,zoomAt,panBy,lookBy,turnBy,flyTo,setTarget,setKey,toWorld,toScreen,ray,aim,pickFurniture,pickProp,pickRoom,pickWall,pickHandle,snapshot,dispose,redraw:()=>{state.dirty=true},step,draw,
    walk:state.walk,plan:state.plan,setLabels:on=>{state.labels=on},setGrid:on=>{state.gridOn=on;state.dirty=true}};
   rebuild();frame();raf=requestAnimationFrame(loop);
   return api;

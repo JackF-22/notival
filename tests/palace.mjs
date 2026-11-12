@@ -39,6 +39,7 @@ try{
   const drag=async(from,to,steps=6)=>{const a=await screen(...from),b=await screen(...to);await pm('mousePressed',a);for(let i=1;i<=steps;i++)await pm('mouseMoved',{x:a.x+(b.x-a.x)*i/steps,y:a.y+(b.y-a.y)*i/steps});await pm('mouseReleased',b,0);await wait(120)};
   const press=async(k,extra={})=>{await call('Input.dispatchKeyEvent',{type:'keyDown',key:k,code:k.length===1?'Key'+k.toUpperCase():k,windowsVirtualKeyCode:{Delete:46,Escape:27,ArrowUp:38,Backspace:8}[k]||k.toUpperCase().charCodeAt(0),...extra},sessionId);await call('Input.dispatchKeyEvent',{type:'keyUp',key:k,code:k.length===1?'Key'+k.toUpperCase():k},sessionId);await wait(80)};
   const clickText=label=>evaluate(`[...document.querySelectorAll('.palace-editor button')].find(b=>b.textContent.trim().startsWith(${JSON.stringify(label)}))?.click()`);
+  await evaluate(`HTMLCanvasElement.prototype.requestPointerLock=function(){};`);
   await evaluate(`localStorage.clear();(()=>{
     state.projects=[{id:'ru',name:'Russian',icon:'🇷🇺',color:'#c4483c',description:'',units:[],materials:[],packs:[],assessments:[],checklist:[],language:{code:'ru',name:'Russian',locale:'ru-RU'}}];
     state.notes=[];state.palaces=[];state.items=[];state.reviews={};

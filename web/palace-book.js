@@ -10,6 +10,21 @@ const PalaceBook=(()=>{
  const dark=hex=>{const m=/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex||'');if(!m)return true;return (.299*parseInt(m[1],16)+.587*parseInt(m[2],16)+.114*parseInt(m[3],16))<150};
  const reduced=()=>window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
  const TURN=650;
+ // Text with $…$ (inline) or $$…$$ (display) comes back as a fragment with the LaTeX typeset; if KaTeX can't read an equation
+ // its source is shown as typed.
+ const MATH_SPLIT=/(\$\$[\s\S]+?\$\$|\$[^$\n]+?\$)/;
+ function typeset(text){
+  const out=document.createDocumentFragment();
+  for(const part of String(text??'').split(MATH_SPLIT)){
+   if(!part)continue;const m=part.match(/^(\$\$?)([\s\S]+?)\1$/);
+   if(m&&typeof katex!=='undefined'){
+    const box=el('span',m[1]==='$$'?'pb-math is-display':'pb-math');
+    try{const source=m[2].trim();katex.render(window.MathSyntax?.katexSource?MathSyntax.katexSource(source):source,box,{displayMode:m[1]==='$$',throwOnError:true,trust:false,maxExpand:1000,maxSize:20})}catch{box.textContent=part;box.classList.add('is-source')}
+    out.append(box);
+   }else out.append(document.createTextNode(part));
+  }
+  return out;
+ }
 
  function open({title='',detail='',pages=[],color='#3f6f8f',origin=null,mount=document.body,onClose}){
   const written=pages.map(p=>String(p?.text??p??''));
@@ -26,11 +41,12 @@ const PalaceBook=(()=>{
    if(!sheet){page.classList.add('is-none');return page}
    if(sheet.cover){
     page.classList.add('pb-cover',dark(color)?'is-dark':'is-light');page.style.background=color;
-    page.append(el('div','pb-cover-title',title||'Untitled'));if(detail)page.append(el('div','pb-cover-detail',detail));
+    const heading=el('div','pb-cover-title');heading.append(typeset(title||'Untitled'));page.append(heading);if(detail){const sub=el('div','pb-cover-detail');sub.append(typeset(detail));page.append(sub)}
     return page;
    }
    const n=sheets.indexOf(sheet);
-   page.append(sheet.text?el('div','pb-text',sheet.text):el('div','pb-text is-empty',sheet.end?'':'Nothing written on this page yet.'),el('div','pb-number',sheet.end?'':String(n)));
+   const body=el('div','pb-text'+(sheet.text?'':' is-empty'));if(sheet.text)body.append(typeset(sheet.text));else body.textContent=sheet.end?'':'Nothing written on this page yet.';
+   page.append(body,el('div','pb-number',sheet.end?'':String(n)));
    return page;
   };
   const sheetAt=i=>i>=0&&i<sheets.length?sheets[i]:null;
@@ -126,6 +142,6 @@ const PalaceBook=(()=>{
  // A list of {title, detail} into pages: `per` entries to a page, one line each.
  const listPages=(items,per=8)=>{const out=[];for(let i=0;i<items.length;i+=per)out.push({text:items.slice(i,i+per).map(it=>it.detail?it.title+' — '+it.detail:it.title).join('\n')});return out};
 
- return {open,paginate,listPages};
+ return {open,paginate,listPages,typeset};
 })();
 if(typeof module!=='undefined')module.exports=PalaceBook;

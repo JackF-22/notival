@@ -35,8 +35,8 @@ const S=(x,y,z,r,c)=>['s',x,y,z,r,c];
   'side-table':{name:'Side table',cat:'Living',w:.5,d:.5,h:.55,color:'#b9876b',parts:[C(0,.5,0,.25,.04,'m'),C(0,0,0,.04,.5,DARK),C(0,0,0,.18,.03,DARK)],surfaces:[{x:0,z:0,w:.36,d:.36,y:.54}]},
 
   'tv-unit':{name:'TV and stand',cat:'Living',w:1.5,d:.45,h:1.15,color:'#8d8aa6',parts:[B(0,0,0,1.5,.5,.45,'m'),B(0,.5,0,.2,.1,.12,DARK),B(0,.6,0,1.25,.7,.05,'#1b1b20')],surfaces:[{x:-.5,z:0,w:.4,d:.38,y:.5},{x:.5,z:0,w:.4,d:.38,y:.5}]},
-  bookshelf:{name:'Bookshelf',cat:'Living',w:1,d:.32,h:1.9,color:'#a8a39a',parts:[B(-.48,0,0,.04,1.9,.32,'m'),B(.48,0,0,.04,1.9,.32,'m'),B(0,0,-.14,1,1.9,.04,'m-'),...[0,.5,1,1.47,1.87].map(y=>B(0,y,.01,.92,.03,.3,'m')),...books(1.5,-.43,.1,.0)],
-   surfaces:[{x:0,z:.01,w:.9,d:.26,y:.03,shelf:1},{x:0,z:.01,w:.9,d:.26,y:.53,shelf:1},{x:0,z:.01,w:.9,d:.26,y:1.03,shelf:1},{x:.28,z:.01,w:.34,d:.26,y:1.5,shelf:1},{x:0,z:0,w:.9,d:.26,y:1.9}]},
+  bookshelf:{name:'Bookshelf',cat:'Living',w:1,d:.32,h:1.9,color:'#a8a39a',parts:[B(-.48,0,0,.04,1.9,.32,'m'),B(.48,0,0,.04,1.9,.32,'m'),B(0,0,-.14,1,1.9,.04,'m-'),...[0,.5,1,1.47,1.87].map(y=>B(0,y,.01,.92,.03,.3,'m')),],
+   surfaces:[{x:0,z:.01,w:.9,d:.26,y:.03,shelf:1},{x:0,z:.01,w:.9,d:.26,y:.53,shelf:1},{x:0,z:.01,w:.9,d:.26,y:1.03,shelf:1},{x:0,z:.01,w:.9,d:.26,y:1.5,shelf:1},{x:0,z:0,w:.9,d:.26,y:1.9}]},
 
   fireplace:{name:'Fireplace',cat:'Living',w:1.4,d:.4,h:1.2,color:'#a8a39a',parts:[B(0,0,0,1.4,1.1,.4,'m'),B(0,.05,.2,.7,.6,.02,'#1d1d20'),B(0,1.1,0,1.5,.07,.46,'#8a7a64')],surfaces:[{x:0,z:0,w:1.3,d:.36,y:1.17}]},
 
@@ -489,6 +489,17 @@ const S=(x,y,z,r,c)=>['s',x,y,z,r,c];
   for(const c of wallCells(palace))if(c.kind==='door'&&(!c.a||!c.b)){const room=c.a||c.b;if(room)return {room,x:c.axis==='x'?(c.i+.5)*G:c.at,z:c.axis==='x'?c.at:(c.i+.5)*G}}
   const r=palace.rooms[0];return r?{room:r,x:r.x+r.w/2,z:r.z+r.d/2}:null;
  }
+ // The designated origin of every walk: just inside the front door, facing in. Falls back to the middle of the first room.
+ function startPoint(palace){
+  const doors=wallCells(palace).filter(c=>c.kind==='door'&&!(c.a&&c.b));
+  if(doors.length){
+   const first=doors[0],run=doors.filter(c=>c.axis===first.axis&&c.at===first.at&&Math.abs(c.i-first.i)<=Math.round(1.5/G));
+   const mid=run.reduce((sum,c)=>sum+(c.i+.5)*G,0)/run.length,inside=first.b?1:-1,d=.9;   // b is the room on the high side of the wall
+   const x=first.axis==='x'?mid:first.at+inside*d,z=first.axis==='x'?first.at+inside*d:mid;
+   return {x,z,yaw:Math.atan2(first.axis==='z'?inside:0,first.axis==='x'?inside:0),room:first.a||first.b};
+  }
+  const r=palace.rooms[0];return r?{x:r.x+r.w/2,z:r.z+r.d/2,yaw:0,room:r}:null;
+ }
  // Furniture in the order you would meet it walking round: room by room from the entrance, and clockwise inside each room
  // starting from the door you came in by. This is the natural route for placing things.
  function walkOrder(palace){
@@ -594,20 +605,16 @@ const S=(x,y,z,r,c)=>['s',x,y,z,r,c];
   put('bed-double',2.5,7.9,180);put('nightstand',1.25,8.7);put('nightstand',3.75,8.7);put('wardrobe',.35,6.6,90);put('dresser',.3,8.2,90);
   put('bathtub',5.55,7.7,90);put('toilet',5,5.4);put('vanity',4.6,8.7,180);put('mirror',4.6,8.9);
   put('desk',8.5,8.6,180);put('office-chair',8.5,7.8);put('bookshelf',9.8,6.5,270,'#b9876b');put('bookshelf',9.8,7.6,270);put('piano',6.45,7,90);put('plant',6.5,8.5);put('painting',9,5.1);
-  // a few things to find: books on the shelves, and a first book that explains the house
+  // a few things to find: a first book that explains the house, left on the coffee table (the shelves start empty)
   const at=(type,x,z)=>p.furniture.find(f=>f.type===type&&Math.abs(f.x-x)<.3&&Math.abs(f.z-z)<.3);
-  const shelve=(f,level,n,from)=>{for(let k=0;k<n;k++)placeProp(p,'book',f.id,{surface:level,...bookLike(from+k)})};
-  const living=at('bookshelf',5.5,4.75),study=at('bookshelf',9.8,7.6),study2=at('bookshelf',9.8,6.5);
-  shelve(living,0,7,0);shelve(living,1,6,3);shelve(living,2,5,7);shelve(study,0,6,2);shelve(study,1,7,5);shelve(study2,0,6,9);
-  const guide=propsOn(p,living.id).find(q=>q.surface===2);
-  if(guide)Object.assign(guide,{title:'How this house works',color:'#d6a64a',pages:[
+  const desk=at('desk',8.5,8.6),table=at('dining-table',8.5,3.75),stand=at('nightstand',1.25,8.7),island=at('kitchen-island',8,2.3),coffee=at('coffee-table',2.4,3.6);
+  placeProp(p,'book',coffee.id,{lx:0,...bookLike(3,'How this house works',[
    {text:'Welcome. This house is a place to keep things you want to remember.'},
    {text:'Put each thing on something in a room: a book on a shelf, a mug on a table.'},
    {text:'To recall, walk the same route in the same order and look at each place.'},
-   {text:'The odder the picture you make, the longer it stays. Write your own pages in a book like this one.'}]});
-  const desk=at('desk',8.5,8.6),table=at('dining-table',8.5,3.75),stand=at('nightstand',1.25,8.7),island=at('kitchen-island',8,2.3),coffee=at('coffee-table',2.4,3.6);
+   {text:'The odder the picture you make, the longer it stays. Write your own pages in a book like this one.'}])});
   placeProp(p,'laptop',desk.id,{lx:-.3});placeProp(p,'notebook',desk.id,{lx:.2,title:'My notebook',pages:[{text:''}]});placeProp(p,'mug',desk.id,{lx:.5,lz:.15});
-  placeProp(p,'vase',table.id);placeProp(p,'fruit',island.id);placeProp(p,'frame',stand.id);placeProp(p,'candle',coffee.id,{lx:-.3});placeProp(p,'globe',coffee.id,{lx:.3});
+  placeProp(p,'vase',table.id);placeProp(p,'fruit',island.id);placeProp(p,'frame',stand.id);placeProp(p,'candle',coffee.id,{lx:-.4});placeProp(p,'globe',coffee.id,{lx:.4});
   return p;
  }
 
@@ -644,6 +651,6 @@ const S=(x,y,z,r,c)=>['s',x,y,z,r,c];
   if(!palace.rooms.length)return {x0:0,z0:0,x1:10,z1:10};
   return {x0:Math.min(...palace.rooms.map(r=>r.x)),z0:Math.min(...palace.rooms.map(r=>r.z)),x1:Math.max(...palace.rooms.map(r=>r.x+r.w)),z1:Math.max(...palace.rooms.map(r=>r.z+r.d))};
  }
- return {STOREY,levels,levelName,setLevel,withLevel,addLevel,partnerOf,levelOf,PROPS,propSpec,propsOf,propsOn,surfacesOf,propSize,propFits,findPropSlot,placeProp,moveProp,rotateProp,removeProp,propWorld,pickProp,stationOf,toggleRoute,bookLike,clearance,FLOOR_TYPES,G,HEIGHT,THICK,DOOR_TOP,ARCH_TOP,SILL,HEAD,RADIUS,CATALOG,FLOORS,WALLS,TINTS,ROOM_NAMES,spec,shade,paint,snap,roomAt,wallCells,wallRuns,validRoom,addRoom,resizeRoom,moveRoom,removeRoom,toggleOpening,openingAt,pruneOpenings,layerOf,footprint,roomOf,fitsInRoom,canPlace,wallSpot,flush,placeFurniture,moveFurniture,rotateFurniture,removeFurniture,recolour,swapFurniture,findSpot,addStation,stationsOn,removeStation,route,moveStation,entrance,walkOrder,autoPlace,colliders,blockedBy,slide,viewFrom,pick,blank,starterHouse,history,snapshot,restore,problems,bounds,makeId};
+ return {startPoint,STOREY,levels,levelName,setLevel,withLevel,addLevel,partnerOf,levelOf,PROPS,propSpec,propsOf,propsOn,surfacesOf,propSize,propFits,findPropSlot,placeProp,moveProp,rotateProp,removeProp,propWorld,pickProp,stationOf,toggleRoute,bookLike,clearance,FLOOR_TYPES,G,HEIGHT,THICK,DOOR_TOP,ARCH_TOP,SILL,HEAD,RADIUS,CATALOG,FLOORS,WALLS,TINTS,ROOM_NAMES,spec,shade,paint,snap,roomAt,wallCells,wallRuns,validRoom,addRoom,resizeRoom,moveRoom,removeRoom,toggleOpening,openingAt,pruneOpenings,layerOf,footprint,roomOf,fitsInRoom,canPlace,wallSpot,flush,placeFurniture,moveFurniture,rotateFurniture,removeFurniture,recolour,swapFurniture,findSpot,addStation,stationsOn,removeStation,route,moveStation,entrance,walkOrder,autoPlace,colliders,blockedBy,slide,viewFrom,pick,blank,starterHouse,history,snapshot,restore,problems,bounds,makeId};
 })();
 if(typeof module!=='undefined')module.exports=PalaceModel;

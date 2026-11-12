@@ -134,3 +134,14 @@
 .pe-page-row{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:start;margin-bottom:6px}
 
 .pe-levels .pe-mode{padding:6px 12px}.pe-addfloor{color:var(--accent,#6a5ae0)!important}
+
+.pe-cross{position:absolute;left:50%;top:50%;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #0007,inset 0 0 0 1px #0005;pointer-events:none;display:none;z-index:5}
+.palace-editor[data-look=true] .pe-cross{display:block}
+.palace-editor[data-look=true] .pe-canvas{cursor:none}
+
+.pe-math-preview{margin:-2px 0 8px;padding:6px 10px;border:1px dashed var(--line);border-radius:9px;color:var(--ink);overflow-x:auto;font-size:14px}
+.pe-math-preview[hidden]{display:none}
+.pe-card .pb-math.is-display,.pe-recall .pb-math.is-display{display:block;margin:6px 0;overflow-x:auto}
+.pb-text .pb-math.is-display{display:block;margin:.6em 0;text-align:center;overflow-x:auto}
+.pb-math.is-source{font-family:ui-monospace,Menlo,monospace;font-size:.9em;opacity:.75}
+.pb-text .katex{font-size:1.05em}

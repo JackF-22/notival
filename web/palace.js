@@ -43,12 +43,20 @@
   const top=el('header','pe-top'),stage=el('div','pe-stage'),side=el('aside','pe-side'),canvas=el('canvas','pe-canvas'),labels=el('div','pe-labels'),hud=el('div','pe-hud'),card=el('div','pe-card'),recallBox=el('div','pe-recall');
   card.hidden=true;recallBox.hidden=true;
   const toolbar=el('div','pe-toolbar');toolbar.setAttribute('role','toolbar');toolbar.setAttribute('aria-label','Building tools');
-  stage.append(canvas,labels,toolbar,hud,card,recallBox);
+  const cross=el('div','pe-cross');stage.append(canvas,labels,cross,toolbar,hud,card,recallBox);
   const body=el('div','pe-body');body.append(stage,side);root.append(top,body);document.body.append(root);
 
-  const S={edit:false,placing:null,tool:'select',tab:'build',room:null,furniture:null,prop:null,station:null,drag:null,space:false,recall:null,labelNodes:[],hudTimer:0,collapsed:false};
+  const S={look:false,edit:false,placing:null,tool:'select',tab:'build',room:null,furniture:null,prop:null,station:null,drag:null,space:false,recall:null,labelNodes:[],hudTimer:0,collapsed:false};
   let ctl=null;
   const toast_=message=>window.toast?.(message);
+  // Text with LaTeX in it ($x^2$ inline, $$…$$ on its own line), typeset.
+  const rich=(tag,text,cls='')=>{const n=el(tag,cls);n.append(PalaceBook.typeset(text));return n};
+  // Under a field that is being typed in: the same text with its equations drawn, shown only when it has any.
+  function preview(...inputs){
+   const box=el('div','pe-math-preview');box.hidden=true;
+   const update=()=>{const text=inputs.map(i=>i.value).filter(v=>v.includes('$')).join('\n');box.hidden=!text;box.replaceChildren();if(text)box.append(PalaceBook.typeset(text))};
+   for(const i of inputs)i.addEventListener('input',update);update();return box;
+  }
   const furnitureName=f=>P.spec(f.type)?.name||f.type;
   const roomNameOf=f=>P.roomOf(palace,f)?.name||'';
 
@@ -77,15 +85,51 @@
   }
   function setMode(mode){
    if(!ctl||ctl.getMode()===mode)return;
-   stopRecall(false);hideCard();S.placing=null;S.hover={};ctl.setMode(mode);
+   lookOff();stopRecall(false);hideCard();S.placing=null;S.hover={};ctl.setMode(mode);
    root.dataset.mode=mode;
-   if(mode==='walk'){S.tool='select';hudShow('Drag to look · W A S D or arrows to walk · click the floor to go there · click a book to take it down, or a glowing marker to read it · Esc to go back')}
+   if(mode==='walk'){if(!S.visited){S.visited=true;toFrontDoor()}S.tool='select';hudShow('Drag to look · W A S D or arrows to walk · click the floor to go there · click a book to take it down, or a glowing marker to read it · Esc to go back')}
    renderTop();renderSide();renderToolbar();overlay();
   }
+  // ── Mouse look ───────────────────────────────────────────────────────────
+  // The pointer is held in the middle and every movement of the mouse turns your head. In the app the Mac does the holding
+  // (the page cannot be sure of pointer lock there); in a browser it is pointer lock.
+  const bridge=window.webkit?.messageHandlers?.margin;
+  const centre=()=>({x:canvas.clientWidth/2,y:canvas.clientHeight/2});
+  const aimPoint=p=>S.look?centre():p;
+  function lookChanged(){
+   root.dataset.look=String(S.look);S.hover={};S.drag=null;canvas.style.cursor='';
+   if(S.look)hudShow('Move the mouse to look · click what is under the dot · Esc or L lets go of the mouse',5000);
+   renderToolbar();overlay();ctl?.redraw();
+  }
+  function lookOn(){
+   if(S.look||ctl?.getMode()!=='walk'||reading)return;
+   if(bridge){bridge.postMessage({type:'mouseLook',on:true});S.look=true;lookChanged()}
+   else if(canvas.requestPointerLock)canvas.requestPointerLock();
+  }
+  function lookOff(){
+   if(!S.look)return;
+   if(bridge)bridge.postMessage({type:'mouseLook',on:false});
+   if(document.pointerLockElement===canvas)document.exitPointerLock?.();
+   S.look=false;lookChanged();
+  }
+  const lockChange=()=>{const on=document.pointerLockElement===canvas;if(on!==S.look){S.look=on;lookChanged()}};
+  document.addEventListener('pointerlockchange',lockChange);
+  let hoverQueued=false;
+  window.marginMouseLook=(dx,dy)=>{
+   if(!S.look||!root.isConnected)return;ctl.turnBy(dx,dy);
+   if(!hoverQueued){hoverQueued=true;requestAnimationFrame(()=>{hoverQueued=false;if(S.look)walkHover(centre())})}
+  };
+  window.marginMouseLookEnded=()=>{if(S.look){S.look=false;lookChanged()}};
   function setEdit(on){
-   S.edit=on;S.placing=null;S.hover={};root.dataset.edit=String(on);hideCard();
+   S.edit=on;S.placing=null;S.hover={};root.dataset.edit=String(on);hideCard();if(on)lookOff();
    if(on){S.tab='build';hudShow('Pick something in the panel, then click where it goes · click a thing to select it · R turns it · Esc cancels',9000)}
    renderToolbar();renderSide();overlay();requestAnimationFrame(()=>ctl?.redraw());
+  }
+  // Every walk starts at the front door, so the house always has the same beginning.
+  function toFrontDoor(){
+   const at=P.startPoint(palace);if(!at||!ctl)return;
+   goLevel(P.levels(palace)[0],true);
+   ctl.walk.x=at.x;ctl.walk.z=at.z;ctl.walk.yaw=at.yaw;ctl.walk.pitch=0;ctl.redraw();
   }
   // ── Floors ───────────────────────────────────────────────────────────────
   function goLevel(n,quiet=false){
@@ -116,6 +160,8 @@
    toolbar.replaceChildren();
    if(ctl?.getMode()==='walk'){
     for(const [edit,label,hint] of [[false,'Explore','Look around, take books down, read things'],[true,'Build','Add, move and change things while you walk']]){const b=button(label,()=>setEdit(edit),'pe-tool',hint);b.setAttribute('aria-pressed',String(S.edit===edit));toolbar.append(b)}
+    const door=button('Front door',()=>{toFrontDoor();hudShow('The front door: where every walk begins',2200)},'pe-tool','Go back to the front door');toolbar.append(door);
+    const m=button('Mouse look',()=>S.look?lookOff():lookOn(),'pe-tool','Move the mouse to turn your head (L). Esc lets go of the mouse.');m.setAttribute('aria-pressed',String(S.look));toolbar.append(m);
     return;
    }
    for(const [id,label,hint] of TOOLS){const b=button(label,()=>{S.tool=id;canvas.dataset.tool=id;overlay();renderToolbar()},'pe-tool',hint);b.setAttribute('aria-pressed',String(S.tool===id));toolbar.append(b)}
@@ -229,10 +275,10 @@
    if(levels.length>1)row.append(button('Up a level',()=>moveLevel(q,1),'','Put it on the shelf above'),button('Down a level',()=>moveLevel(q,-1),'','Put it on the shelf below'));
    row.append(button('Delete',()=>deleteProp(),'pe-danger','Remove it (Delete)'));box.append(row);
    box.append(button('← The '+furnitureName(host).toLowerCase(),()=>select('furniture',host.id),'pe-link'));
-   const title=el('input','pe-input');title.placeholder='What it stands for';title.value=q.title||'';title.setAttribute('aria-label','What it stands for');
+   const title=el('input','pe-input');title.placeholder='What it stands for (use $…$ for an equation)';title.value=q.title||'';title.setAttribute('aria-label','What it stands for');
    const detail=el('input','pe-input');detail.placeholder='Meaning or note (optional)';detail.value=q.detail||'';detail.setAttribute('aria-label','Meaning or note');
    const sync=()=>{q.title=title.value.trim();q.detail=detail.value.trim();const st=P.stationOf(palace,q.id);if(st){st.title=q.title||sp.name;st.detail=q.detail}commit()};
-   title.onchange=sync;detail.onchange=sync;box.append(el('small','pe-label','Value'),title,detail);
+   title.onchange=sync;detail.onchange=sync;box.append(el('small','pe-label','Value'),title,detail,preview(title,detail));
    const on=P.stationOf(palace,q.id),route=el('label','pe-check'),check=el('input');check.type='checkbox';check.checked=!!on;check.onchange=()=>{P.toggleRoute(palace,q.id);commit()};
    route.append(check,el('span','','Stop on my recall walk'+(on?' · stop '+(P.route(palace).findIndex(s=>s.id===on.id)+1):'')));box.append(route);
    box.append(el('small','pe-label','Colour'),swatches(q.color,q.type==='book'?['#b5533c','#3f6f8f','#d6a64a','#5f8a5a','#8a5a8a','#c9c2b2','#2f3e5c','#7a5a3d']:P.TINTS,c=>{q.color=c;commit()}));
@@ -253,7 +299,7 @@
    box.append(el('small','pe-label','Pages · '+q.pages.length));
    q.pages.forEach((pg,i)=>{
     const row=el('div','pe-page-row'),ta=el('textarea','pe-input');ta.rows=3;ta.value=pg.text||'';ta.placeholder='Page '+(i+1);ta.setAttribute('aria-label','Page '+(i+1));ta.onchange=()=>{pg.text=ta.value;commit()};
-    row.append(ta,button('✕',()=>{q.pages.splice(i,1);commit()},'pe-x','Remove this page'));box.append(row);
+    row.append(ta,button('✕',()=>{q.pages.splice(i,1);commit()},'pe-x','Remove this page'));box.append(row,preview(ta));
    });
    const actions=el('div','pe-actions');
    actions.append(button('+ Add a page',()=>{q.pages.push({text:''});commit()},'pe-add-write'),button('Read it',()=>readProp(q),'primary'));box.append(actions);
@@ -274,7 +320,7 @@
   // Taking a book down: it comes off its shelf in front of you and opens. Anything else just shows what it stands for.
   let reading=null;
   function readProp(q,fromScreen=true){
-   if(reading||!q)return;const sp=P.PROPS[q.type],w=P.propWorld(palace,q);
+   if(reading||!q)return;lookOff();const sp=P.PROPS[q.type],w=P.propWorld(palace,q);
    hideCard();hud.classList.remove('is-on');const pt=fromScreen&&w&&ctl.getMode()==='walk'?ctl.toScreen(w.x,w.y+w.h/2,w.z):null,r=canvas.getBoundingClientRect();
    ctl.hideProp(q.id);
    reading=PalaceBook.open({title:q.title||sp.name,detail:q.detail,pages:q.pages||[],color:q.color||sp.color,origin:pt?{x:r.left+pt.x,y:r.top+pt.y}:null,mount:root,onClose:()=>{reading=null;ctl.hideProp(null);canvas.focus()}});
@@ -282,9 +328,9 @@
   function showPropCard(q){
    const sp=P.PROPS[q.type],host=palace.furniture.find(g=>g.id===q.hostId),st=P.stationOf(palace,q.id);
    hud.classList.remove('is-on');card.replaceChildren();
-   card.append(el('small','pe-card-where',sp.name+(host?' · on the '+furnitureName(host).toLowerCase()+' · '+roomNameOf(host):'')),el('h3','',q.title||sp.name));
-   if(q.detail)card.append(el('p','',q.detail));
-   if(st?.image)card.append(el('p','pe-card-image','“'+st.image+'”'));
+   card.append(el('small','pe-card-where',sp.name+(host?' · on the '+furnitureName(host).toLowerCase()+' · '+roomNameOf(host):'')),q.title?rich('h3',q.title):el('h3','',sp.name));
+   if(q.detail)card.append(rich('p',q.detail));
+   if(st?.image)card.append(rich('p',st.image,'pe-card-image'));
    if(!q.title&&!q.detail)card.append(el('p','pe-hint','Nothing to remember here yet. Select it in the plan to give it a meaning.'));
    card.append(button('✕',()=>hideCard(),'pe-x','Close'));card.hidden=false;S.station=st?st.id:null;overlay();
   }
@@ -310,13 +356,13 @@
   // ── Things to remember ───────────────────────────────────────────────────
   function stationFields(station){
    const wrap=el('div','pe-station');
-   const title=el('input','pe-input');title.placeholder='What to remember';title.value=station.title;title.setAttribute('aria-label','What to remember');
+   const title=el('input','pe-input');title.placeholder='What to remember (use $…$ for an equation)';title.value=station.title;title.setAttribute('aria-label','What to remember');
    const detail=el('input','pe-input');detail.placeholder='Meaning or note (optional)';detail.value=station.detail;detail.setAttribute('aria-label','Meaning or note');
    const image=el('textarea','pe-input');image.rows=2;image.placeholder='Picture it: a silly, vivid image that ties it to this spot (optional)';image.value=station.image||'';image.setAttribute('aria-label','Vivid image');
    const save=()=>{station.title=title.value.trim();station.detail=detail.value.trim();station.image=image.value.trim();station.link=station.link;commit()};
    for(const f of [title,detail,image])f.onchange=save;
    const head=el('div','pe-station-head');head.append(el('b','','Stop '+(P.route(palace).findIndex(s=>s.id===station.id)+1)),station.link?el('small','pe-linked',station.link.kind==='vocab'?'from your vocab':'from your questions'):el('span'),button('✕',()=>{P.removeStation(palace,station.id);S.station=null;commit()},'pe-x','Remove this'));
-   wrap.append(head,title,detail,image);return wrap;
+   wrap.append(head,title,detail,image,preview(title,detail,image));return wrap;
   }
   function renderStations(box,f){
    box.append(el('small','pe-label','Left here'));
@@ -350,7 +396,7 @@
    list.forEach((s,k)=>{
     const f=palace.furniture.find(g=>g.id===s.furnitureId),row=el('div','pe-route');
     const open=button('',()=>{if((s.level||0)!==P.levelOf(palace))goLevel(s.level||0,true);const f=palace.furniture.find(g=>g.id===s.furnitureId);if(s.propId){selectProp(s.propId);S.station=s.id;return}S.prop=null;S.furniture=s.furnitureId;S.station=s.id;S.room=null;S.tab='selected';if(f&&ctl.getMode()==='plan'){ctl.plan.cx=f.x;ctl.plan.cz=f.z}renderSide();overlay()},'pe-route-open');
-    open.append(el('b','',String(k+1)),el('span','pe-route-title',s.title||'(empty)'),el('small','',f?furnitureName(f)+' · '+roomNameOf(f):P.levelName(s.level||0)));
+    open.append(el('b','',String(k+1)),rich('span',s.title||'(empty)','pe-route-title'),el('small','',f?furnitureName(f)+' · '+roomNameOf(f):P.levelName(s.level||0)));
     row.append(open,button('↑',()=>{P.moveStation(palace,s.id,-1);commit()},'pe-icon','Earlier'),button('↓',()=>{P.moveStation(palace,s.id,1);commit()},'pe-icon','Later'));box.append(row);
    });
   }
@@ -379,15 +425,16 @@
   }
   function showCard(f,station){
    hud.classList.remove('is-on');card.replaceChildren();const r=resolve(station);
-   card.append(el('small','pe-card-where',furnitureName(f)+' · '+roomNameOf(f)),el('h3','',r.title||'(empty)'));
-   if(r.detail)card.append(el('p','',r.detail));
-   if(r.image)card.append(el('p','pe-card-image','“'+r.image+'”'));
+   card.append(el('small','pe-card-where',furnitureName(f)+' · '+roomNameOf(f)),r.title?rich('h3',r.title):el('h3','','(empty)'));
+   if(r.detail)card.append(rich('p',r.detail));
+   if(r.image)card.append(rich('p',r.image,'pe-card-image'));
    card.append(button('✕',()=>hideCard(),'pe-x','Close'));card.hidden=false;S.station=station.id;overlay();
   }
   function hideCard(){card.hidden=true;S.station=null;overlay()}
   function startRecall(){
    const list=P.route(palace);if(!list.length){toast_('Leave something on the furniture first');S.tab='route';renderSide();return}
    if(ctl.getMode()!=='walk')setMode('walk');
+   toFrontDoor();
    S.recall={i:0,shown:false,ok:0,miss:0,list};recallStep();
   }
   function stopRecall(summary=true){if(!S.recall)return;S.recall=null;recallBox.hidden=true;recallBox.replaceChildren();overlay()}
@@ -407,9 +454,9 @@
    if(!rc.shown){
     recallBox.append(el('p','pe-hint','Picture it before you look.'),button('Show me',()=>{rc.shown=true;recallStep()},'primary'));
    }else{
-    const answer=el('div','pe-answer');answer.append(el('strong','',r.title||'(empty)'));recallBox.append(answer);
-    if(r.detail)recallBox.append(el('p','pe-answer-detail',r.detail));
-    if(r.image)recallBox.append(el('p','pe-card-image','“'+r.image+'”'));
+    const answer=el('div','pe-answer'),strong=el('strong');strong.append(PalaceBook.typeset(r.title||'(empty)'));answer.append(strong);recallBox.append(answer);
+    if(r.detail)recallBox.append(rich('p',r.detail,'pe-answer-detail'));
+    if(r.image)recallBox.append(rich('p',r.image,'pe-card-image'));
     if(thing&&P.PROPS[thing.type].read&&(thing.pages||[]).some(g=>g.text))recallBox.append(button('Open it',()=>readProp(thing,false),'pe-link'));
     const row=el('div','pe-actions');
     const mark=ok=>{station.stats={ok:(station.stats?.ok||0)+(ok?1:0),miss:(station.stats?.miss||0)+(ok?0:1),last:Date.now()};if(ok)rc.ok++;else rc.miss++;rc.i++;rc.shown=false;persist();recallStep()};
@@ -431,7 +478,7 @@
   function select(kind,id){S.prop=null;S.furniture=kind==='furniture'?id:null;S.room=kind==='room'?id:null;if(kind&&S.tab==='build')S.tab='selected';S.station=null;renderSide();overlay()}
   canvas.addEventListener('pointerdown',event=>{
    canvas.setPointerCapture?.(event.pointerId);canvas.focus();const p=at(event);
-   if(ctl.getMode()==='walk'){S.drag={type:'look',x:p.x,y:p.y,moved:false};return}
+   if(ctl.getMode()==='walk'){S.drag=S.look?{type:'lookclick'}:{type:'look',x:p.x,y:p.y,moved:false};return}
    const w=ctl.toWorld(p.x,p.y);
    if(event.button===1||event.button===2||S.space||event.altKey){S.drag={type:'pan',x:p.x,y:p.y};return}
    if(S.tool==='room'){const s={x:P.snap(w.x),z:P.snap(w.z)};S.drag={type:'draw',start:s,x:p.x,y:p.y};return}
@@ -452,7 +499,8 @@
    const p=at(event),d=S.drag;S.lastPoint=p;
    if(ctl.getMode()==='walk'){
     if(d?.type==='look'){const dx=p.x-d.x,dy=p.y-d.y;if(Math.abs(dx)+Math.abs(dy)>3)d.moved=true;if(d.moved){ctl.lookBy(dx,dy,d.x,d.y);d.x=p.x;d.y=p.y;canvas.style.cursor='grabbing'}}
-    else if(!d)walkHover(p);
+    else if(!d&&!S.look)walkHover(p);
+    if(S.look&&!bridge&&document.pointerLockElement===canvas)window.marginMouseLook(event.movementX||0,event.movementY||0);
     return;
    }
    const w=ctl.toWorld(p.x,p.y);if(!w)return;
@@ -486,8 +534,12 @@
   });
   canvas.addEventListener('pointerup',event=>{
    const p=at(event),d=S.drag;S.drag=null;canvas.style.cursor='';if(!d)return;
+   if(d.type==='lookclick'){walkClick(centre(),event);return}
    if(d.type==='look'){
-    if(!d.moved)walkClick(p,event);else canvas.style.cursor='';return;
+    if(d.moved){canvas.style.cursor='';return}
+    walkClick(p,event);
+    if(!S.edit&&!S.look&&!reading&&!S.placing)lookOn();
+    return;
    }
    if(d.type==='pan'){if(d.click&&!S.room&&!S.furniture)overlay();return}
    if(d.type==='click'){
@@ -526,6 +578,7 @@
   // ── Walking: what is under the pointer, and what a click does ─────────────
   // Pointing at a book (or a staircase, or a stop) lights it up; while placing, a ghost shows where it would go.
   function walkHover(p){
+   p=aimPoint(p);
    if(S.placing){const g=placement(p);S.hover={ghost3:g?g.box:null};S.aimed=g;overlay();canvas.style.cursor=g&&g.ok?'copy':'not-allowed';return}
    const o=ctl.pickProp(p.x,p.y);let cursor='grab',tip='';
    if(o){cursor='pointer';tip=(P.PROPS[o.type].read?'Take it down: ':'')+(o.title||P.PROPS[o.type].name)}
@@ -561,6 +614,7 @@
   }
   // In the walk view a click goes to a place, reads a stop, takes a book down, or (building) selects or places.
   function walkClick(p,event){
+   p=aimPoint(p);
    if(S.placing){
     const g=placement(p);if(!g||!g.ok||!g.place){toast_('It doesn\'t fit there');return}
     const done=g.place();if(!done){toast_('It doesn\'t fit there');return}
@@ -613,6 +667,7 @@
    if(event.key==='Escape'){
     if(typing){event.target.blur();return}
     event.preventDefault();
+    if(S.look){lookOff();return}
     if(S.recall){stopRecall();return}
     if(S.placing){S.placing=null;S.hover={};overlay();canvas.style.cursor='';return}
     if(!card.hidden){hideCard();return}
@@ -625,6 +680,7 @@
    const k=keyName(event),mod=event.metaKey||event.ctrlKey;
    if(ctl.getMode()==='walk'){
     if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright','q','e','shift'].includes(k)&&!mod){event.preventDefault();ctl.setKey(k,true);return}
+    if(k==='l'&&!mod){S.look?lookOff():lookOn();return}
     if(!S.edit)return;
     if(k==='r'&&S.placing&&S.placing.kind!=='moveF'&&S.placing.kind!=='moveP'){S.placing.rot=((S.placing.rot||0)+90)%360;walkHover(S.lastPoint||{x:canvas.clientWidth/2,y:canvas.clientHeight/2});return}
    }
@@ -663,10 +719,10 @@
   }else{canvas.tabIndex=0;canvas.dataset.tool='select';root.dataset.mode='plan'}
   const resizer=new ResizeObserver(()=>ctl?.redraw());resizer.observe(stage);
   function close(){
-   stopRecall(false);window.removeEventListener('keydown',keydown,true);window.removeEventListener('keyup',keyup,true);resizer.disconnect();ctl?.dispose();root.remove();editor=null;
+   lookOff();document.removeEventListener('pointerlockchange',lockChange);if(window.marginMouseLook)window.marginMouseLook=null;stopRecall(false);window.removeEventListener('keydown',keydown,true);window.removeEventListener('keyup',keyup,true);resizer.disconnect();ctl?.dispose();root.remove();editor=null;
    if(subject&&window.marginSubjectTab)window.marginSubjectTab(subject.id,'palace');
   }
-  editor={close,palace,ctl,S,commit,select,selectProp,goLevel,useStairs,setEdit,addLevel,addStairs,placement,walkHover,addProp,readProp,reader:()=>reading,history,addFurniture,startRecall,setMode,root,candidate,fillDialog,rotateSelected,deleteSelected,duplicateSelected};
+  editor={toFrontDoor,close,palace,ctl,S,commit,select,selectProp,goLevel,useStairs,setEdit,addLevel,addStairs,placement,walkHover,addProp,readProp,reader:()=>reading,history,addFurniture,startRecall,setMode,root,candidate,fillDialog,rotateSelected,deleteSelected,duplicateSelected};
   renderTop();renderSide();renderToolbar();overlay();
   requestAnimationFrame(()=>{ctl?.frame();canvas.focus()});
  }

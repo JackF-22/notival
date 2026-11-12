@@ -38,7 +38,8 @@ try{
   const tap=async(x,z)=>{const p=await screen(x,z);await pm('mousePressed',p);await pm('mouseReleased',p,0);await wait(80)};
   const drag=async(from,to,steps=6)=>{const a=await screen(...from),b=await screen(...to);await pm('mousePressed',a);for(let i=1;i<=steps;i++)await pm('mouseMoved',{x:a.x+(b.x-a.x)*i/steps,y:a.y+(b.y-a.y)*i/steps});await pm('mouseReleased',b,0);await wait(120)};
   const press=async(k,extra={})=>{await call('Input.dispatchKeyEvent',{type:'keyDown',key:k,code:k.length===1?'Key'+k.toUpperCase():k,windowsVirtualKeyCode:{Delete:46,Escape:27,ArrowUp:38,Backspace:8}[k]||k.toUpperCase().charCodeAt(0),...extra},sessionId);await call('Input.dispatchKeyEvent',{type:'keyUp',key:k,code:k.length===1?'Key'+k.toUpperCase():k},sessionId);await wait(80)};
-  await evaluate(`localStorage.clear();(()=>{state.projects=[{id:'ru',name:'Russian',icon:'x',color:'#c4483c',description:'',units:[],materials:[],packs:[],assessments:[],checklist:[]}];state.notes=[];state.vocab=[];state.palaces=[];active=null;const p=marginPalace.create('ru',true);marginPalace.open(p.id)})()`);await wait(900);
+  await evaluate(`HTMLCanvasElement.prototype.requestPointerLock=function(){};`);
+  await evaluate(`localStorage.clear();(()=>{state.projects=[{id:'ru',name:'Russian',icon:'x',color:'#c4483c',description:'',units:[],materials:[],packs:[],assessments:[],checklist:[]}];state.notes=[];state.vocab=[];state.palaces=[];active=null;const p=marginPalace.create('ru',true);const sh=p.furniture.find(f=>f.type==='bookshelf');for(const level of [0,1])for(let k=0;k<6;k++)PalaceModel.placeProp(p,'book',sh.id,{surface:level,...PalaceModel.bookLike(k+level*6)});marginPalace.open(p.id)})()`);await wait(900);
   const toScreen=(x,y,z)=>evaluate(`(()=>{const e=marginPalace.editor(),s=e.ctl.toScreen(${x},${y},${z}),r=e.ctl.canvas.getBoundingClientRect();return s?{x:s.x+r.left,y:s.y+r.top}:null})()`);
   const look=(x,z,yaw,pitch=-.1)=>ed(`(()=>{const c=e.ctl;c.walk.x=${x};c.walk.z=${z};c.walk.yaw=${yaw};c.walk.pitch=${pitch};c.redraw();return 1})()`);
   const lookAt=async id=>{await ed(`(()=>{const f=e.palace.furniture.find(g=>g.id==='${id}'),v=PalaceModel.viewFrom(e.palace,f),c=e.ctl;c.walk.x=v.x;c.walk.z=v.z;c.walk.yaw=v.yaw;c.walk.pitch=-.12;c.redraw();return 1})()`);await wait(300)};
@@ -59,7 +60,9 @@ try{
   assert.equal(await pal(`PalaceModel.partnerOf(p,p.furniture.find(f=>f.type==='stairs-up')).level`),1,'its stairwell is upstairs');
   assert.match(await text('.pe-panel'),/Go upstairs/,'the inspector offers to go up');
   // 3 · walking: click the staircase to climb
-  await ed(`e.setMode('walk')`);await wait(300);await lookAt(stairs.id);
+  await ed(`e.setMode('walk')`);await wait(300);
+  assert.deepEqual(await ed(`[e.ctl.walk.x,e.ctl.walk.z,e.ctl.walk.yaw]`),[2.5,.9,0],'the first walk begins at the front door');
+  await lookAt(stairs.id);
   const sp=await toScreen(stairs.x,.8,stairs.z);await pm('mousePressed',sp);await pm('mouseReleased',sp,0);await wait(400);
   assert.equal(await pal(`p.level`),1,'clicking the stairs takes you up');assert.equal(await ed(`e.ctl.state.level`),1);
   await wait(1500);assert(await ed(`e.ctl.state.camY`)>2.9,'the view rises to the new floor');
@@ -73,6 +76,21 @@ try{
   await pm('mousePressed',from);for(let i=1;i<=8;i++)await pm('mouseMoved',{x:from.x+i*12,y:from.y+i*4});await pm('mouseReleased',{x:from.x+96,y:from.y+32},0);await wait(250);
   const b=await toScreen(world.x,world.y,world.z);
   assert(Math.abs((b.x-a.x)-96)<8&&Math.abs((b.y-a.y)-32)<8,'the world follows the pointer: moved '+(b.x-a.x).toFixed(0)+','+(b.y-a.y).toFixed(0)+' for a 96,32 drag');
+  // 4b · mouse look: with the mouse held, moving it turns your head, and a click acts on what is under the dot
+  await ed(`(()=>{const c=e.ctl;c.walk.yaw=0;c.walk.pitch=0;e.S.look=true;document.querySelector('.palace-editor').dataset.look='true';return 1})()`);
+  const yaw0=await ed(`e.ctl.walk.yaw`),pitch0=await ed(`e.ctl.walk.pitch`);
+  await evaluate(`window.marginMouseLook(100,0)`);assert(await ed(`e.ctl.walk.yaw`)<yaw0-.2,'moving the mouse right turns right');
+  await evaluate(`window.marginMouseLook(-100,0)`);assert(Math.abs(await ed(`e.ctl.walk.yaw`)-yaw0)<1e-9,'and back');
+  await evaluate(`window.marginMouseLook(0,-100)`);assert(await ed(`e.ctl.walk.pitch`)>pitch0+.2,'moving it up looks up');await evaluate(`window.marginMouseLook(0,100)`);
+  assert.equal(await evaluate(`getComputedStyle(document.querySelector('.pe-cross')).display`),'block','a dot marks the middle');
+  // a click aims at the middle whatever the pointer says: point the middle at the guide book and click far from it
+  const guideId=await pal(`p.props.find(q=>q.pages.length===4).id`);const gw=await pal(`PalaceModel.propWorld(p,p.props.find(q=>q.id==='${guideId}'))`);
+  await ed(`(()=>{const c=e.ctl,w=${JSON.stringify(gw)},sh=w.host,v=PalaceModel.viewFrom(e.palace,sh);c.walk.x=v.x;c.walk.z=v.z;const dx=w.x-v.x,dz=w.z-v.z,dy=w.y+w.h/2-1.6,d=Math.hypot(dx,dz);c.walk.yaw=Math.atan2(dx,dz);c.walk.pitch=Math.atan2(dy,d);c.redraw();return 1})()`);await wait(300);
+  await evaluate(`window.marginMouseLook(0,0)`);await wait(100);assert.equal(await ed(`e.S.hover.hoverProp`),guideId,'the book under the dot lights up without the pointer moving');
+  await pm('mousePressed',{x:30,y:300});await pm('mouseReleased',{x:30,y:300},0);await wait(1000);assert.equal(await count('.pb-scrim'),1,'clicking takes the book under the dot');
+  assert.equal(await ed(`e.S.look`),false,'the mouse is let go while you read');
+  await press('Escape');await wait(800);assert.equal(await count('.pb-scrim'),0);
+  await ed(`(e.S.look=true,0)`);await press('Escape');assert.equal(await ed(`e.S.look`),false,'Escape lets go of the mouse first');assert.equal(await ed(`e.ctl.getMode()`),'walk','and stays in the house');
   // 5 · a book lights up when the pointer is on it
   const shelf=await pal(`p.furniture.find(f=>f.type==='bookshelf')`);await lookAt(shelf.id);
   const bookId=await pal(`p.props.find(q=>q.type==='book'&&q.hostId==='${shelf.id}'&&q.surface===1).id`);
@@ -121,7 +139,8 @@ try{
   assert.equal(await evaluate(`getComputedStyle(document.querySelector('.pe-side')).display`),'none');
   // 10 · a stop upstairs: the recall walk goes there
   await ed(`(()=>{e.goLevel(1);const f=PalaceModel.placeFurniture(e.palace,'sofa',2,2)||PalaceModel.placeFurniture(e.palace,'sofa',3,2.5)||PalaceModel.placeFurniture(e.palace,'sofa',2,6);PalaceModel.addStation(e.palace,f.id,{title:'up there',detail:'x'});e.goLevel(0);e.commit();return 1})()`);
-  await ed(`e.startRecall()`);await wait(1200);
+  await ed(`e.startRecall()`);await wait(60);
+  const origin=await ed(`e.ctl.state.fly&&e.ctl.state.fly.from`);assert(origin&&Math.abs(origin.x-2.5)<.01&&Math.abs(origin.z-.9)<.01,'the recall walk sets off from the front door');await wait(1100);
   for(let i=0;i<60&&!(await ed(`e.palace.stations[e.S.recall?.i]?.title==='up there'||e.S.recall.list[e.S.recall.i]?.title==='up there'`));i++){await evaluate(`[...document.querySelectorAll('.pe-recall button')].find(b=>b.textContent==='Show me')?.click()`);await wait(40);await evaluate(`[...document.querySelectorAll('.pe-recall button')].find(b=>b.textContent==='I remembered')?.click()`);await wait(1050)}
   assert.equal(await pal(`p.level`),1,'the recall walk climbs to the stop upstairs');assert.match(await text('.pe-recall'),/Stop \d+ of/);
   await ed(`e.S.recall=null`);

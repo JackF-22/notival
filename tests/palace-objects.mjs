@@ -30,6 +30,7 @@ try{
 
   const text=selector=>evaluate(`document.querySelector(${JSON.stringify(selector)})?.textContent||''`);
   const count=selector=>evaluate(`document.querySelectorAll(${JSON.stringify(selector)}).length`);
+  const toScreen2=w=>evaluate(`(()=>{const e=marginPalace.editor(),s=e.ctl.toScreen(${w.x},${w.y+w.h/2},${w.z}),r=e.ctl.canvas.getBoundingClientRect();return {x:s.x+r.left,y:s.y+r.top}})()`);
   const ed=expr=>evaluate(`(()=>{const e=marginPalace.editor();return ${expr}})()`);
   const pal=expr=>ed(`(p=>${expr})(e.palace)`);
   // the page position of a point in the house (metres), for the mouse
@@ -38,7 +39,8 @@ try{
   const tap=async(x,z)=>{const p=await screen(x,z);await pm('mousePressed',p);await pm('mouseReleased',p,0);await wait(80)};
   const drag=async(from,to,steps=6)=>{const a=await screen(...from),b=await screen(...to);await pm('mousePressed',a);for(let i=1;i<=steps;i++)await pm('mouseMoved',{x:a.x+(b.x-a.x)*i/steps,y:a.y+(b.y-a.y)*i/steps});await pm('mouseReleased',b,0);await wait(120)};
   const press=async(k,extra={})=>{await call('Input.dispatchKeyEvent',{type:'keyDown',key:k,code:k.length===1?'Key'+k.toUpperCase():k,windowsVirtualKeyCode:{Delete:46,Escape:27,ArrowUp:38,Backspace:8}[k]||k.toUpperCase().charCodeAt(0),...extra},sessionId);await call('Input.dispatchKeyEvent',{type:'keyUp',key:k,code:k.length===1?'Key'+k.toUpperCase():k},sessionId);await wait(80)};
-  await evaluate(`localStorage.clear();(()=>{state.projects=[{id:'ru',name:'Russian',icon:'x',color:'#c4483c',description:'',units:[],materials:[],packs:[],assessments:[],checklist:[]}];state.notes=[{id:'n1',projectId:'ru',title:'Greetings',updated:1,pinned:false,blocks:[{id:'b1',type:'text',text:'Hello is privet.\\n\\nThank you is spasibo.'}]}];state.vocab=[['привет','hello'],['спасибо','thank you']].map(([t,m],i)=>({id:'w'+i,term:t,meaning:m,projectId:'ru',added:i}));state.palaces=[];active=null;const p=marginPalace.create('ru',true);marginPalace.open(p.id)})()`);await wait(900);
+  await evaluate(`HTMLCanvasElement.prototype.requestPointerLock=function(){};`);
+  await evaluate(`localStorage.clear();(()=>{state.projects=[{id:'ru',name:'Russian',icon:'x',color:'#c4483c',description:'',units:[],materials:[],packs:[],assessments:[],checklist:[]}];state.notes=[{id:'n1',projectId:'ru',title:'Greetings',updated:1,pinned:false,blocks:[{id:'b1',type:'text',text:'Hello is privet.\\n\\nThank you is spasibo.'}]}];state.vocab=[['привет','hello'],['спасибо','thank you']].map(([t,m],i)=>({id:'w'+i,term:t,meaning:m,projectId:'ru',added:i}));state.palaces=[];active=null;const p=marginPalace.create('ru',true);const sh=p.furniture.find(f=>f.type==='bookshelf');for(const level of [0,1])for(let k=0;k<6;k++)PalaceModel.placeProp(p,'book',sh.id,{surface:level,...PalaceModel.bookLike(k+level*6)});marginPalace.open(p.id)})()`);await wait(900);
   assert.equal(await count('.palace-editor'),1);
   const kinds=await evaluate(`Object.keys(PalaceModel.PROPS).length`);
   // 1 · the catalogue offers things to put on furniture
@@ -129,8 +131,23 @@ try{
   await evaluate(`document.querySelector('.pe-recall')&&(document.querySelector('.pe-recall').hidden=true)`);await ed(`e.setMode('plan')`);await ed(`e.selectProp('${guide}')`);
   await ed(`e.deleteSelected()`);assert.equal(await pal(`p.props.some(q=>q.id==='${guide}')`),true,'asked first');
   await ed(`e.deleteSelected()`);assert.equal(await pal(`p.props.some(q=>q.id==='${guide}')`),false);assert.equal(await pal(`p.stations.some(s=>s.propId==='${guide}')`),false,'its stop is gone');
+  // 12b · LaTeX in anything you write: previews while typing, typeset in cards, pages and the route
+  await ed(`e.setMode('plan')`);
+  const mugId=await pal(`p.props.find(q=>q.type==='mug').id`);await ed(`e.selectProp('${mugId}')`);
+  await evaluate(`(()=>{const i=document.querySelector('.pe-input[aria-label="What it stands for"]');i.value='Area is $\\pi r^2$';i.dispatchEvent(new Event('input'));i.dispatchEvent(new Event('change'))})()`);await wait(150);
+  assert(await count('.pe-math-preview:not([hidden]) .katex')>=1,'the equation is drawn under the field while you type');
+  assert(await count('.pe-route .katex')===0);
+  const nbId=await pal(`p.props.find(q=>q.type==='notebook').id`);await ed(`(()=>{const q=e.palace.props.find(g=>g.id==='${nbId}');q.pages=[{text:'Energy: $$E=mc^2$$ and so on'},{text:'plain'}];e.commit();return 1})()`);
+  await ed(`e.readProp(e.palace.props.find(g=>g.id==='${nbId}'),false)`);await wait(900);await press('ArrowRight');await wait(900);
+  assert(await count('.pb-text .katex')>=1,'a page of a book shows typeset equations');assert.match(await text('.pb-left .pb-text'),/Energy/);
+  await press('Escape');await wait(800);
+  await ed(`e.setMode('walk')`);await wait(300);
+  const mw=await pal(`PalaceModel.propWorld(p,p.props.find(q=>q.id==='${mugId}'))`);
+  await ed(`(()=>{const w=${JSON.stringify(mw)},v=PalaceModel.viewFrom(e.palace,w.host),c=e.ctl;c.walk.x=v.x;c.walk.z=v.z;c.walk.yaw=v.yaw;c.walk.pitch=-.5;c.redraw();return 1})()`);await wait(400);
+  const mpt=await toScreen2(mw);await pm('mousePressed',mpt);await pm('mouseReleased',mpt,0);await wait(250);
+  assert(await count('.pe-card .katex')>=1,'the card shows the equation typeset');
   // 13 · it is all saved
-  const saved=await evaluate(`JSON.parse(JSON.stringify(state.palaces[0]))`);assert(saved.props.length>30);assert(saved.props.every(q=>q.hostId&&saved.furniture.some(f=>f.id===q.hostId)),'every thing stands on something');
+  const saved=await evaluate(`JSON.parse(JSON.stringify(state.palaces[0]))`);assert(saved.props.length>15);assert(saved.props.every(q=>q.hostId&&saved.furniture.some(f=>f.id===q.hostId)),'every thing stands on something');
   assert.deepEqual(await pal(`PalaceModel.problems(p)`),[]);
   console.log('PASS: palace objects — a catalogue of small things, placed on furniture by click or drag, given a meaning and a place on the route, moved between shelves and tables, filled with pages from notes and vocab, taken off the shelf in the walk-through and read page by page, and offered during the recall walk.');
 }finally{browser.kill();for(const pending of waiting.values())clearTimeout(pending.timer);await rm(profile,{recursive:true,force:true,maxRetries:10,retryDelay:100})}

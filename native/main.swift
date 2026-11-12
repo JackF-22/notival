@@ -327,6 +327,8 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
   for (name,active) in [(NSApplication.didBecomeActiveNotification,true),(NSApplication.didResignActiveNotification,false)] {
    NotificationCenter.default.addObserver(forName:name,object:nil,queue:.main){[weak self] _ in self?.web.evaluateJavaScript("window.notivalAppActive&&window.notivalAppActive(\(active))",completionHandler:nil)}
   }
+  // Mouse look in a memory palace: let go of the pointer if the app is left or the window closes.
+  NotificationCenter.default.addObserver(forName:NSApplication.didResignActiveNotification,object:nil,queue:.main){[weak self] _ in self?.setMouseLook(false); self?.web.evaluateJavaScript("window.marginMouseLookEnded&&window.marginMouseLookEnded()",completionHandler:nil)}
   // ...and whether the window is full screen, which can also change by the person's own hand (Esc, ⌃⌘F).
   for (name,on) in [(NSWindow.didEnterFullScreenNotification,true),(NSWindow.didExitFullScreenNotification,false)] {
    NotificationCenter.default.addObserver(forName:name,object:nil,queue:.main){[weak self] _ in self?.web.evaluateJavaScript("window.notivalFullscreen&&window.notivalFullscreen(\(on))",completionHandler:nil)}
@@ -714,6 +716,26 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
   _ = RegisterEventHotKey(UInt32(kVK_ANSI_N), UInt32(controlKey | optionKey | cmdKey),
    EventHotKeyID(signature: 0x4D4E4F54, id: 1), GetApplicationEventTarget(), 0, &quickNoteKey)
  }
+ // Walking about a memory palace with the mouse: the pointer is held still and hidden, and every movement of the mouse is
+ // sent to the page as a turn of the head. Works whatever the web view's own support for pointer lock.
+ private var mouseLookMonitor: Any?
+ private var mouseLooking = false
+ func setMouseLook(_ on: Bool) {
+  if on == mouseLooking { return }
+  mouseLooking = on
+  if on {
+   window.acceptsMouseMovedEvents = true
+   CGAssociateMouseAndMouseCursorPosition(0); NSCursor.hide()
+   mouseLookMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged]) { [weak self] event in
+    self?.web.evaluateJavaScript("window.marginMouseLook&&window.marginMouseLook(\(event.deltaX),\(event.deltaY))", completionHandler: nil)
+    return event
+   }
+  } else {
+   CGAssociateMouseAndMouseCursorPosition(1); NSCursor.unhide()
+   if let monitor = mouseLookMonitor { NSEvent.removeMonitor(monitor) }
+   mouseLookMonitor = nil
+  }
+ }
  func js(_ name: String, _ value: Any) { guard JSONSerialization.isValidJSONObject([value]), let data = try? JSONSerialization.data(withJSONObject: [value]), let text = String(data: data,encoding: .utf8) else { return }; web.evaluateJavaScript("\(name)(\(text).at(0))", completionHandler: nil) }
  func runProcess(_ executable:String,_ arguments:[String],in directory:URL,timeout:TimeInterval)->(Int32,String,Bool){
   let log=directory.appendingPathComponent(UUID().uuidString+".log");FileManager.default.createFile(atPath:log.path,contents:nil);guard let handle=try? FileHandle(forWritingTo:log) else{return(-1,"Could not capture process output.",false)}
@@ -794,6 +816,7 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
     // Class mode asks for a whole-screen window and gives it back when the class ends.
     let wanted = body["on"] as? Bool ?? false
     if wanted != window.styleMask.contains(.fullScreen) { window.toggleFullScreen(nil) }
+   case "mouseLook": setMouseLook(body["on"] as? Bool ?? false)
    case "copy": NSPasteboard.general.clearContents(); NSPasteboard.general.setString(body["text"] as? String ?? "",forType: .string); js("toast","Snippet copied")
    case "runCode": if body["language"] as? String == "c" { runC(body) } else if body["language"] as? String == "python" { runPython(body) }
    case "revealFile":

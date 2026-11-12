@@ -130,6 +130,15 @@ assert(hist.undo());assert.equal(q.furniture.length,1);assert(hist.undo());asser
 assert(hist.redo());assert.equal(q.furniture.length,1);P.removeFurniture(q,q.furniture[0].id);hist.record();assert.equal(hist.canRedo(),false,'a new change ends the redo trail');
 assert.deepEqual(P.bounds(g),{x0:0,z0:0,x1:10,z1:9});
 
+// ── Where every walk begins ──
+{
+ const h=P.starterHouse('s','x'),st=P.startPoint(h);assert.deepEqual([st.x,st.z,st.yaw],[2.5,.9,0],'just inside the front door, facing in');assert.equal(P.roomAt(h,st.x,st.z).name,'Living room');
+ const e=P.entrance(h);assert(Math.abs(e.x-st.x)<.6&&Math.abs(e.z-st.z)<1.2,'at the entrance');
+ const w=P.blank('s','side');P.addRoom(w,{x:0,z:0,w:4,d:4});w.openings.push({id:'d',kind:'door',axis:'z',at:4,from:1,to:2});
+ const s2=P.startPoint(w);assert(Math.abs(s2.x-3.1)<1e-9&&s2.z===1.5&&Math.abs(s2.yaw+Math.PI/2)<1e-9,'a door on the east wall: stand inside facing west');assert(P.roomAt(w,s2.x,s2.z));
+ assert.equal(P.startPoint(P.blank('s','none')),null);
+}
+
 // ── Floors and staircases ──
 {
  const h=P.starterHouse('s','x');const doors0=h.openings.filter(o=>o.kind==='door').length;const furniture0=h.furniture.length;
@@ -214,7 +223,7 @@ assert.deepEqual(P.bounds(g),{x0:0,z0:0,x1:10,z1:9});
  const eye={x:w.x,y:1.6,z:w.z+2},dir={x:0,y:w.y+.05-1.6,z:-2};const hit=P.pickProp(hv,eye,dir);assert(hit&&hit.prop.id===mg.id,'looking at the mug picks it');
  assert.equal(P.pickProp(hv,eye,{x:0,y:1,z:0}),null);
  // the starter house has things to find, one of them a readable guide
- const sh=P.starterHouse('s','x');assert(P.propsOf(sh).length>30,'books on the shelves');assert(P.propsOf(sh).some(q=>q.type==='book'&&q.pages.length>=3),'a guide book with pages');assert.deepEqual(P.problems(sh),[]);
+ const sh=P.starterHouse('s','x');assert(P.propsOf(sh).length>=8,'things to find');assert(!P.propsOf(sh).some(q=>P.furniture&&0),'');assert.equal(P.propsOf(sh).filter(q=>{const h=sh.furniture.find(f=>f.id===q.hostId);return h.type==='bookshelf'}).length,0,'the bookshelves start empty');assert(P.propsOf(sh).some(q=>q.type==='book'&&q.pages.length>=3),'a guide book with pages');assert.deepEqual(P.problems(sh),[]);
  // removing a room takes its props
  const r2=P.blank('s','r');const room=P.addRoom(r2,{x:0,z:0,w:4,d:4});const dk3=P.placeFurniture(r2,'desk',2,2);P.placeProp(r2,'mug',dk3.id,{});P.removeRoom(r2,room.id);assert.equal(P.propsOf(r2).length,0);
 }
