@@ -34,6 +34,14 @@ try{
   await evaluate(`localStorage.removeItem('notival-layout');(()=>{state.projects=${subjects};state.notes=[{id:'n1',title:'Lesson',projectId:'ru',updated:Date.now(),pinned:false,nodes:[],blocks:[{id:'b1',type:'text',text:'x',html:'<p>hello</p>'}]}];active='n1';render();setMode('write');Customize.apply()})()`);await wait(300);
   // By default everything shows
   for(const s of ['#study-nav','#pinned','#trash','#archive','#note-questions','#open-pdf','#connect-passages','#map-tab'])assert.equal(await shown(s),true,s+' shows by default');
+  // A button in the top bar, easy to see, opens it
+  assert.equal(await shown('#customize-open'),true,'there is a button for it in the top bar');
+  await evaluate(`document.querySelector('#customize-open').click()`);await wait(150);
+  assert.equal(await evaluate(`document.querySelector('.customize-dialog').open`),true,'and it opens the panel');
+  await evaluate(`document.querySelector('.customize-dialog').close()`);
+  // Home and Study are as tall as New note
+  const heights=await evaluate(`['#home-button','#study-nav','#new'].map(s=>Math.round(document.querySelector(s).getBoundingClientRect().height))`);
+  assert.ok(heights[0]>=38&&heights[1]>=38&&Math.abs(heights[0]-heights[2])<=3,'Home and Study match New note in height: '+heights);
   // The panel opens from Appearance, and with the keyboard shortcut
   await evaluate(`document.querySelector('.appearance-trigger').click()`);await wait(150);
   assert.equal(await evaluate(`[...document.querySelectorAll('.appearance-dialog button')].some(b=>/Show and hide/.test(b.textContent))`),true,'Appearance has a way in');
@@ -58,6 +66,7 @@ try{
   for(const s of ['#all','#trash','#new','.appearance-trigger','#heading-style'])assert.equal(await shown(s),true,s+' stays with Simple');
   await evaluate(`[...document.querySelectorAll('.customize-preset')].find(b=>/Just writing/.test(b.textContent)).click()`);await wait(150);
   assert.equal(await shown('.appearance-trigger'),true,'the way back to this panel is never hidden');
+  assert.equal(await shown('#customize-open'),true,'including the top-bar button');
   assert.equal(await shown('#new'),true,'new note is never hidden');
   assert.equal(await evaluate(`[...document.querySelectorAll('.section-label')].find(n=>n.textContent==='WORKSPACE').offsetParent===null`),true,'the heading goes when everything under it does');
   assert.equal(await evaluate(`(()=>{const v=[...document.querySelectorAll('#format-bar > *')].filter(c=>c.offsetParent!==null),gap=c=>c.classList.contains('format-gap');return !gap(v[0])&&!gap(v.at(-1))&&v.every((c,i)=>!(gap(c)&&v[i+1]&&gap(v[i+1])))})()`),true,'no stray dividers at the ends or in a row');

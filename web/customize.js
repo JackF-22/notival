@@ -130,6 +130,17 @@ const Customize=(()=>{
  }
  // ⌘, is the usual place for preferences.
  document.addEventListener('keydown',event=>{if(event.key===','&&(event.metaKey||event.ctrlKey)&&!event.altKey&&!event.shiftKey){event.preventDefault();open()}});
+ // A button in the top bar, beside Appearance, so this is easy to find (it is not one of the parts that can be hidden).
+ {
+  const bar=document.querySelector('.header-actions'),anchor=document.querySelector('.appearance-trigger');
+  if(bar){
+   const button=document.createElement('button');button.type='button';button.id='customize-open';button.className='customize-trigger';
+   button.title='Show and hide parts of Notival (⌘,)';button.setAttribute('aria-label','Show and hide parts of Notival');
+   button.innerHTML='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="17" r="2.2"/></svg>';
+   button.onclick=()=>open();
+   if(anchor)anchor.before(button);else bar.prepend(button);
+  }
+ }
  apply();
  return {open,apply,hidden:()=>[...hidden],presets,groups};
 })();

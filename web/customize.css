@@ -23,3 +23,7 @@
 .customize-open{margin-top:6px}
 @media(max-width:640px){.customize-groups,.customize-presets{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){.customize-line input,.customize-line input::after{transition:none}}
+/* The top-bar button, matching Appearance beside it */
+.customize-trigger{display:inline-grid;place-items:center;width:38px;height:38px;padding:0;border:1px solid var(--line);border-radius:50%;background:transparent;color:var(--ink);cursor:pointer}
+.customize-trigger:hover,.customize-trigger:focus-visible{background:var(--soft)}
+body[data-hidden-count]:not([data-hidden-count="0"]) .customize-trigger{border-color:var(--accent,var(--green));color:var(--accent,var(--green))}
