@@ -98,3 +98,38 @@
 .pe-toolbar{position:absolute;left:14px;top:14px;display:flex;gap:4px;padding:5px;border:1px solid var(--line);border-radius:12px;background:color-mix(in srgb,var(--bg) 92%,transparent);box-shadow:0 4px 16px #0000001a}
 .palace-editor[data-mode=walk] .pe-toolbar{display:none}
 .pe-toolbar .pe-tool{border-color:transparent;padding:6px 12px}
+
+/* ── Reading a book pulled off a shelf ───────────────────────────────────── */
+.pb-scrim{position:absolute;inset:0;z-index:30;display:grid;place-items:center;perspective:2400px;background:#0000;transition:background .5s ease;--h:min(620px,72vh)}
+.pb-scrim.is-in{background:#0009}
+.pb-book{position:relative;height:var(--h);width:calc(var(--h)*1.42);transform-style:preserve-3d;transition:transform .6s cubic-bezier(.3,.7,.2,1);filter:drop-shadow(0 28px 40px #0007)}
+.pb-book.is-closed{transform:translateX(-25%)}
+.pb-book.is-closed::before{left:50%}
+.pb-book::before{content:"";position:absolute;inset:-7px -8px -9px;border-radius:8px;background:#5b3d2a;transform:translateZ(-2px);box-shadow:inset 0 0 0 2px #00000030}
+.pb-side{position:absolute;top:0;bottom:0;width:50%;cursor:pointer;overflow:hidden}
+.pb-left{left:0;border-radius:6px 0 0 6px}.pb-right{left:50%;border-radius:0 6px 6px 0}
+.pb-leaf{position:absolute;top:0;bottom:0;left:50%;width:50%;transform-origin:left center;transform-style:preserve-3d;pointer-events:none}
+.pb-face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;overflow:hidden}
+.pb-front{border-radius:0 6px 6px 0}.pb-back{transform:rotateY(180deg);border-radius:6px 0 0 6px}
+.pb-page{position:absolute;inset:0;background:#fbf7ec;color:#2c2a26;display:grid;grid-template-rows:1fr auto;padding:9% 10% 6%}
+.pb-left .pb-page,.pb-back .pb-page{background:linear-gradient(90deg,#f6f0e0 0%,#fbf7ec 86%,#e9e2d0 100%)}
+.pb-right .pb-page,.pb-front .pb-page{background:linear-gradient(270deg,#f6f0e0 0%,#fbf7ec 86%,#e9e2d0 100%)}
+.pb-page.is-none{background:transparent}
+.pb-text{font:clamp(14px,2.3vh,19px)/1.65 Georgia,'Times New Roman',serif;white-space:pre-wrap;overflow:hidden;overflow-wrap:anywhere}
+.pb-text.is-empty{color:#9a9486;font-style:italic}
+.pb-number{text-align:center;font:12px Georgia,serif;color:#8a8474;padding-top:8px}
+.pb-cover{padding:0;place-content:center;text-align:center;grid-template-rows:none;gap:14px;box-shadow:inset 0 0 0 10px #ffffff18,inset 0 0 0 11px #00000022}
+.pb-cover-title{font:600 clamp(20px,4.2vh,34px)/1.2 Georgia,serif;padding:0 12%}
+.pb-cover-detail{font:italic clamp(13px,2vh,16px) Georgia,serif;opacity:.8;padding:0 14%}
+.pb-cover.is-dark{color:#f5e9c8}.pb-cover.is-light{color:#2a2118}
+.pb-close{position:absolute;top:86px;right:24px;width:38px;height:38px;border-radius:50%;border:1px solid #ffffff55;background:#00000055;color:#fff;font-size:16px;cursor:pointer}
+.pb-bar{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:14px;color:#fff;font-size:13px}
+.pb-turn{width:38px;height:38px;border-radius:50%;border:1px solid #ffffff55;background:#00000055;color:#fff;font-size:22px;line-height:1;cursor:pointer}
+.pb-turn:disabled{opacity:.3;cursor:default}
+.pb-counter{min-width:110px;text-align:center}
+@media (prefers-reduced-motion:reduce){.pb-book,.pb-scrim{transition:none}}
+.pe-chips{display:flex;flex-wrap:wrap;gap:6px}
+.pe-chip{border:1px solid var(--line);border-radius:999px;background:transparent;color:inherit;cursor:pointer;padding:4px 11px;font-size:12px}
+.pe-chip:hover{background:var(--hover,#0000000d)}
+.pe-check{display:flex;align-items:center;gap:8px;font-size:13px;margin:6px 0}
+.pe-page-row{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:start;margin-bottom:6px}

@@ -129,4 +129,54 @@ P.placeFurniture(q,'plant',.5,.5);hist.record();assert.equal(q.furniture.length,
 assert(hist.undo());assert.equal(q.furniture.length,1);assert(hist.undo());assert.equal(q.furniture.length,0);assert.equal(hist.undo(),false);
 assert(hist.redo());assert.equal(q.furniture.length,1);P.removeFurniture(q,q.furniture[0].id);hist.record();assert.equal(hist.canRedo(),false,'a new change ends the redo trail');
 assert.deepEqual(P.bounds(g),{x0:0,z0:0,x1:10,z1:9});
-console.log('PASS: palace model — catalogue, starter house, shared walls and openings, rooms, furniture rules (flush, wall-hung, rugs), stations and route, auto-placement in walking order, collisions and sliding, viewpoints, picking, undo.');
+
+// ── Props on furniture ──
+{
+ const h=P.blank('s','props');P.addRoom(h,{x:0,z:0,w:6,d:5});
+ const shelf=P.placeFurniture(h,'bookshelf',3,.4),desk=P.placeFurniture(h,'desk',3,3),rug=P.placeFurniture(h,'rug',3,3.5),lamp=P.placeFurniture(h,'floor-lamp',.5,.5);
+ assert(shelf&&desk&&lamp,'furniture placed');assert(P.surfacesOf(shelf).length>=4,'a bookshelf has several shelves');assert.equal(P.surfacesOf(lamp).length,0,'a lamp has no top to stand things on');
+ assert.equal(P.placeProp(h,'mug',lamp.id),null,'nothing stands on a lamp');assert.equal(P.placeProp(h,'nope',desk.id),null);assert.equal(P.placeProp(h,'mug','missing'),null);
+ // books stand on shelves, side by side, never overlapping
+ const books=[];for(let i=0;i<24;i++){const b=P.placeProp(h,'book',shelf.id,{surface:0,...P.bookLike(i)});if(b)books.push(b)}
+ assert(books.length>=8&&books.length<24,'a shelf fills up: '+books.length);assert(books.every(b=>b.surface===0),'all on the shelf asked for');
+ for(const a of books)for(const b of books)if(a!==b)assert(Math.abs(a.lx-b.lx)>=(a.t+b.t)/2-1e-6,'books do not overlap');
+ assert.deepEqual(P.problems(h),[],'a sound house');
+ assert.equal(P.placeProp(h,'vase',shelf.id,{surface:3}),null,'a vase is too tall for the top shelf');
+ const vase=P.placeProp(h,'vase',shelf.id,{surface:1});assert(vase,'a vase fits on a middle shelf');
+ // size: a book stands on a shelf and lies flat on a desk
+ const flat=P.placeProp(h,'book',desk.id,{});const sz=P.propSize(flat,P.surfacesOf(desk)[0]);assert(sz.w>.15&&sz.h<.06,'flat on a desk');
+ const upright=P.propWorld(h,books[0]);assert(upright.shelf&&upright.h>.2,'upright on a shelf');assert.equal(upright.y,P.surfacesOf(shelf)[0].y+(P.spec('bookshelf').lift||0));
+ // position follows the furniture when it turns
+ const m=P.placeProp(h,'mug',desk.id,{lx:.5,lz:0});const before=P.propWorld(h,m);P.rotateFurniture(h,desk.id);const after=P.propWorld(h,m);
+ assert(Math.hypot(after.x-desk.x,after.z-desk.z)>.4&&(Math.abs(after.x-before.x)>.1||Math.abs(after.z-before.z)>.1),'props turn with their furniture');
+ P.rotateFurniture(h,desk.id);P.rotateFurniture(h,desk.id);P.rotateFurniture(h,desk.id);
+ // moving, levels and refusing
+ const mug=P.placeProp(h,'mug',desk.id,{lx:-.5});assert(P.moveProp(h,mug.id,desk.id,{lx:.2,lz:.1}),'moved on the desk');assert(Math.abs(mug.lx-.2)<.02);
+ assert.equal(P.moveProp(h,mug.id,lamp.id,{}),null,'not onto a lamp');
+ const other=P.placeFurniture(h,'coffee-table',1.5,3);assert(P.moveProp(h,mug.id,other.id,{}),'to another table');assert.equal(mug.hostId,other.id);
+ // routes: a prop becomes a stop, and the stop follows it
+ const st=P.toggleRoute(h,mug.id);assert(st&&st.propId===mug.id&&st.furnitureId===other.id,'a stop on the mug');assert.equal(P.stationOf(h,mug.id).id,st.id);
+ P.moveProp(h,mug.id,desk.id,{});assert.equal(P.stationOf(h,mug.id).furnitureId,desk.id,'the stop moves with the prop');
+ assert.equal(P.toggleRoute(h,mug.id),null,'toggled off');assert.equal(P.stationOf(h,mug.id),null);
+ // turning a prop
+ const note=P.placeProp(h,'notebook',desk.id,{});assert(P.rotateProp(h,note.id));assert.equal(note.rot,90);
+ // removing
+ P.toggleRoute(h,note.id);P.removeProp(h,note.id);assert.equal(P.propsOf(h).some(q=>q.id===note.id),false);assert.equal(h.stations.some(q=>q.propId===note.id),false,'its stop goes too');
+ P.toggleRoute(h,vase.id);const n=P.propsOn(h,shelf.id).length;P.removeFurniture(h,shelf.id);assert.equal(P.propsOn(h,shelf.id).length,0,'furniture takes its props with it');assert(P.propsOf(h).length<n+10);assert.equal(h.stations.some(q=>q.propId===vase.id),false);
+ assert.deepEqual(P.problems(h),[]);
+ // swapping furniture keeps props only if they still fit
+ const t1=P.placeFurniture(h,'dining-table',4.5,3.2);const cup=P.placeProp(h,'fruit',t1.id,{});assert(cup);assert.equal(P.swapFurniture(h,t1.id,'coffee-table'),t1,'a small prop fits on the swapped table');
+ for(let i=0;i<3;i++)P.placeProp(h,'laptop',t1.id,{lx:-.3+i*.31});
+ // undo restores props, and old palaces without any still work
+ const u=P.blank('s','u');P.addRoom(u,{x:0,z:0,w:4,d:4});const dk=P.placeFurniture(u,'desk',2,2);delete u.props;const hist=P.history(u);
+ P.placeProp(u,'mug',dk.id,{});assert(hist.record());assert(hist.undo());assert.equal(u.props.length,0,'undo removes the prop');assert(hist.redo());assert.equal(u.props.length,1,'redo brings it back');
+ // picking by ray
+ const hv=P.blank('s','pick');P.addRoom(hv,{x:0,z:0,w:6,d:5});const dk2=P.placeFurniture(hv,'desk',3,3),mg=P.placeProp(hv,'mug',dk2.id,{lx:0,lz:0}),w=P.propWorld(hv,mg);
+ const eye={x:w.x,y:1.6,z:w.z+2},dir={x:0,y:w.y+.05-1.6,z:-2};const hit=P.pickProp(hv,eye,dir);assert(hit&&hit.prop.id===mg.id,'looking at the mug picks it');
+ assert.equal(P.pickProp(hv,eye,{x:0,y:1,z:0}),null);
+ // the starter house has things to find, one of them a readable guide
+ const sh=P.starterHouse('s','x');assert(P.propsOf(sh).length>30,'books on the shelves');assert(P.propsOf(sh).some(q=>q.type==='book'&&q.pages.length>=3),'a guide book with pages');assert.deepEqual(P.problems(sh),[]);
+ // removing a room takes its props
+ const r2=P.blank('s','r');const room=P.addRoom(r2,{x:0,z:0,w:4,d:4});const dk3=P.placeFurniture(r2,'desk',2,2);P.placeProp(r2,'mug',dk3.id,{});P.removeRoom(r2,room.id);assert.equal(P.propsOf(r2).length,0);
+}
+console.log('PASS: palace model — catalogue, starter house, shared walls and openings, rooms, furniture rules (flush, wall-hung, rugs), stations and route, auto-placement in walking order, collisions and sliding, viewpoints, picking, undo, and props on furniture.');

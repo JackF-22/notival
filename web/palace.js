@@ -46,7 +46,7 @@
   stage.append(canvas,labels,toolbar,hud,card,recallBox);
   const body=el('div','pe-body');body.append(stage,side);root.append(top,body);document.body.append(root);
 
-  const S={tool:'select',tab:'build',room:null,furniture:null,station:null,drag:null,space:false,recall:null,labelNodes:[],hudTimer:0,collapsed:false};
+  const S={tool:'select',tab:'build',room:null,furniture:null,prop:null,station:null,drag:null,space:false,recall:null,labelNodes:[],hudTimer:0,collapsed:false};
   let ctl=null;
   const toast_=message=>window.toast?.(message);
   const furnitureName=f=>P.spec(f.type)?.name||f.type;
@@ -57,14 +57,14 @@
    if(history.record())persist();
    ctl?.rebuild();renderTop();renderSide();overlay();
   }
-  function overlay(extra={}){ctl?.setOverlay({room:S.room,furniture:S.furniture,station:S.station,...extra})}
+  function overlay(extra={}){ctl?.setOverlay({room:S.room,furniture:S.furniture,prop:S.prop,station:S.station,...extra})}
 
   // ── The top bar ──────────────────────────────────────────────────────────
   const nameInput=el('input','pe-name');nameInput.value=palace.name;nameInput.setAttribute('aria-label','Palace name');
   nameInput.onchange=()=>{palace.name=nameInput.value.trim()||'My palace';commit()};
   const modeButtons={};
-  const undo=button('↶',()=>{if(history.undo()){persist();S.furniture=S.furniture&&palace.furniture.some(f=>f.id===S.furniture)?S.furniture:null;S.room=S.room&&palace.rooms.some(r=>r.id===S.room)?S.room:null;ctl.rebuild();renderTop();renderSide();overlay()}},'pe-icon','Undo (⌘Z)');
-  const redo=button('↷',()=>{if(history.redo()){persist();ctl.rebuild();renderTop();renderSide();overlay()}},'pe-icon','Redo (⇧⌘Z)');
+  const undo=button('↶',()=>{if(history.undo()){persist();S.furniture=S.furniture&&palace.furniture.some(f=>f.id===S.furniture)?S.furniture:null;S.prop=S.prop&&P.propsOf(palace).some(q=>q.id===S.prop)?S.prop:null;S.room=S.room&&palace.rooms.some(r=>r.id===S.room)?S.room:null;ctl.rebuild();renderTop();renderSide();overlay()}},'pe-icon','Undo (⌘Z)');
+  const redo=button('↷',()=>{if(history.redo()){S.prop=S.prop&&P.propsOf(palace).some(q=>q.id===S.prop)?S.prop:null;S.furniture=S.furniture&&palace.furniture.some(f=>f.id===S.furniture)?S.furniture:null;persist();ctl.rebuild();renderTop();renderSide();overlay()}},'pe-icon','Redo (⇧⌘Z)');
   function renderTop(){
    top.replaceChildren();
    const modes=el('div','pe-modes');
@@ -76,7 +76,7 @@
    if(!ctl||ctl.getMode()===mode)return;
    stopRecall(false);hideCard();ctl.setMode(mode);
    root.dataset.mode=mode;
-   if(mode==='walk'){S.tool='select';hudShow('Drag to look · W A S D or arrows to walk · click the floor to go there · click a glowing marker to read it · Esc to go back')}
+   if(mode==='walk'){S.tool='select';hudShow('Drag to look · W A S D or arrows to walk · click the floor to go there · click a book to take it down, or a glowing marker to read it · Esc to go back')}
    renderTop();renderSide();renderToolbar();overlay();
   }
   function hudShow(text,ms=7000){hud.textContent=text;hud.classList.add('is-on');clearTimeout(S.hudTimer);S.hudTimer=setTimeout(()=>hud.classList.remove('is-on'),ms)}
@@ -109,7 +109,28 @@
     }
     section.append(row);box.append(section);
    }
+   // small things that stand on furniture
+   const things=el('section','pe-cat');things.append(el('h3','','Things to put on furniture'),el('small','pe-hint','Select a piece of furniture and click one, or drag it onto the furniture. Books can be taken down and read.'));
+   const grid=el('div','pe-items');
+   for(const [type,spec] of Object.entries(P.PROPS)){
+    const b=button('',()=>addProp(type),'pe-item');b.draggable=true;b.dataset.prop=type;
+    const swatch=el('span','pe-swatch');swatch.style.background=spec.color;b.append(swatch,el('span','pe-item-name',spec.name),el('small','',spec.read?'can be read':'holds a meaning'));
+    b.addEventListener('dragstart',event=>{event.dataTransfer.setData('text/palace-prop',type);event.dataTransfer.effectAllowed='copy'});
+    grid.append(b);
+   }
+   things.append(grid);box.append(things);
   }
+  // Put a prop on the selected piece of furniture (or the one holding the selected prop).
+  function addProp(type){
+   const host=palace.furniture.find(g=>g.id===S.furniture);
+   if(!host){toast_('Select a piece of furniture first, or drag this onto one');return}
+   if(!P.surfacesOf(host).length){toast_('Nothing can stand on a '+furnitureName(host).toLowerCase());return}
+   const q=P.placeProp(palace,type,host.id,type==='book'?P.bookLike(P.propsOn(palace,host.id).length+2):{});
+   if(!q){toast_('There is no room left on it');return}
+   S.prop=q.id;S.tab='selected';commit();
+  }
+  const localOf=(f,x,z)=>{const rad=f.rot*Math.PI/180,dx=x-f.x,dz=z-f.z;return {lx:dx*Math.cos(rad)-dz*Math.sin(rad),lz:dx*Math.sin(rad)+dz*Math.cos(rad)}};
+  function selectProp(id){const q=P.propsOf(palace).find(g=>g.id===id);if(!q)return;S.prop=id;S.furniture=q.hostId;S.room=null;S.station=null;S.tab='selected';renderSide();overlay()}
   function addFurniture(type){
    const room=palace.rooms.find(r=>r.id===S.room)||palace.rooms.find(r=>r.id===P.roomAt(palace,ctl.plan.cx,ctl.plan.cz)?.id)||palace.rooms[0];
    if(!room){toast_('Add a room first');return}
@@ -124,8 +145,9 @@
    return row;
   }
   function renderSelected(box){
-   const f=palace.furniture.find(g=>g.id===S.furniture),r=palace.rooms.find(g=>g.id===S.room);
-   if(f){
+   const f=palace.furniture.find(g=>g.id===S.furniture),r=palace.rooms.find(g=>g.id===S.room),q=P.propsOf(palace).find(g=>g.id===S.prop);
+   if(q&&f){renderProp(box,q,f)}
+   else if(f){
     const spec=P.spec(f.type);
     box.append(el('h3','pe-title',spec.name),el('small','pe-hint',roomNameOf(f)));
     const row=el('div','pe-actions');
@@ -138,6 +160,8 @@
     for(const [t,s] of same){const o=el('option','',s.name);o.value=t;swap.append(o)}
     swap.onchange=()=>{if(!swap.value)return;if(!P.swapFurniture(palace,f.id,swap.value))toast_('That one doesn\'t fit here');commit()};
     box.append(el('small','pe-label','Change it'),swap);
+    const onTop=P.propsOn(palace,f.id);
+    if(onTop.length){box.append(el('small','pe-label','On it · '+onTop.length));const chips=el('div','pe-chips');for(const o of onTop)chips.append(button(o.title||P.PROPS[o.type].name,()=>selectProp(o.id),'pe-chip','Select it'));box.append(chips)}
     renderStations(box,f);
    }else if(r){
     box.append(el('h3','pe-title','Room'));
@@ -146,6 +170,75 @@
     box.append(el('small','pe-label','Floor'),swatches(r.floor,P.FLOORS,c=>{r.floor=c;commit()}),el('small','pe-label','Walls'),swatches(r.wall,P.WALLS,c=>{r.wall=c;commit()}));
     const row=el('div','pe-actions');row.append(button('Delete room',()=>deleteRoom(r),'pe-danger'));box.append(row);
    }else box.append(el('p','pe-hint','Select a piece of furniture or a room to change it, or to leave something there to remember.'));
+  }
+
+  // ── A small thing on a piece of furniture ────────────────────────────────
+  function renderProp(box,q,host){
+   const sp=P.PROPS[q.type],levels=P.surfacesOf(host);
+   box.append(el('h3','pe-title',sp.name),el('small','pe-hint','On the '+furnitureName(host).toLowerCase()+' · '+roomNameOf(host)));
+   const row=el('div','pe-actions');
+   row.append(button('Rotate',()=>rotateProp(),'','Turn 90° (R)'));
+   if(levels.length>1)row.append(button('Up a level',()=>moveLevel(q,1),'','Put it on the shelf above'),button('Down a level',()=>moveLevel(q,-1),'','Put it on the shelf below'));
+   row.append(button('Delete',()=>deleteProp(),'pe-danger','Remove it (Delete)'));box.append(row);
+   box.append(button('← The '+furnitureName(host).toLowerCase(),()=>select('furniture',host.id),'pe-link'));
+   const title=el('input','pe-input');title.placeholder='What it stands for';title.value=q.title||'';title.setAttribute('aria-label','What it stands for');
+   const detail=el('input','pe-input');detail.placeholder='Meaning or note (optional)';detail.value=q.detail||'';detail.setAttribute('aria-label','Meaning or note');
+   const sync=()=>{q.title=title.value.trim();q.detail=detail.value.trim();const st=P.stationOf(palace,q.id);if(st){st.title=q.title||sp.name;st.detail=q.detail}commit()};
+   title.onchange=sync;detail.onchange=sync;box.append(el('small','pe-label','Value'),title,detail);
+   const on=P.stationOf(palace,q.id),route=el('label','pe-check'),check=el('input');check.type='checkbox';check.checked=!!on;check.onchange=()=>{P.toggleRoute(palace,q.id);commit()};
+   route.append(check,el('span','','Stop on my recall walk'+(on?' · stop '+(P.route(palace).findIndex(s=>s.id===on.id)+1):'')));box.append(route);
+   box.append(el('small','pe-label','Colour'),swatches(q.color,q.type==='book'?['#b5533c','#3f6f8f','#d6a64a','#5f8a5a','#8a5a8a','#c9c2b2','#2f3e5c','#7a5a3d']:P.TINTS,c=>{q.color=c;commit()}));
+   if(sp.read)renderPages(box,q);
+  }
+  function rotateProp(){const q=P.propsOf(palace).find(g=>g.id===S.prop);if(!q)return;if(!P.rotateProp(palace,q.id))toast_('No room to turn it here');else commit()}
+  function moveLevel(q,dir){
+   for(let k=q.surface+dir;k>=0&&k<P.surfacesOf(palace.furniture.find(g=>g.id===q.hostId)).length;k+=dir)if(P.moveProp(palace,q.id,q.hostId,{surface:k,lx:q.lx,lz:q.lz})){commit();return}
+   toast_(dir>0?'No room on a higher level':'No room on a lower level');
+  }
+  function deleteProp(){
+   const q=P.propsOf(palace).find(g=>g.id===S.prop);if(!q)return;
+   if(P.stationOf(palace,q.id)&&!confirmAgain('o'+q.id,'It is a stop on your recall walk. Press Delete again to remove it.'))return;
+   const host=q.hostId;P.removeProp(palace,q.id);S.prop=null;S.furniture=host;S.station=null;commit();
+  }
+  // What is written in a book: pages to edit, and ways to fill them from the subject's own material.
+  function renderPages(box,q){
+   box.append(el('small','pe-label','Pages · '+q.pages.length));
+   q.pages.forEach((pg,i)=>{
+    const row=el('div','pe-page-row'),ta=el('textarea','pe-input');ta.rows=3;ta.value=pg.text||'';ta.placeholder='Page '+(i+1);ta.setAttribute('aria-label','Page '+(i+1));ta.onchange=()=>{pg.text=ta.value;commit()};
+    row.append(ta,button('✕',()=>{q.pages.splice(i,1);commit()},'pe-x','Remove this page'));box.append(row);
+   });
+   const actions=el('div','pe-actions');
+   actions.append(button('+ Add a page',()=>{q.pages.push({text:''});commit()},'pe-add-write'),button('Read it',()=>readProp(q),'primary'));box.append(actions);
+   const fill=el('div','pe-pick');
+   const notes=(state.notes||[]).filter(n=>!palace.projectId||n.projectId===palace.projectId||!n.projectId).filter(n=>(n.blocks||[]).some(b=>b.type==='text'&&b.text));
+   if(notes.length)fill.append(picker('Pages from a note',notes.map(n=>({id:n.id,label:n.title||'Untitled',make:()=>({title:n.title,pages:PalaceBook.paginate(n.blocks.filter(b=>b.type==='text'&&b.text).map(b=>b.text).join('\n\n'))})})),item=>fillPages(q,item.make())));
+   const vocab=(state.vocab||[]).filter(w=>w.projectId===palace.projectId&&w.meaning);
+   if(vocab.length)fill.append(picker('Pages from my vocab',[{id:'all',label:'All '+vocab.length+' words, eight to a page',make:()=>({title:(subject?.name||'Vocab'),pages:PalaceBook.listPages(vocab.map(w=>({title:w.term,detail:w.meaning})))})}],item=>fillPages(q,item.make())));
+   const questions=typeof RecallModel!=='undefined'?RecallModel.collect(state,{projectId:palace.projectId}).filter(i=>i.origin!=='vocab'):[];
+   if(questions.length)fill.append(picker('Pages from my questions',[{id:'all',label:'All '+questions.length+' questions, one to a page',make:()=>({title:'Questions',pages:questions.map(i=>({text:(i.type==='cloze'?i.text:i.prompt)+'\n\n— '+(i.type==='cloze'?i.blank:(typeof Knowledge!=='undefined'?Knowledge.prose(i.answer):i.answer))}))})}],item=>fillPages(q,item.make())));
+   box.append(fill);
+  }
+  function fillPages(q,made){
+   if(!made.pages.length){toast_('There was nothing to put in it');return}
+   q.pages=made.pages;if(!q.title&&made.title){q.title=made.title;const st=P.stationOf(palace,q.id);if(st)st.title=q.title}
+   commit();toast_(made.pages.length+' page'+(made.pages.length===1?'':'s')+' written');
+  }
+  // Taking a book down: it comes off its shelf in front of you and opens. Anything else just shows what it stands for.
+  let reading=null;
+  function readProp(q,fromScreen=true){
+   if(reading||!q)return;const sp=P.PROPS[q.type],w=P.propWorld(palace,q);
+   hideCard();hud.classList.remove('is-on');const pt=fromScreen&&w&&ctl.getMode()==='walk'?ctl.toScreen(w.x,w.y+w.h/2,w.z):null,r=canvas.getBoundingClientRect();
+   ctl.hideProp(q.id);
+   reading=PalaceBook.open({title:q.title||sp.name,detail:q.detail,pages:q.pages||[],color:q.color||sp.color,origin:pt?{x:r.left+pt.x,y:r.top+pt.y}:null,mount:root,onClose:()=>{reading=null;ctl.hideProp(null);canvas.focus()}});
+  }
+  function showPropCard(q){
+   const sp=P.PROPS[q.type],host=palace.furniture.find(g=>g.id===q.hostId),st=P.stationOf(palace,q.id);
+   hud.classList.remove('is-on');card.replaceChildren();
+   card.append(el('small','pe-card-where',sp.name+(host?' · on the '+furnitureName(host).toLowerCase()+' · '+roomNameOf(host):'')),el('h3','',q.title||sp.name));
+   if(q.detail)card.append(el('p','',q.detail));
+   if(st?.image)card.append(el('p','pe-card-image','“'+st.image+'”'));
+   if(!q.title&&!q.detail)card.append(el('p','pe-hint','Nothing to remember here yet. Select it in the plan to give it a meaning.'));
+   card.append(button('✕',()=>hideCard(),'pe-x','Close'));card.hidden=false;S.station=st?st.id:null;overlay();
   }
   function deleteRoom(r){
    const inside=palace.furniture.filter(f=>P.roomOf(palace,f)===r).length;
@@ -161,6 +254,7 @@
    if(!copy){toast_('No room for another');return}S.furniture=copy.id;commit();
   }
   function deleteSelected(){
+   if(S.prop){deleteProp();return}
    if(S.furniture){const f=palace.furniture.find(g=>g.id===S.furniture);if(!f)return;const n=P.stationsOn(palace,f.id).length;if(n&&!confirmAgain('f'+f.id,'This holds '+n+' thing'+(n===1?'':'s')+' to remember. Press Delete again to remove it all.'))return;P.removeFurniture(palace,S.furniture);S.furniture=null;S.station=null;commit()}
    else if(S.room){const r=palace.rooms.find(g=>g.id===S.room);if(r)deleteRoom(r)}
   }
@@ -178,7 +272,10 @@
   }
   function renderStations(box,f){
    box.append(el('small','pe-label','Left here'));
-   for(const s of P.stationsOn(palace,f.id))box.append(stationFields(s));
+   for(const s of P.stationsOn(palace,f.id)){
+    if(!s.propId){box.append(stationFields(s));continue}
+    const o=P.propsOf(palace).find(g=>g.id===s.propId);if(o)box.append(button('Stop '+(P.route(palace).findIndex(x=>x.id===s.id)+1)+' · '+(o.title||P.PROPS[o.type].name),()=>selectProp(o.id),'pe-chip','It is set on the thing itself'));
+   }
    const adder=el('div','pe-add');
    adder.append(button('+ Write something to remember',()=>{const s=P.addStation(palace,f.id,{title:'New thing'});S.station=s.id;commit()},'pe-add-write'));
    // pick from what the subject already has
@@ -204,7 +301,7 @@
    box.append(actions);
    list.forEach((s,k)=>{
     const f=palace.furniture.find(g=>g.id===s.furnitureId),row=el('div','pe-route');
-    const open=button('',()=>{S.furniture=s.furnitureId;S.station=s.id;S.room=null;S.tab='selected';if(f&&ctl.getMode()==='plan'){ctl.plan.cx=f.x;ctl.plan.cz=f.z}renderSide();overlay()},'pe-route-open');
+    const open=button('',()=>{if(s.propId){selectProp(s.propId);S.station=s.id;return}S.prop=null;S.furniture=s.furnitureId;S.station=s.id;S.room=null;S.tab='selected';if(f&&ctl.getMode()==='plan'){ctl.plan.cx=f.x;ctl.plan.cz=f.z}renderSide();overlay()},'pe-route-open');
     open.append(el('b','',String(k+1)),el('span','pe-route-title',s.title||'(empty)'),el('small','',f?furnitureName(f)+' · '+roomNameOf(f):''));
     row.append(open,button('↑',()=>{P.moveStation(palace,s.id,-1);commit()},'pe-icon','Earlier'),button('↓',()=>{P.moveStation(palace,s.id,1);commit()},'pe-icon','Later'));box.append(row);
    });
@@ -253,7 +350,7 @@
     recallBox.append(el('h3','',rc.ok+' of '+rc.list.length+' remembered'),el('p','pe-hint',rc.ok===rc.list.length?'You walked the whole house without a miss.':'The ones you missed are worth another walk.'));
     const row=el('div','pe-actions');row.append(button('Walk again',()=>{S.recall={i:0,shown:false,ok:0,miss:0,list:P.route(palace)};recallStep()},'primary'),button('Done',()=>{stopRecall()}));recallBox.append(row);return;
    }
-   const station=rc.list[rc.i],f=palace.furniture.find(g=>g.id===station.furnitureId);if(!f){rc.i++;recallStep();return}
+   const station=rc.list[rc.i],f=palace.furniture.find(g=>g.id===station.furnitureId),thing=station.propId?P.propsOf(palace).find(g=>g.id===station.propId):null;if(!f||(station.propId&&!thing)){rc.i++;recallStep();return}
    S.station=station.id;overlay();ctl.flyTo(P.viewFrom(palace,f),1000);
    recallBox.append(el('small','pe-card-where','Stop '+(rc.i+1)+' of '+rc.list.length+' · '+furnitureName(f)+' · '+roomNameOf(f)),el('h3','','What did you leave here?'));
    const r=resolve(station);
@@ -263,6 +360,7 @@
     const answer=el('div','pe-answer');answer.append(el('strong','',r.title||'(empty)'));recallBox.append(answer);
     if(r.detail)recallBox.append(el('p','pe-answer-detail',r.detail));
     if(r.image)recallBox.append(el('p','pe-card-image','“'+r.image+'”'));
+    if(thing&&P.PROPS[thing.type].read&&(thing.pages||[]).some(g=>g.text))recallBox.append(button('Open it',()=>readProp(thing,false),'pe-link'));
     const row=el('div','pe-actions');
     const mark=ok=>{station.stats={ok:(station.stats?.ok||0)+(ok?1:0),miss:(station.stats?.miss||0)+(ok?0:1),last:Date.now()};if(ok)rc.ok++;else rc.miss++;rc.i++;rc.shown=false;persist();recallStep()};
     row.append(button('I remembered',()=>mark(true),'primary'),button('Not yet',()=>mark(false)));recallBox.append(row);
@@ -280,7 +378,7 @@
    return {next,ok:P.canPlace(palace,next,f.id)};
   }
   const rectOf=(a,b)=>({x0:Math.min(a.x,b.x),z0:Math.min(a.z,b.z),x1:Math.max(a.x,b.x),z1:Math.max(a.z,b.z)});
-  function select(kind,id){S.furniture=kind==='furniture'?id:null;S.room=kind==='room'?id:null;if(kind&&S.tab==='build')S.tab='selected';S.station=null;renderSide();overlay()}
+  function select(kind,id){S.prop=null;S.furniture=kind==='furniture'?id:null;S.room=kind==='room'?id:null;if(kind&&S.tab==='build')S.tab='selected';S.station=null;renderSide();overlay()}
   canvas.addEventListener('pointerdown',event=>{
    canvas.setPointerCapture?.(event.pointerId);canvas.focus();const p=at(event);
    if(ctl.getMode()==='walk'){S.drag={type:'look',x:p.x,y:p.y,moved:false};return}
@@ -291,6 +389,8 @@
    // resizing the selected room by an edge or corner
    const handle=S.room?ctl.pickHandle(p.x,p.y,S.room):null;
    if(handle){S.drag={type:'resize',handle,x:p.x,y:p.y};return}
+   const q=(S.furniture||S.prop)?ctl.pickProp(p.x,p.y):null;
+   if(q&&(q.hostId===S.furniture)){selectProp(q.id);S.drag={type:'moveProp',id:q.id,x:p.x,y:p.y,moved:false};return}
    const f=ctl.pickFurniture(p.x,p.y);
    if(f){select('furniture',f.id);S.drag={type:'move',id:f.id,dx:f.x-w.x,dz:f.z-w.z,x:p.x,y:p.y,moved:false};return}
    const room=ctl.pickRoom(p.x,p.y);
@@ -312,6 +412,7 @@
     return;
    }
    if(d.type==='pan'){ctl.panBy(p.x-d.x,p.y-d.y);d.x=p.x;d.y=p.y;d.click=false;return}
+   if(d.type==='moveProp'){if(Math.abs(p.x-d.x)+Math.abs(p.y-d.y)>3)d.moved=true;if(d.moved){const h=ctl.pickFurniture(p.x,p.y);overlay({hover:h?.id});canvas.style.cursor='grabbing'}return}
    if(d.type==='move'){
     const f=palace.furniture.find(g=>g.id===d.id);if(!f)return;if(Math.abs(p.x-d.x)+Math.abs(p.y-d.y)>3)d.moved=true;if(!d.moved)return;
     const c=candidate(f,w.x+d.dx,w.z+d.dz);d.cand=c;
@@ -344,6 +445,13 @@
      if(!added&&P.openingAt(palace,c.axis,c.at,c.i))toast_('There is no room for it there');commit();
     }return;
    }
+   if(d.type==='moveProp'){
+    if(d.moved){
+     const host=ctl.pickFurniture(p.x,p.y),w=ctl.toWorld(p.x,p.y),q=P.propsOf(palace).find(g=>g.id===d.id);
+     if(host&&q&&w){const t=localOf(host,w.x,w.z);if(P.moveProp(palace,q.id,host.id,{surface:host.id===q.hostId?q.surface:undefined,lx:t.lx,lz:t.lz}))commit();else{toast_('There is no room for it there');overlay()}}else overlay();
+    }
+    return;
+   }
    if(d.type==='move'){
     const f=palace.furniture.find(g=>g.id===d.id);
     if(f&&d.moved&&d.cand?.ok&&d.cand.next){f.x=d.cand.next.x;f.z=d.cand.next.z;f.rot=d.cand.next.rot;commit()}else{overlay()}
@@ -366,8 +474,10 @@
   });
   // In the walk view a click goes to a place, or reads a stop.
   function walkClick(p){
+   const o=ctl.pickProp(p.x,p.y);
+   if(o){if(P.PROPS[o.type].read)readProp(o);else showPropCard(o);return}
    const f=ctl.pickFurniture(p.x,p.y);
-   if(f){const stations=P.stationsOn(palace,f.id);if(stations.length){showCard(f,stations[0]);return}hudShow(furnitureName(f)+' · '+roomNameOf(f)+(P.layerOf(f)==='wall'?'':' — nothing left here yet'),2500);return}
+   if(f){const stations=P.stationsOn(palace,f.id).filter(s=>!s.propId);if(stations.length){showCard(f,stations[0]);return}hudShow(furnitureName(f)+' · '+roomNameOf(f)+(P.layerOf(f)==='wall'?'':' — nothing left here yet'),2500);return}
    const r=ctl.ray(p.x,p.y);if(r.dir.y<-.01){const t=-r.origin.y/r.dir.y,x=r.origin.x+r.dir.x*t,z=r.origin.z+r.dir.z*t;if(P.roomAt(palace,x,z)){hideCard();ctl.setTarget(x,z)}}
   }
   canvas.addEventListener('wheel',event=>{
@@ -380,8 +490,15 @@
    else ctl.panBy(-event.deltaX,-event.deltaY);
   },{passive:false});
   canvas.addEventListener('contextmenu',event=>event.preventDefault());
-  canvas.addEventListener('dragover',event=>{if(event.dataTransfer.types.includes('text/palace-type')){event.preventDefault();event.dataTransfer.dropEffect='copy'}});
+  canvas.addEventListener('dragover',event=>{if(event.dataTransfer.types.includes('text/palace-type')||event.dataTransfer.types.includes('text/palace-prop')){event.preventDefault();event.dataTransfer.dropEffect='copy'}});
   canvas.addEventListener('drop',event=>{
+   const prop=event.dataTransfer.getData('text/palace-prop');
+   if(prop&&ctl.getMode()==='plan'){
+    event.preventDefault();const p=at(event),w=ctl.toWorld(p.x,p.y),host=ctl.pickFurniture(p.x,p.y);
+    if(!host||!P.surfacesOf(host).length){toast_('Drop it onto a table, shelf or other piece of furniture');return}
+    const t=localOf(host,w.x,w.z),q=P.placeProp(palace,prop,host.id,{lx:t.lx,lz:t.lz,...(prop==='book'?P.bookLike(P.propsOn(palace,host.id).length+2):{})});
+    if(!q){toast_('There is no room left there');return}S.prop=q.id;S.furniture=host.id;S.tab='selected';commit();return;
+   }
    const type=event.dataTransfer.getData('text/palace-type');if(!type||ctl.getMode()!=='plan')return;event.preventDefault();
    const p=at(event),w=ctl.toWorld(p.x,p.y),f=P.placeFurniture(palace,type,w.x,w.z);
    if(!f){toast_('That doesn\'t fit there');return}S.furniture=f.id;S.room=null;S.tab='selected';commit();
@@ -389,7 +506,7 @@
   const keyName=event=>event.key.length===1?event.key.toLowerCase():event.key.toLowerCase();
   function keydown(event){
    if(!root.isConnected)return;
-   if(document.querySelector('dialog[open]'))return;
+   if(document.querySelector('dialog[open]')||reading)return;
    const typing=event.target.matches?.('input,textarea,select,[contenteditable]');
    if(event.key==='Escape'){
     if(typing){event.target.blur();return}
@@ -408,10 +525,11 @@
    if(mod&&k==='d'){event.preventDefault();duplicateSelected();return}
    if(k===' '){S.space=true;event.preventDefault();return}
    if(k==='delete'||k==='backspace'){event.preventDefault();deleteSelected();return}
-   if(k==='r'&&!mod){rotateSelected();return}
+   if(k==='r'&&!mod){S.prop?rotateProp():rotateSelected();return}
    if(k==='+'||k==='='){ctl.zoomAt(canvas.clientWidth/2,canvas.clientHeight/2,1.2);return}
    if(k==='-'){ctl.zoomAt(canvas.clientWidth/2,canvas.clientHeight/2,1/1.2);return}
    const nudge={arrowleft:[-.25,0],arrowright:[.25,0],arrowup:[0,-.25],arrowdown:[0,.25]}[k];
+   if(nudge&&S.prop){event.preventDefault();const q=P.propsOf(palace).find(g=>g.id===S.prop),w=q&&P.propWorld(palace,q);if(w){const t=localOf(w.host,w.x+nudge[0]*.2,w.z+nudge[1]*.2);if(P.moveProp(palace,q.id,q.hostId,{surface:q.surface,lx:t.lx,lz:t.lz}))commit()}return}
    if(nudge&&S.furniture){event.preventDefault();const f=palace.furniture.find(g=>g.id===S.furniture);if(f&&P.moveFurniture(palace,f.id,f.x+nudge[0],f.z+nudge[1]))commit()}
   }
   function keyup(event){const k=keyName(event);if(k===' ')S.space=false;if(ctl?.getMode()==='walk')ctl.setKey(k,false)}
@@ -423,7 +541,7 @@
    if(ctl.getMode()==='plan')for(const r of palace.rooms){const s=ctl.toScreen(r.x+r.w/2,.1,r.z+r.d/2);if(s)items.push({text:r.name,x:s.x,y:s.y,cls:'pe-room-label'})}
    const order=P.route(palace);
    order.forEach((st,k)=>{
-    const f=palace.furniture.find(g=>g.id===st.furnitureId);if(!f)return;const spec=P.spec(f.type),top=(spec.lift||0)+spec.h+(ctl.getMode()==='plan'?.55:.4),s=ctl.toScreen(f.x,top,f.z);
+    const f=palace.furniture.find(g=>g.id===st.furnitureId);if(!f)return;const spec=P.spec(f.type),pw=st.propId?P.propWorld(palace,P.propsOf(palace).find(g=>g.id===st.propId)||{}):null,top=pw?pw.y+pw.h+(ctl.getMode()==='plan'?.55:.22):(spec.lift||0)+spec.h+(ctl.getMode()==='plan'?.55:.4),s=ctl.toScreen(pw?pw.x:f.x,top,pw?pw.z:f.z);
     if(s)items.push({text:String(k+1),x:s.x,y:s.y,cls:'pe-stop-label'+(S.station===st.id?' is-on':'')});
    });
    while(S.labelNodes.length<items.length){const n=el('div');labels.append(n);S.labelNodes.push(n)}
@@ -441,7 +559,7 @@
    stopRecall(false);window.removeEventListener('keydown',keydown,true);window.removeEventListener('keyup',keyup,true);resizer.disconnect();ctl?.dispose();root.remove();editor=null;
    if(subject&&window.marginSubjectTab)window.marginSubjectTab(subject.id,'palace');
   }
-  editor={close,palace,ctl,S,commit,select,history,addFurniture,startRecall,setMode,root,candidate,fillDialog,rotateSelected,deleteSelected,duplicateSelected};
+  editor={close,palace,ctl,S,commit,select,selectProp,addProp,readProp,reader:()=>reading,history,addFurniture,startRecall,setMode,root,candidate,fillDialog,rotateSelected,deleteSelected,duplicateSelected};
   renderTop();renderSide();renderToolbar();overlay();
   requestAnimationFrame(()=>{ctl?.frame();canvas.focus()});
  }

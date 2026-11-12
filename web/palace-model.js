@@ -22,16 +22,25 @@ const PalaceModel=(()=>{
  const B=(x,y,z,w,h,d,c)=>['b',x,y,z,w,h,d,c],C=(x,y,z,r,h,c)=>['c',x,y,z,r,h,c];
  const DARK='#3a3a40';
  const books=(y,x0,x1,z=.02)=>{const colours=['#b5533c','#3f6f8f','#d6a64a','#5f8a5a','#8a5a8a','#c9c2b2'],out=[];let x=x0,k=0;while(x<x1-.05){const w=.07+(k*37%5)*.012;out.push(B(x+w/2,y,z,w-.01,.28+((k*13)%4)*.025,.2,colours[k%colours.length]));x+=w;k++}return out};
+const S=(x,y,z,r,c)=>['s',x,y,z,r,c];
  const legs=(w,d,h,inset=.05,t=.05)=>[[-1,-1],[1,-1],[-1,1],[1,1]].map(([a,b])=>B(a*(w/2-inset),0,b*(d/2-inset),t,h,t,DARK));
  const CATALOG={
-  sofa:{name:'Sofa',cat:'Living',w:2.1,d:.95,h:.85,color:'#6f8fb0',parts:[B(0,0,0,2.1,.28,.95,'m-'),B(0,.28,.1,1.74,.17,.72,'m+'),B(0,.28,-.36,2.1,.57,.23,'m'),B(-.96,.28,.05,.18,.3,.85,'m-'),B(.96,.28,.05,.18,.3,.85,'m-')]},
-  armchair:{name:'Armchair',cat:'Living',w:.95,d:.9,h:.85,color:'#c98f8f',parts:[B(0,0,0,.95,.28,.9,'m-'),B(0,.28,.1,.6,.17,.65,'m+'),B(0,.28,-.34,.95,.57,.22,'m'),B(-.38,.28,.05,.2,.3,.8,'m-'),B(.38,.28,.05,.2,.3,.8,'m-')]},
-  'coffee-table':{name:'Coffee table',cat:'Living',w:1.1,d:.6,h:.42,color:'#b9876b',parts:[B(0,.38,0,1.1,.04,.6,'m'),...legs(1.1,.6,.38,.06,.05)]},
-  'side-table':{name:'Side table',cat:'Living',w:.5,d:.5,h:.55,color:'#b9876b',parts:[C(0,.5,0,.25,.04,'m'),C(0,0,0,.04,.5,DARK),C(0,0,0,.18,.03,DARK)]},
-  'tv-unit':{name:'TV and stand',cat:'Living',w:1.5,d:.45,h:1.15,color:'#8d8aa6',parts:[B(0,0,0,1.5,.5,.45,'m'),B(0,.5,0,.2,.1,.12,DARK),B(0,.6,0,1.25,.7,.05,'#1b1b20')]},
-  bookshelf:{name:'Bookshelf',cat:'Living',w:1,d:.32,h:1.9,color:'#a8a39a',parts:[B(0,0,0,1,1.9,.32,'m'),...[.05,.55,1.05,1.52].flatMap(y=>books(y,-.43,.43,.07))]},
-  fireplace:{name:'Fireplace',cat:'Living',w:1.4,d:.4,h:1.2,color:'#a8a39a',parts:[B(0,0,0,1.4,1.1,.4,'m'),B(0,.05,.2,.7,.6,.02,'#1d1d20'),B(0,1.1,0,1.5,.07,.46,'#8a7a64')]},
-  piano:{name:'Piano',cat:'Living',w:1.5,d:.65,h:1.15,color:'#2a2a30',parts:[B(0,0,0,1.5,.9,.65,'m'),B(0,.9,.15,1.4,.05,.35,'#efece4'),B(0,.95,-.1,1.5,.2,.45,'m'),...[-.6,0,.6].map(x=>B(x,0,.2,.06,.5,.06,DARK))]},
+
+  sofa:{name:'Sofa',cat:'Living',w:2.1,d:.95,h:.85,color:'#6f8fb0',parts:[B(0,0,0,2.1,.28,.95,'m-'),B(0,.28,.1,1.74,.17,.72,'m+'),B(0,.28,-.36,2.1,.57,.23,'m'),B(-.96,.28,.05,.18,.3,.85,'m-'),B(.96,.28,.05,.18,.3,.85,'m-')],surfaces:[{x:-.55,z:.1,w:.5,d:.5,y:.45},{x:.55,z:.1,w:.5,d:.5,y:.45}]},
+
+  armchair:{name:'Armchair',cat:'Living',w:.95,d:.9,h:.85,color:'#c98f8f',parts:[B(0,0,0,.95,.28,.9,'m-'),B(0,.28,.1,.6,.17,.65,'m+'),B(0,.28,-.34,.95,.57,.22,'m'),B(-.38,.28,.05,.2,.3,.8,'m-'),B(.38,.28,.05,.2,.3,.8,'m-')],surfaces:[{x:0,z:.1,w:.4,d:.5,y:.45}]},
+
+  'coffee-table':{name:'Coffee table',cat:'Living',w:1.1,d:.6,h:.42,color:'#b9876b',parts:[B(0,.38,0,1.1,.04,.6,'m'),...legs(1.1,.6,.38,.06,.05)],surfaces:[{x:0,z:0,w:1,d:.5,y:.42}]},
+
+  'side-table':{name:'Side table',cat:'Living',w:.5,d:.5,h:.55,color:'#b9876b',parts:[C(0,.5,0,.25,.04,'m'),C(0,0,0,.04,.5,DARK),C(0,0,0,.18,.03,DARK)],surfaces:[{x:0,z:0,w:.36,d:.36,y:.54}]},
+
+  'tv-unit':{name:'TV and stand',cat:'Living',w:1.5,d:.45,h:1.15,color:'#8d8aa6',parts:[B(0,0,0,1.5,.5,.45,'m'),B(0,.5,0,.2,.1,.12,DARK),B(0,.6,0,1.25,.7,.05,'#1b1b20')],surfaces:[{x:-.5,z:0,w:.4,d:.38,y:.5},{x:.5,z:0,w:.4,d:.38,y:.5}]},
+  bookshelf:{name:'Bookshelf',cat:'Living',w:1,d:.32,h:1.9,color:'#a8a39a',parts:[B(-.48,0,0,.04,1.9,.32,'m'),B(.48,0,0,.04,1.9,.32,'m'),B(0,0,-.14,1,1.9,.04,'m-'),...[0,.5,1,1.47,1.87].map(y=>B(0,y,.01,.92,.03,.3,'m')),...books(1.5,-.43,.1,.0)],
+   surfaces:[{x:0,z:.01,w:.9,d:.26,y:.03,shelf:1},{x:0,z:.01,w:.9,d:.26,y:.53,shelf:1},{x:0,z:.01,w:.9,d:.26,y:1.03,shelf:1},{x:.28,z:.01,w:.34,d:.26,y:1.5,shelf:1},{x:0,z:0,w:.9,d:.26,y:1.9}]},
+
+  fireplace:{name:'Fireplace',cat:'Living',w:1.4,d:.4,h:1.2,color:'#a8a39a',parts:[B(0,0,0,1.4,1.1,.4,'m'),B(0,.05,.2,.7,.6,.02,'#1d1d20'),B(0,1.1,0,1.5,.07,.46,'#8a7a64')],surfaces:[{x:0,z:0,w:1.3,d:.36,y:1.17}]},
+
+  piano:{name:'Piano',cat:'Living',w:1.5,d:.65,h:1.15,color:'#2a2a30',parts:[B(0,0,0,1.5,.9,.65,'m'),B(0,.9,.15,1.4,.05,.35,'#efece4'),B(0,.95,-.1,1.5,.2,.45,'m'),...[-.6,0,.6].map(x=>B(x,0,.2,.06,.5,.06,DARK))],surfaces:[{x:-.35,z:-.1,w:.7,d:.4,y:1.15},{x:.5,z:-.1,w:.4,d:.4,y:1.15}]},
   'floor-lamp':{name:'Floor lamp',cat:'Living',w:.35,d:.35,h:1.65,color:'#f4e7c2',parts:[C(0,0,0,.14,.03,DARK),C(0,0,0,.02,1.35,DARK),C(0,1.3,0,.17,.35,'m')]},
   plant:{name:'Plant',cat:'Decor',w:.5,d:.5,h:1.2,color:'#4f8a4a',parts:[C(0,0,0,.2,.35,'#a0634a'),C(0,.35,0,.04,.3,'#5a7a3a'),C(0,.55,0,.28,.35,'m'),C(0,.85,0,.2,.3,'m+')]},
   rug:{name:'Rug',cat:'Decor',w:2.2,d:1.5,h:.02,layer:'rug',color:'#c98f8f',parts:[B(0,0,0,2.2,.02,1.5,'m-'),B(0,.02,0,1.9,.005,1.2,'m+')]},
@@ -39,24 +48,57 @@ const PalaceModel=(()=>{
   painting:{name:'Painting',cat:'Decor',w:.9,d:.05,h:.7,layer:'wall',lift:1.3,color:'#d6c28e',parts:[B(0,0,0,.9,.7,.05,'#6b4a2f'),B(0,.06,.027,.78,.58,.006,'m'),B(-.12,.2,.032,.3,.3,.004,'m+'),B(.2,.12,.032,.26,.2,.004,'m-')]},
   mirror:{name:'Mirror',cat:'Decor',w:.6,d:.04,h:1.2,layer:'wall',lift:.8,color:'#bcd3dc',parts:[B(0,0,0,.6,1.2,.04,'#8a7a64'),B(0,.05,.022,.5,1.1,.004,'#bcd3dc')]},
   clock:{name:'Wall clock',cat:'Decor',w:.4,d:.05,h:.4,layer:'wall',lift:1.9,color:'#efece4',parts:[B(0,0,0,.4,.4,.05,'#3a3a40'),B(0,.03,.027,.34,.34,.006,'m'),B(0,.2,.034,.02,.14,.004,DARK),B(.04,.19,.034,.1,.02,.004,DARK)]},
-  'bed-double':{name:'Double bed',cat:'Bedroom',w:1.6,d:2.1,h:1,color:'#7ea181',parts:[B(0,0,0,1.6,.3,2.1,'#8b6b4a'),B(0,.3,.05,1.5,.22,1.95,'#efece4'),B(0,.52,.45,1.52,.06,1.2,'m'),B(-.4,.52,-.8,.5,.12,.32,'#f7f4ee'),B(.4,.52,-.8,.5,.12,.32,'#f7f4ee'),B(0,.3,-1.03,1.6,.7,.08,'#7a5a3d')]},
-  'bed-single':{name:'Single bed',cat:'Bedroom',w:1,d:2,h:.9,color:'#6f8fb0',parts:[B(0,0,0,1,.3,2,'#8b6b4a'),B(0,.3,.05,.92,.2,1.85,'#efece4'),B(0,.5,.4,.94,.06,1.15,'m'),B(0,.5,-.75,.5,.12,.32,'#f7f4ee'),B(0,.3,-.97,1,.6,.07,'#7a5a3d')]},
-  nightstand:{name:'Nightstand',cat:'Bedroom',w:.45,d:.4,h:.5,color:'#b9876b',parts:[B(0,0,0,.45,.5,.4,'m'),B(0,.32,.21,.2,.02,.01,DARK)]},
-  wardrobe:{name:'Wardrobe',cat:'Bedroom',w:1.2,d:.6,h:2,color:'#d6c28e',parts:[B(0,0,0,1.2,2,.6,'m'),B(0,.05,.305,.01,1.9,.005,DARK),B(-.08,.9,.31,.03,.2,.02,'#c9b3a6'),B(.08,.9,.31,.03,.2,.02,'#c9b3a6')]},
-  dresser:{name:'Dresser',cat:'Bedroom',w:1.2,d:.5,h:.9,color:'#b9876b',parts:[B(0,0,0,1.2,.86,.5,'m'),B(0,.86,0,1.24,.04,.54,'m+'),...[.2,.5,.74].map(y=>B(0,y-.04,.255,.5,.03,.01,DARK))]},
-  desk:{name:'Desk',cat:'Study',w:1.4,d:.7,h:.75,color:'#d6c28e',parts:[B(0,.72,0,1.4,.04,.7,'m'),...legs(1.4,.7,.72,.05,.05).slice(0,3),B(.45,.1,0,.4,.62,.6,'m-')]},
+
+  'bed-double':{name:'Double bed',cat:'Bedroom',w:1.6,d:2.1,h:1,color:'#7ea181',parts:[B(0,0,0,1.6,.3,2.1,'#8b6b4a'),B(0,.3,.05,1.5,.22,1.95,'#efece4'),B(0,.52,.45,1.52,.06,1.2,'m'),B(-.4,.52,-.8,.5,.12,.32,'#f7f4ee'),B(.4,.52,-.8,.5,.12,.32,'#f7f4ee'),B(0,.3,-1.03,1.6,.7,.08,'#7a5a3d')],surfaces:[{x:0,z:.45,w:1,d:.7,y:.58}]},
+
+  'bed-single':{name:'Single bed',cat:'Bedroom',w:1,d:2,h:.9,color:'#6f8fb0',parts:[B(0,0,0,1,.3,2,'#8b6b4a'),B(0,.3,.05,.92,.2,1.85,'#efece4'),B(0,.5,.4,.94,.06,1.15,'m'),B(0,.5,-.75,.5,.12,.32,'#f7f4ee'),B(0,.3,-.97,1,.6,.07,'#7a5a3d')],surfaces:[{x:0,z:.4,w:.6,d:.7,y:.56}]},
+
+  nightstand:{name:'Nightstand',cat:'Bedroom',w:.45,d:.4,h:.5,color:'#b9876b',parts:[B(0,0,0,.45,.5,.4,'m'),B(0,.32,.21,.2,.02,.01,DARK)],surfaces:[{x:0,z:0,w:.38,d:.34,y:.5}]},
+
+  wardrobe:{name:'Wardrobe',cat:'Bedroom',w:1.2,d:.6,h:2,color:'#d6c28e',parts:[B(0,0,0,1.2,2,.6,'m'),B(0,.05,.305,.01,1.9,.005,DARK),B(-.08,.9,.31,.03,.2,.02,'#c9b3a6'),B(.08,.9,.31,.03,.2,.02,'#c9b3a6')],surfaces:[{x:0,z:0,w:1.1,d:.5,y:2}]},
+
+  dresser:{name:'Dresser',cat:'Bedroom',w:1.2,d:.5,h:.9,color:'#b9876b',parts:[B(0,0,0,1.2,.86,.5,'m'),B(0,.86,0,1.24,.04,.54,'m+'),...[.2,.5,.74].map(y=>B(0,y-.04,.255,.5,.03,.01,DARK))],surfaces:[{x:0,z:0,w:1.1,d:.44,y:.9}]},
+
+  desk:{name:'Desk',cat:'Study',w:1.4,d:.7,h:.75,color:'#d6c28e',parts:[B(0,.72,0,1.4,.04,.7,'m'),...legs(1.4,.7,.72,.05,.05).slice(0,3),B(.45,.1,0,.4,.62,.6,'m-')],surfaces:[{x:0,z:0,w:1.3,d:.6,y:.76}]},
   'office-chair':{name:'Office chair',cat:'Study',w:.55,d:.55,h:1,color:'#5f6b73',parts:[B(0,.45,0,.5,.08,.5,'m'),B(0,.53,-.22,.5,.45,.07,'m'),C(0,.1,0,.04,.35,DARK),B(0,0,0,.5,.06,.06,DARK),B(0,0,0,.06,.06,.5,DARK)]},
   chair:{name:'Chair',cat:'Kitchen',w:.45,d:.45,h:.9,color:'#b9876b',parts:[B(0,.45,0,.44,.05,.44,'m'),...legs(.45,.45,.45,.02,.04),B(0,.5,-.2,.44,.4,.04,'m')]},
-  'dining-table':{name:'Dining table',cat:'Kitchen',w:1.6,d:.9,h:.76,color:'#b9876b',parts:[B(0,.72,0,1.6,.05,.9,'m'),...legs(1.6,.9,.72,.07,.06)]},
-  'kitchen-counter':{name:'Counter',cat:'Kitchen',w:1.2,d:.6,h:.92,color:'#a8a39a',parts:[B(0,0,0,1.2,.88,.6,'m'),B(0,.88,0,1.24,.04,.64,'#dcdad4'),B(-.3,.55,.305,.2,.02,.01,DARK),B(.3,.55,.305,.2,.02,.01,DARK)]},
-  'kitchen-sink':{name:'Sink',cat:'Kitchen',w:1.2,d:.6,h:1.1,color:'#a8a39a',parts:[B(0,0,0,1.2,.88,.6,'m'),B(0,.88,0,1.24,.04,.64,'#dcdad4'),B(0,.9,0,.5,.02,.4,'#7a8891'),C(0,.92,-.22,.025,.22,'#aab4ba'),B(0,1.1,-.14,.03,.03,.16,'#aab4ba')]},
-  stove:{name:'Stove',cat:'Kitchen',w:.6,d:.6,h:.92,color:'#cfcfcf',parts:[B(0,0,0,.6,.9,.6,'m'),...[[-.15,-.15],[.15,-.15],[-.15,.15],[.15,.15]].map(([x,z])=>C(x,.9,z,.08,.02,'#222222')),B(0,.15,.305,.45,.35,.01,'#222222')]},
-  fridge:{name:'Fridge',cat:'Kitchen',w:.7,d:.7,h:1.8,color:'#e9ecee',parts:[B(0,0,0,.7,1.8,.7,'m'),B(0,1.2,.351,.7,.015,.005,'#99a1a6'),B(.27,.5,.36,.03,.5,.03,'#99a1a6'),B(.27,1.3,.36,.03,.3,.03,'#99a1a6')]},
-  'kitchen-island':{name:'Island',cat:'Kitchen',w:1.6,d:.8,h:.92,color:'#6f8fb0',parts:[B(0,0,0,1.6,.88,.8,'m'),B(0,.88,0,1.7,.04,.9,'#dcdad4')]},
+
+  'dining-table':{name:'Dining table',cat:'Kitchen',w:1.6,d:.9,h:.76,color:'#b9876b',parts:[B(0,.72,0,1.6,.05,.9,'m'),...legs(1.6,.9,.72,.07,.06)],surfaces:[{x:0,z:0,w:1.4,d:.8,y:.77}]},
+
+  'kitchen-counter':{name:'Counter',cat:'Kitchen',w:1.2,d:.6,h:.92,color:'#a8a39a',parts:[B(0,0,0,1.2,.88,.6,'m'),B(0,.88,0,1.24,.04,.64,'#dcdad4'),B(-.3,.55,.305,.2,.02,.01,DARK),B(.3,.55,.305,.2,.02,.01,DARK)],surfaces:[{x:0,z:0,w:1.1,d:.54,y:.92}]},
+
+  'kitchen-sink':{name:'Sink',cat:'Kitchen',w:1.2,d:.6,h:1.1,color:'#a8a39a',parts:[B(0,0,0,1.2,.88,.6,'m'),B(0,.88,0,1.24,.04,.64,'#dcdad4'),B(0,.9,0,.5,.02,.4,'#7a8891'),C(0,.92,-.22,.025,.22,'#aab4ba'),B(0,1.1,-.14,.03,.03,.16,'#aab4ba')],surfaces:[{x:-.45,z:0,w:.3,d:.5,y:.92},{x:.45,z:0,w:.3,d:.5,y:.92}]},
+
+  stove:{name:'Stove',cat:'Kitchen',w:.6,d:.6,h:.92,color:'#cfcfcf',parts:[B(0,0,0,.6,.9,.6,'m'),...[[-.15,-.15],[.15,-.15],[-.15,.15],[.15,.15]].map(([x,z])=>C(x,.9,z,.08,.02,'#222222')),B(0,.15,.305,.45,.35,.01,'#222222')],surfaces:[{x:0,z:0,w:.5,d:.5,y:.92}]},
+
+  fridge:{name:'Fridge',cat:'Kitchen',w:.7,d:.7,h:1.8,color:'#e9ecee',parts:[B(0,0,0,.7,1.8,.7,'m'),B(0,1.2,.351,.7,.015,.005,'#99a1a6'),B(.27,.5,.36,.03,.5,.03,'#99a1a6'),B(.27,1.3,.36,.03,.3,.03,'#99a1a6')],surfaces:[{x:0,z:0,w:.6,d:.6,y:1.8}]},
+
+  'kitchen-island':{name:'Island',cat:'Kitchen',w:1.6,d:.8,h:.92,color:'#6f8fb0',parts:[B(0,0,0,1.6,.88,.8,'m'),B(0,.88,0,1.7,.04,.9,'#dcdad4')],surfaces:[{x:0,z:0,w:1.5,d:.8,y:.92}]},
   bathtub:{name:'Bathtub',cat:'Bathroom',w:1.7,d:.75,h:.6,color:'#f1f3f4',parts:[B(0,0,0,1.7,.55,.75,'m'),B(0,.5,0,1.5,.04,.6,'#bfe0ee'),B(-.78,.55,0,.05,.1,.08,'#aab4ba')]},
   toilet:{name:'Toilet',cat:'Bathroom',w:.4,d:.65,h:.8,color:'#f3f5f6',parts:[B(0,.3,-.25,.38,.45,.16,'m'),B(0,0,.02,.34,.4,.5,'m'),B(0,.4,.05,.38,.04,.44,'#e4e7e8')]},
-  vanity:{name:'Basin',cat:'Bathroom',w:.9,d:.5,h:.85,color:'#d8d4cc',parts:[B(0,0,0,.9,.8,.5,'m'),B(0,.8,0,.9,.05,.5,'#f1f3f4'),B(0,.84,0,.4,.02,.3,'#bfd0d8'),C(0,.85,-.2,.02,.12,'#aab4ba')]}
+
+  vanity:{name:'Basin',cat:'Bathroom',w:.9,d:.5,h:.85,color:'#d8d4cc',parts:[B(0,0,0,.9,.8,.5,'m'),B(0,.8,0,.9,.05,.5,'#f1f3f4'),B(0,.84,0,.4,.02,.3,'#bfd0d8'),C(0,.85,-.2,.02,.12,'#aab4ba')],surfaces:[{x:-.3,z:0,w:.25,d:.4,y:.85},{x:.3,z:0,w:.25,d:.4,y:.85}]}
  };
+
+ // ── Small things that sit on furniture ───────────────────────────────────────
+ // A prop stands on a surface of a piece of furniture (a shelf, a desk top). w/d are its footprint, h its height. 'read' ones
+ // can be opened: books and notebooks have pages, a paper has one. Books stand with their spine out on shelves and lie flat on
+ // anything else; 'flat' footprints are given for that pose.
+ const PROPS={
+  book:{name:'Book',w:.06,d:.2,h:.27,flat:{w:.2,d:.27,h:.04},color:'#3f6f8f',read:1,title:'Book'},
+  notebook:{name:'Notebook',w:.17,d:.23,h:.015,color:'#b5533c',read:1,title:'Notebook',parts:[B(0,0,0,.17,.015,.23,'m'),B(0,.015,0,.15,.006,.21,'#f4efe2'),B(-.08,0,0,.01,.02,.23,DARK)]},
+  paper:{name:'Letter',w:.21,d:.3,h:.004,color:'#f4efe2',read:1,title:'Letter',parts:[B(0,0,0,.21,.004,.3,'m'),B(0,.004,-.06,.15,.001,.01,'#8a8478'),B(0,.004,-.02,.15,.001,.01,'#8a8478'),B(0,.004,.02,.12,.001,.01,'#8a8478')]},
+  mug:{name:'Mug',w:.1,d:.1,h:.1,color:'#d6a64a',title:'Mug',parts:[C(0,0,0,.04,.1,'m'),C(0,.085,0,.034,.016,'#3a2a20'),B(.055,.03,0,.02,.05,.012,'m')]},
+  vase:{name:'Vase',w:.14,d:.14,h:.4,color:'#8fb3c9',title:'Vase',parts:[C(0,0,0,.06,.2,'m'),C(0,.2,0,.035,.06,'m+'),C(0,.26,0,.012,.12,'#5f8a5a'),S(0,.38,0,.04,'#d6706a'),S(.035,.34,0,.03,'#e8c46a')]},
+  frame:{name:'Photo frame',w:.2,d:.05,h:.24,color:'#c98f8f',title:'Photo',parts:[B(0,0,0,.2,.24,.025,'#5b4128'),B(0,.025,.0135,.16,.19,.004,'m'),B(-.03,.045,.016,.06,.07,.002,'m+'),B(0,0,-.03,.04,.2,.012,'#5b4128')]},
+  candle:{name:'Candle',w:.08,d:.08,h:.2,color:'#efe6d0',title:'Candle',parts:[C(0,0,0,.035,.14,'m'),C(0,.14,0,.004,.02,DARK),S(0,.175,0,.014,'#ffd36a')]},
+  globe:{name:'Globe',w:.22,d:.2,h:.32,color:'#5f8fb0',title:'Globe',parts:[C(0,0,0,.07,.02,DARK),C(0,.02,0,.01,.1,DARK),S(0,.2,0,.11,'m'),S(.03,.24,.07,.05,'#6fa05f'),S(-.07,.18,.04,.04,'#6fa05f')]},
+  laptop:{name:'Laptop',w:.32,d:.23,h:.22,color:'#b8bcc4',title:'Laptop',parts:[B(0,0,0,.32,.012,.23,'m'),B(0,.012,.01,.28,.003,.15,'#2a2a30'),B(0,.012,-.1,.32,.2,.01,'m'),B(0,.03,-.094,.29,.16,.004,'#1b1b20')]},
+  fruit:{name:'Fruit bowl',w:.26,d:.26,h:.14,color:'#c9a77c',title:'Fruit',parts:[C(0,0,0,.08,.03,'m'),C(0,.03,0,.13,.04,'m'),S(-.04,.09,0,.045,'#d6483c'),S(.05,.09,.02,.045,'#e8c14a'),S(0,.11,-.045,.045,'#7aa84a')]},
+  succulent:{name:'Small plant',w:.14,d:.14,h:.2,color:'#4f8a4a',title:'Plant',parts:[C(0,0,0,.06,.08,'#a0634a'),S(0,.12,0,.07,'m'),S(.04,.15,.02,.04,'m+'),S(-.04,.14,-.02,.04,'m+')]}
+ };
+ const propSpec=type=>PROPS[type];
+ const PROP_COLOURS=['#b5533c','#3f6f8f','#d6a64a','#5f8a5a','#8a5a8a','#c9c2b2','#2f3e5c','#7a5a3d'];
  const FLOORS=['#c9a77c','#a98258','#d8d4cc','#b9c7c3','#c8b8d8','#cfc9a8'],WALLS=['#f2ede4','#e9eef2','#f0e6e1','#e6efe6','#f3efd9','#e4e0ee'];
  const ROOM_NAMES=['Living room','Kitchen','Bedroom','Bathroom','Study','Hall','Dining room','Pantry','Garage','Nursery','Attic','Library','Porch','Cellar'];
  const TINTS=['#b9876b','#6f8fb0','#7ea181','#c98f8f','#d6c28e','#8d8aa6','#a8a39a','#5f6b73'];
@@ -130,7 +172,7 @@ const PalaceModel=(()=>{
  function removeRoom(palace,id){
   const room=palace.rooms.find(r=>r.id===id);if(!room)return false;
   const gone=palace.furniture.filter(f=>roomOf(palace,f)===room).map(f=>f.id);
-  palace.furniture=palace.furniture.filter(f=>!gone.includes(f.id));palace.stations=palace.stations.filter(s=>!gone.includes(s.furnitureId));
+  palace.furniture=palace.furniture.filter(f=>!gone.includes(f.id));palace.stations=palace.stations.filter(s=>!gone.includes(s.furnitureId));palace.props=propsOf(palace).filter(q=>!gone.includes(q.hostId));
   palace.rooms=palace.rooms.filter(r=>r.id!==id);pruneOpenings(palace);return true;
  }
  // ── Doors and windows ────────────────────────────────────────────────────────
@@ -224,13 +266,22 @@ const PalaceModel=(()=>{
   Object.assign(f,{x:next.x,z:next.z,rot:next.rot});return f;
  }
  function removeFurniture(palace,id){
-  palace.furniture=palace.furniture.filter(f=>f.id!==id);palace.stations=palace.stations.filter(s=>s.furnitureId!==id);
+  palace.furniture=palace.furniture.filter(f=>f.id!==id);palace.stations=palace.stations.filter(s=>s.furnitureId!==id);palace.props=propsOf(palace).filter(q=>q.hostId!==id);
  }
  function recolour(palace,id,color){const f=palace.furniture.find(g=>g.id===id);if(f)f.color=color;return f||null}
  // Swap a piece for another kind in the same spot, if the new one fits (a bed for a sofa); stations stay with it.
  function swapFurniture(palace,id,type){
   const f=palace.furniture.find(g=>g.id===id);if(!f||!spec(type)||layerOf(f)!==(spec(type).layer||'floor'))return null;
   const next=flush(palace,{...f,type,color:spec(type).color});if(!canPlace(palace,next,id))return null;
+  const keep=palace.furniture.map(g=>g.id===id?next:g);const probe={...palace,furniture:keep};
+  // props that no longer fit where they were are moved to the nearest free spot, or the swap is refused
+  const moves=[];
+  for(const q of propsOn(palace,id)){
+   if(propFits(probe,q))continue;
+   const slot=findPropSlot(probe,q,{surface:q.surface,lx:q.lx,lz:q.lz})||findPropSlot(probe,q,{});
+   if(!slot){for(const [o,was] of moves)Object.assign(o,was);return null}
+   moves.push([q,{surface:q.surface,lx:q.lx,lz:q.lz}]);Object.assign(q,slot);
+  }
   Object.assign(f,{type:next.type,color:next.color,x:next.x,z:next.z});return f;
  }
  // Somewhere in a room where a new piece fits, nearest the middle.
@@ -245,6 +296,114 @@ const PalaceModel=(()=>{
   tried.sort((p,q)=>p[2]-q[2]);
   for(const [x,z] of tried){const f={id:'?',type,x:snap(x,.25),z:snap(z,.25),rot:0};if(canPlace(palace,f,null))return {x:f.x,z:f.z}}
   return null;
+ }
+
+
+ // ── Props: small things standing on furniture ────────────────────────────────
+ // prop {id, type, hostId, surface, lx, lz, rot, color, title, detail, pages:[{text}], t, ht}
+ //   lx, lz   where its centre is on the piece of furniture, in the furniture's own frame (like its parts)
+ //   surface  which top of the furniture it stands on (a bookshelf has several shelves)
+ //   t, ht    a book's thickness and height
+ const propsOf=palace=>(palace.props??=[]);
+ const surfacesOf=f=>(spec(f.type)?.surfaces)||[];
+ const propsOn=(palace,hostId)=>propsOf(palace).filter(q=>q.hostId===hostId);
+ // How big a prop is as it stands (a book is upright on a shelf and flat on a table).
+ function propSize(prop,surface){
+  const s=PROPS[prop.type];if(!s)return {w:.1,d:.1,h:.1,shelf:false};
+  let w=s.w,d=s.d,h=s.h;const shelf=!!(surface&&surface.shelf);
+  if(prop.type==='book'){if(shelf){w=prop.t||s.w;h=prop.ht||s.h}else{w=s.flat.w;d=s.flat.d;h=(prop.t||s.w)*.7+.01}}
+  const turned=((prop.rot||0)%180)!==0;
+  return {w:turned?d:w,d:turned?w:d,h,shelf,own:{w,d}};
+ }
+ const propSurface=(palace,prop)=>{const f=palace.furniture.find(g=>g.id===prop.hostId);return f?{f,surface:surfacesOf(f)[prop.surface]}:null};
+ // The space above a shelf: up to the shelf above, or unlimited on an open top.
+ function clearance(f,index){
+  const list=surfacesOf(f),me=list[index];if(!me||!me.shelf)return Infinity;
+  const above=list.filter((o,k)=>k!==index&&o.y>me.y&&Math.abs(o.x-me.x)<(o.w+me.w)/2).sort((a,b)=>a.y-b.y)[0];
+  return above?above.y-.03-me.y:Infinity;
+ }
+ function propFits(palace,prop,ignoreId){
+  const hit=propSurface(palace,prop);if(!hit||!hit.surface)return false;
+  const {f,surface}=hit,z=propSize(prop,surface),e=1e-6;
+  if(prop.lx-z.w/2<surface.x-surface.w/2-e||prop.lx+z.w/2>surface.x+surface.w/2+e)return false;
+  if(prop.lz-z.d/2<surface.z-surface.d/2-e||prop.lz+z.d/2>surface.z+surface.d/2+e)return false;
+  if(z.h>clearance(f,prop.surface)+e)return false;
+  for(const o of propsOn(palace,prop.hostId)){
+   if(o.id===ignoreId||o.id===prop.id||o.surface!==prop.surface)continue;
+   const q=propSize(o,surface);
+   if(Math.abs(o.lx-prop.lx)<(q.w+z.w)/2-e&&Math.abs(o.lz-prop.lz)<(q.d+z.d)/2-e)return false;
+  }
+  return true;
+ }
+ // Where on a piece of furniture a prop fits, as close as it can get to a wanted spot (lx,lz), on a chosen surface or any.
+ function findPropSlot(palace,prop,want={}){
+  const f=palace.furniture.find(g=>g.id===prop.hostId);if(!f)return null;
+  const list=surfacesOf(f),order=want.surface!=null?[want.surface]:list.map((_,k)=>k);
+  for(const k of order){
+   const surface=list[k];if(!surface)continue;
+   const z=propSize({...prop,surface:k},surface),tx=want.lx??surface.x-surface.w/2+z.w/2,tz=want.lz??surface.z;
+   const spots=[];
+   for(let lx=surface.x-surface.w/2+z.w/2;lx<=surface.x+surface.w/2-z.w/2+1e-6;lx+=.01)for(let lz=surface.z-surface.d/2+z.d/2;lz<=surface.z+surface.d/2-z.d/2+1e-6;lz+=.04)spots.push([round(lx),round(lz),Math.hypot(lx-tx,lz-tz)]);
+   spots.sort((a,b)=>a[2]-b[2]);
+   for(const [lx,lz] of spots)if(propFits(palace,{...prop,surface:k,lx,lz}))return {surface:k,lx,lz};
+  }
+  return null;
+ }
+ function placeProp(palace,type,hostId,opts={}){
+  const s=PROPS[type];if(!s||!palace.furniture.some(g=>g.id===hostId))return null;
+  const prop={id:makeId('o'),type,hostId,surface:0,lx:0,lz:0,rot:opts.rot||0,color:opts.color||s.color,title:opts.title??s.title,detail:opts.detail||'',pages:opts.pages||[],...(opts.t?{t:opts.t}:{}),...(opts.ht?{ht:opts.ht}:{})};
+  const slot=findPropSlot(palace,prop,{surface:opts.surface,lx:opts.lx,lz:opts.lz});if(!slot)return null;
+  Object.assign(prop,slot);propsOf(palace).push(prop);return prop;
+ }
+ // Move a prop to a spot on a piece of furniture (the same one or another).
+ function moveProp(palace,id,hostId,want={}){
+  const prop=propsOf(palace).find(q=>q.id===id);if(!prop||!palace.furniture.some(g=>g.id===hostId))return null;
+  const trial={...prop,hostId};const slot=findPropSlot(palace,trial,{surface:want.surface,lx:want.lx,lz:want.lz});if(!slot)return null;
+  Object.assign(prop,{hostId},slot);
+  for(const st of palace.stations)if(st.propId===id)st.furnitureId=hostId;
+  return prop;
+ }
+ function rotateProp(palace,id){
+  const prop=propsOf(palace).find(q=>q.id===id);if(!prop)return null;
+  const next={...prop,rot:((prop.rot||0)+90)%360};
+  if(!propFits(palace,next,id)){const slot=findPropSlot(palace,next,{surface:prop.surface,lx:prop.lx,lz:prop.lz});if(!slot)return null;Object.assign(next,slot)}
+  Object.assign(prop,{rot:next.rot,lx:next.lx,lz:next.lz,surface:next.surface});return prop;
+ }
+ function removeProp(palace,id){
+  palace.props=propsOf(palace).filter(q=>q.id!==id);palace.stations=palace.stations.filter(s=>s.propId!==id);
+ }
+ // Where a prop is in the house: its centre, the height of its base, and the turn it faces.
+ function propWorld(palace,prop){
+  const hit=propSurface(palace,prop);if(!hit||!hit.surface)return null;
+  const {f,surface}=hit,rad=f.rot*Math.PI/180,cs=Math.cos(rad),sn=Math.sin(rad),z=propSize(prop,surface);
+  return {x:f.x+prop.lx*cs+prop.lz*sn,z:f.z-prop.lx*sn+prop.lz*cs,y:(spec(f.type).lift||0)+surface.y,h:z.h,w:z.w,d:z.d,rot:(f.rot+(prop.rot||0))%360,shelf:z.shelf,host:f};
+ }
+ // Where a ray first meets a prop (a little generous: they are small).
+ function pickProp(palace,origin,dir){
+  let best=null;
+  for(const prop of propsOf(palace)){
+   const w=propWorld(palace,prop);if(!w)continue;
+   const turned=(w.rot%180)!==0,hw=(turned?w.d:w.w)/2+.03,hd=(turned?w.w:w.d)/2+.03;
+   let t0=0,t1=1e9;
+   for(const [o,d,lo,hi] of [[origin.x,dir.x,w.x-hw,w.x+hw],[origin.y,dir.y,w.y-.02,w.y+w.h+.02],[origin.z,dir.z,w.z-hd,w.z+hd]]){
+    if(Math.abs(d)<1e-9){if(o<lo||o>hi){t0=1;t1=0;break}continue}
+    let a=(lo-o)/d,b=(hi-o)/d;if(a>b)[a,b]=[b,a];t0=Math.max(t0,a);t1=Math.min(t1,b);if(t0>t1)break;
+   }
+   if(t0<=t1&&(!best||t0<best.t))best={prop,t:t0};
+  }
+  return best;
+ }
+ // Add a prop to the route (or take it off); the station stays on the piece it stands on.
+ const stationOf=(palace,propId)=>palace.stations.find(s=>s.propId===propId)||null;
+ function toggleRoute(palace,propId){
+  const prop=propsOf(palace).find(q=>q.id===propId);if(!prop)return null;
+  const have=stationOf(palace,propId);
+  if(have){removeStation(palace,have.id);return null}
+  return addStation(palace,prop.hostId,{propId,title:prop.title||PROPS[prop.type].name,detail:prop.detail||''});
+ }
+ // A fresh book for a shelf: varied thickness and height, nothing in it yet.
+ function bookLike(k,title,pages){
+  return {t:.04+(k*37%5)*.008,ht:.22+((k*13)%4)*.025,color:PROP_COLOURS[k%PROP_COLOURS.length],title:title||'',pages:pages||[]};
  }
 
  // ── Things to remember, left on the furniture ────────────────────────────────
@@ -354,7 +513,7 @@ const PalaceModel=(()=>{
  }
 
  // ── A new palace, and the starter house ──────────────────────────────────────
- function blank(projectId,name){return {id:makeId('p'),projectId:projectId||'',name:name||'My palace',created:Date.now(),rooms:[],openings:[],furniture:[],stations:[],camera:null}}
+ function blank(projectId,name){return {id:makeId('p'),projectId:projectId||'',name:name||'My palace',created:Date.now(),rooms:[],openings:[],furniture:[],props:[],stations:[],camera:null}}
  function starterHouse(projectId,name){
   const p=blank(projectId,name||'My house');
   const room=(n,x,z,w,d,floor,wall,floorType)=>{const r=addRoom(p,{name:n,x,z,w,d,floor,wall,floorType});if(!r)throw new Error('starter room '+n);return r};
@@ -372,13 +531,27 @@ const PalaceModel=(()=>{
   put('bed-double',2.5,7.9,180);put('nightstand',1.25,8.7);put('nightstand',3.75,8.7);put('wardrobe',.35,6.6,90);put('dresser',.3,8.2,90);
   put('bathtub',5.55,7.7,90);put('toilet',5,5.4);put('vanity',4.6,8.7,180);put('mirror',4.6,8.9);
   put('desk',8.5,8.6,180);put('office-chair',8.5,7.8);put('bookshelf',9.8,6.5,270,'#b9876b');put('bookshelf',9.8,7.6,270);put('piano',6.45,7,90);put('plant',6.5,8.5);put('painting',9,5.1);
+  // a few things to find: books on the shelves, and a first book that explains the house
+  const at=(type,x,z)=>p.furniture.find(f=>f.type===type&&Math.abs(f.x-x)<.3&&Math.abs(f.z-z)<.3);
+  const shelve=(f,level,n,from)=>{for(let k=0;k<n;k++)placeProp(p,'book',f.id,{surface:level,...bookLike(from+k)})};
+  const living=at('bookshelf',5.5,4.75),study=at('bookshelf',9.8,7.6),study2=at('bookshelf',9.8,6.5);
+  shelve(living,0,7,0);shelve(living,1,6,3);shelve(living,2,5,7);shelve(study,0,6,2);shelve(study,1,7,5);shelve(study2,0,6,9);
+  const guide=propsOn(p,living.id).find(q=>q.surface===2);
+  if(guide)Object.assign(guide,{title:'How this house works',color:'#d6a64a',pages:[
+   {text:'Welcome. This house is a place to keep things you want to remember.'},
+   {text:'Put each thing on something in a room: a book on a shelf, a mug on a table.'},
+   {text:'To recall, walk the same route in the same order and look at each place.'},
+   {text:'The odder the picture you make, the longer it stays. Write your own pages in a book like this one.'}]});
+  const desk=at('desk',8.5,8.6),table=at('dining-table',8.5,3.75),stand=at('nightstand',1.25,8.7),island=at('kitchen-island',8,2.3),coffee=at('coffee-table',2.4,3.6);
+  placeProp(p,'laptop',desk.id,{lx:-.3});placeProp(p,'notebook',desk.id,{lx:.2,title:'My notebook',pages:[{text:''}]});placeProp(p,'mug',desk.id,{lx:.5,lz:.15});
+  placeProp(p,'vase',table.id);placeProp(p,'fruit',island.id);placeProp(p,'frame',stand.id);placeProp(p,'candle',coffee.id,{lx:-.3});placeProp(p,'globe',coffee.id,{lx:.3});
   return p;
  }
 
  // ── Undo ─────────────────────────────────────────────────────────────────────
- const CONTENT=['name','rooms','openings','furniture','stations'];
- const snapshot=palace=>JSON.stringify(Object.fromEntries(CONTENT.map(k=>[k,palace[k]])));
- const restore=(palace,json)=>{const data=JSON.parse(json);for(const k of CONTENT)palace[k]=data[k]};
+ const CONTENT=['name','rooms','openings','furniture','props','stations'];
+ const snapshot=palace=>propsOf(palace)&&JSON.stringify(Object.fromEntries(CONTENT.map(k=>[k,palace[k]])));
+ const restore=(palace,json)=>{const data=JSON.parse(json);for(const k of CONTENT)palace[k]=data[k]??(k==='props'?[]:undefined)};
  function history(palace,limit=60){
   const past=[snapshot(palace)],future=[];
   return {
@@ -395,12 +568,14 @@ const PalaceModel=(()=>{
   palace.rooms.forEach((r,i)=>{if(!validRoom(palace,r,r.id))out.push('room '+r.name+' is invalid or overlaps')});
   for(const f of palace.furniture)if(!canPlace(palace,f,f.id))out.push(f.type+' '+f.id+' does not fit');
   for(const s of palace.stations)if(!palace.furniture.some(f=>f.id===s.furnitureId))out.push('station '+s.id+' has no furniture');
+  for(const q of propsOf(palace))if(!propFits(palace,q,q.id))out.push(q.type+' '+q.id+' does not fit');
+  for(const s of palace.stations)if(s.propId&&!propsOf(palace).some(q=>q.id===s.propId))out.push('station '+s.id+' has no prop');
   return out;
  }
  function bounds(palace){
   if(!palace.rooms.length)return {x0:0,z0:0,x1:10,z1:10};
   return {x0:Math.min(...palace.rooms.map(r=>r.x)),z0:Math.min(...palace.rooms.map(r=>r.z)),x1:Math.max(...palace.rooms.map(r=>r.x+r.w)),z1:Math.max(...palace.rooms.map(r=>r.z+r.d))};
  }
- return {FLOOR_TYPES,G,HEIGHT,THICK,DOOR_TOP,ARCH_TOP,SILL,HEAD,RADIUS,CATALOG,FLOORS,WALLS,TINTS,ROOM_NAMES,spec,shade,paint,snap,roomAt,wallCells,wallRuns,validRoom,addRoom,resizeRoom,moveRoom,removeRoom,toggleOpening,openingAt,pruneOpenings,layerOf,footprint,roomOf,fitsInRoom,canPlace,wallSpot,flush,placeFurniture,moveFurniture,rotateFurniture,removeFurniture,recolour,swapFurniture,findSpot,addStation,stationsOn,removeStation,route,moveStation,entrance,walkOrder,autoPlace,colliders,blockedBy,slide,viewFrom,pick,blank,starterHouse,history,snapshot,restore,problems,bounds,makeId};
+ return {PROPS,propSpec,propsOf,propsOn,surfacesOf,propSize,propFits,findPropSlot,placeProp,moveProp,rotateProp,removeProp,propWorld,pickProp,stationOf,toggleRoute,bookLike,clearance,FLOOR_TYPES,G,HEIGHT,THICK,DOOR_TOP,ARCH_TOP,SILL,HEAD,RADIUS,CATALOG,FLOORS,WALLS,TINTS,ROOM_NAMES,spec,shade,paint,snap,roomAt,wallCells,wallRuns,validRoom,addRoom,resizeRoom,moveRoom,removeRoom,toggleOpening,openingAt,pruneOpenings,layerOf,footprint,roomOf,fitsInRoom,canPlace,wallSpot,flush,placeFurniture,moveFurniture,rotateFurniture,removeFurniture,recolour,swapFurniture,findSpot,addStation,stationsOn,removeStation,route,moveStation,entrance,walkOrder,autoPlace,colliders,blockedBy,slide,viewFrom,pick,blank,starterHouse,history,snapshot,restore,problems,bounds,makeId};
 })();
 if(typeof module!=='undefined')module.exports=PalaceModel;

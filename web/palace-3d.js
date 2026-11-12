@@ -87,6 +87,26 @@ const Palace3D=(()=>{
     }
    }
   }
+  // A prop, part by part, standing on its furniture (books standing with their spine out, or lying flat).
+  const PROP_MAT={mug:'ceramic',vase:'ceramic',fruit:'ceramic',frame:'paint',laptop:'metal',book:'fabric',notebook:'fabric',paper:'paper',candle:'paper'};
+  function propParts(prop,w){
+   const sp=P.propSpec(prop.type);
+   if(prop.type!=='book')return sp.parts;
+   const t=w.shelf?(prop.t||sp.w):.2,d=w.shelf?sp.d:.27,h=w.h,page='#f1ead8';
+   if(w.shelf)return [['b',0,0,d/2-.007,t,h,.007,'m'],['b',-t/2+.004,0,0,.008,h,d,'m'],['b',t/2-.004,0,0,.008,h,d,'m'],['b',0,.004,-.005,t-.016,h-.008,d-.012,page],['b',0,h*.72,d/2,t,.014,.009,'m+'],['b',0,h*.22,d/2,t,.01,.009,'m+']];
+   return [['b',0,0,0,t,.006,d,'m'],['b',0,h-.006,0,t,.006,d,'m'],['b',-t/2+.006,0,0,.012,h,d,'m'],['b',.004,.006,0,t-.02,h-.012,d-.008,page],['b',.0,h-.006,0,t*.6,.002,d*.5,'m+']];
+  }
+  function addProp(solid,glow,prop){
+   const w=P.propWorld(palace,prop);if(!w)return;
+   const pivot=[w.x,w.z],rad=w.rot*Math.PI/180,cs=Math.cos(rad),sn=Math.sin(rad),sp=P.propSpec(prop.type),main=prop.color||sp.color,mat=PROP_MAT[prop.type];
+   for(const part of propParts(prop,w)){
+    const raw=part.at(-1),colour=P.paint(raw,main),m=['m','m-','m+'].includes(raw)?mat:undefined;
+    if(part[0]==='b'){const [,x,y,z,bw,bh,bd]=part;solid.box(w.x+x,w.y+y,w.z+z,bw,bh,bd,colour,{rot:w.rot,pivot,mat:colour==='#1b1b20'?'screen':m})}
+    else if(part[0]==='c'){const [,x,y,z,r,h]=part;solid.cylinder(w.x+x*cs+z*sn,w.y+y,w.z-x*sn+z*cs,r,h,colour,{mat:m,segments:14})}
+    else{const [,x,y,z,r]=part;solid.sphere(w.x+x*cs+z*sn,w.y+y,w.z-x*sn+z*cs,r,colour,{segments:12,rings:8,mat:m})}
+   }
+   if(prop.type==='candle')for(const [r,a] of [[.5,.05],[.3,.08]])glow.disc(w.x,w.z,r,w.y+.002,'#ffd596',a);
+  }
   // A piece of furniture, part by part: boxes and cylinders placed round its centre, turned to face the way it faces.
   function addFurniture(solid,soft,f){
    const spec=P.spec(f.type),lift=spec.lift||0,pivot=[f.x,f.z],rad=f.rot*Math.PI/180,cs=Math.cos(rad),sn=Math.sin(rad);
@@ -158,6 +178,7 @@ const Palace3D=(()=>{
    addGarden(garden,ground);
    addWalls(walls,soft);addPlanWalls(flat);addCorners(glow);
    for(const f of palace.furniture)addFurniture(solid,soft,f);
+   for(const q of P.propsOf(palace))if(q.id!==state.hidden)addProp(solid,meshes.glow,q);
    // a faint one-metre grid, seen only from above
    for(let x=Math.floor(b.x0)-3;x<=Math.ceil(b.x1)+3;x++)grid.line([x,.012,Math.floor(b.z0)-3],[x,.012,Math.ceil(b.z1)+3],'#d7d4cc');
    for(let z=Math.floor(b.z0)-3;z<=Math.ceil(b.z1)+3;z++)grid.line([Math.floor(b.x0)-3,.012,z],[Math.ceil(b.x1)+3,.012,z],'#d7d4cc');
@@ -169,9 +190,9 @@ const Palace3D=(()=>{
    const m=meshes.markers;m.clear();let any=false;
    palace.stations.forEach((s,k)=>{
     const f=palace.furniture.find(g=>g.id===s.furnitureId);if(!f)return;any=true;
-    const spec=P.spec(f.type),top=(spec.lift||0)+spec.h+(state.mode==='plan'?.55:.4),bob=Math.sin(state.time*2+k)*.05;
+    const spec=P.spec(f.type),pw=s.propId?P.propWorld(palace,P.propsOf(palace).find(q=>q.id===s.propId)||{}):null,top=pw?pw.y+pw.h+(state.mode==='plan'?.55:.22):(spec.lift||0)+spec.h+(state.mode==='plan'?.55:.4),bob=Math.sin(state.time*2+k)*.05;
     const active=state.overlay.station===s.id;
-    m.diamond(f.x,top+bob,f.z,state.mode==='plan'?.24:.13,active?'#ffffff':GOLD,{tall:1.6});
+    m.diamond(pw?pw.x:f.x,top+bob,pw?pw.z:f.z,state.mode==='plan'?.24:.13,active?'#ffffff':GOLD,{tall:1.6});
    });
    view.set('markers',m);return any;
   }
@@ -183,6 +204,7 @@ const Palace3D=(()=>{
    const handle=(x,z,colour=ACCENT)=>{const s=.16;m.floor(x-s,z-s,x+s,z+s,.1,'#ffffff');m.floor(x-s+.04,z-s+.04,x+s-.04,z+s-.04,.11,colour)};
    if(o.room){const r=palace.rooms.find(q=>q.id===o.room);if(r){frame(r.x,r.z,r.x+r.w,r.z+r.d,ACCENT,.08);for(const [x,z] of [[r.x+r.w/2,r.z],[r.x+r.w/2,r.z+r.d],[r.x,r.z+r.d/2],[r.x+r.w,r.z+r.d/2],[r.x,r.z],[r.x+r.w,r.z],[r.x,r.z+r.d],[r.x+r.w,r.z+r.d]])handle(x,z)}}
    if(o.furniture){const f=palace.furniture.find(g=>g.id===o.furniture);if(f){const fp=P.footprint(f);fill(fp.x0,fp.z0,fp.x1,fp.z1,ACCENT,.18);frame(fp.x0-.03,fp.z0-.03,fp.x1+.03,fp.z1+.03,ACCENT)}}
+   if(o.prop){const q=P.propsOf(palace).find(g=>g.id===o.prop),w=q&&P.propWorld(palace,q);if(w){const turned=(w.rot%180)!==0,hw=(turned?w.d:w.w)/2+.03,hd=(turned?w.w:w.d)/2+.03;fill(w.x-hw,w.z-hd,w.x+hw,w.z+hd,ACCENT,.3);frame(w.x-hw,w.z-hd,w.x+hw,w.z+hd,ACCENT,.025)}}
    if(o.hover&&o.hover!==o.furniture){const f=palace.furniture.find(g=>g.id===o.hover);if(f){const fp=P.footprint(f);frame(fp.x0-.02,fp.z0-.02,fp.x1+.02,fp.z1+.02,'#9a97d8',.035)}}
    if(o.ghost){const g=o.ghost;fill(g.x0,g.z0,g.x1,g.z1,g.ok?'#3fb06b':'#d4584a',.28);frame(g.x0,g.z0,g.x1,g.z1,g.ok?'#2f9a58':'#c2402f',.05)}
    if(o.draw){const g=o.draw;fill(g.x0,g.z0,g.x1,g.z1,g.ok?'#3fb06b':'#d4584a',.22);frame(g.x0,g.z0,g.x1,g.z1,g.ok?'#2f9a58':'#c2402f',.06)}
@@ -224,6 +246,13 @@ const Palace3D=(()=>{
    // the smallest thing under the pointer wins, so a lamp on a rug can be picked
    let best=null,area=1e9;
    for(const f of palace.furniture){const fp=P.footprint(f),pad=P.layerOf(f)==='wall'?.12:0;if(w.x>=fp.x0-pad&&w.x<=fp.x1+pad&&w.z>=fp.z0-pad&&w.z<=fp.z1+pad){const a=(fp.x1-fp.x0)*(fp.z1-fp.z0);if(a<area||P.layerOf(f)!=='rug'&&best&&P.layerOf(best)==='rug'){best=f;area=a}}}
+   return best;
+  }
+  // The small thing under the pointer, if any (walking: by ray; plan: by footprint, a little generous).
+  function pickProp(px,py){
+   if(state.mode==='walk'){const r=ray(px,py),hit=P.pickProp(palace,r.origin,r.dir),fh=P.pick(palace,r.origin,r.dir);return hit&&(!fh||hit.t<=fh.t+.05)?hit.prop:null}
+   const w=toWorld(px,py);if(!w)return null;let best=null,bd=1e9;
+   for(const q of P.propsOf(palace)){const pw=P.propWorld(palace,q);if(!pw)continue;const turned=(pw.rot%180)!==0,hw=Math.max(.08,(turned?pw.d:pw.w)/2+.04),hd=Math.max(.08,(turned?pw.w:pw.d)/2+.04);if(Math.abs(w.x-pw.x)<=hw&&Math.abs(w.z-pw.z)<=hd){const d=Math.hypot(w.x-pw.x,w.z-pw.z);if(d<bd){bd=d;best=q}}}
    return best;
   }
   function pickRoom(px,py){const w=toWorld(px,py);return w?P.roomAt(palace,w.x,w.z):null}
@@ -321,10 +350,11 @@ const Palace3D=(()=>{
    if(moving||state.animating||state.dirty){step(dt);draw()}
    raf=requestAnimationFrame(loop);
   }
+  function hideProp(id){state.hidden=id||null;rebuild()}
   function setOverlay(o){state.overlay=o||{};state.dirty=true}
   function snapshot(){draw();return canvas.toDataURL('image/png')}
   function dispose(){disposed=true;cancelAnimationFrame(raf);view.dispose()}
-  const api={canvas,state,rebuild,setOverlay,setMode,getMode:()=>state.mode,frame,zoomAt,panBy,lookBy,flyTo,setTarget,setKey,toWorld,toScreen,ray,pickFurniture,pickRoom,pickWall,pickHandle,snapshot,dispose,redraw:()=>{state.dirty=true},step,draw,
+  const api={canvas,state,rebuild,hideProp,setOverlay,setMode,getMode:()=>state.mode,frame,zoomAt,panBy,lookBy,flyTo,setTarget,setKey,toWorld,toScreen,ray,pickFurniture,pickProp,pickRoom,pickWall,pickHandle,snapshot,dispose,redraw:()=>{state.dirty=true},step,draw,
    walk:state.walk,plan:state.plan,setLabels:on=>{state.labels=on},setGrid:on=>{state.gridOn=on;state.dirty=true}};
   rebuild();frame();raf=requestAnimationFrame(loop);
   return api;
