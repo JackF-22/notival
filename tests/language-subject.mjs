@@ -33,6 +33,29 @@ try{
   const visible=selector=>evaluate(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});return !!e&&!e.hidden&&getComputedStyle(e).display!=='none'})()`);
   const subjects=`[{id:'ru',name:'Russian',icon:'🇷🇺',color:'#c4483c',description:'',units:[],materials:[],packs:[],assessments:[],checklist:[],language:{code:'ru',name:'Russian',locale:'ru-RU'}},{id:'bio',name:'Biology',icon:'🧬',color:'#4a9d6f',description:'',units:[],materials:[],packs:[],assessments:[],checklist:[]}]`;
   await evaluate(`(()=>{state.projects=${subjects};state.notes=[{id:'n1',title:'Lesson',projectId:'ru',updated:Date.now(),pinned:false,nodes:[],blocks:[{id:'b1',type:'text',text:'x',html:'<p>privet</p>'}]},{id:'n2',title:'Cells',projectId:'bio',updated:Date.now(),pinned:false,nodes:[],blocks:[{id:'b2',type:'text',text:'x',html:'<p>Cells</p>'}]}];state.vocab=[];state.listening=[];active='n2';render();setMode('write')})()`);await wait(300);
+  // The create box: naming a subject after a language pre-selects it, and it can be chosen by hand
+  await evaluate(`openProjectComposer()`);await wait(150);
+  assert.equal(await evaluate(`!!document.querySelector('#project-dialog select[aria-label=Language]')`),true,'Create a subject has a Language choice');
+  assert.equal(await evaluate(`document.querySelector('#project-dialog select[aria-label=Language]').value`),'','not a language by default');
+  await evaluate(`document.querySelector('#project-dialog input[aria-label="Subject name"]').focus()`);
+  for(const c of 'Russian')await call('Input.dispatchKeyEvent',{type:'keyDown',key:c,text:c},sessionId);await wait(80);
+  assert.equal(await evaluate(`document.querySelector('#project-dialog select[aria-label=Language]').value`),'ru','typing "Russian" pre-selects Russian');
+  await evaluate(`[...document.querySelectorAll('#project-dialog button')].find(b=>b.textContent==='Create subject').click()`);await wait(300);
+  assert.deepEqual(await evaluate(`state.projects.at(-1).language`),{code:'ru',name:'Russian',locale:'ru-RU'},'the new subject is a language subject');
+  await evaluate(`document.querySelectorAll('dialog[open]').forEach(d=>d.close())`);await wait(150);
+  assert.equal(await count('.subject-vocab'),1,'and its page opens with the language sections');
+  // Choosing by hand wins over the name
+  await evaluate(`openProjectComposer()`);await wait(150);
+  await evaluate(`(()=>{const s=document.querySelector('#project-dialog select[aria-label=Language]');s.value='fr';s.dispatchEvent(new Event('change'))})()`);
+  await evaluate(`document.querySelector('#project-dialog input[aria-label="Subject name"]').focus()`);
+  for(const c of 'Russian')await call('Input.dispatchKeyEvent',{type:'keyDown',key:c,text:c},sessionId);await wait(80);
+  assert.equal(await evaluate(`document.querySelector('#project-dialog select[aria-label=Language]').value`),'fr');
+  await evaluate(`document.querySelector('#project-dialog').close()`);
+  // Edit box
+  await evaluate(`editProject(state.projects.find(p=>p.id==='bio'))`);await wait(150);
+  assert.equal(await evaluate(`!!document.querySelector('#project-dialog select[aria-label=Language]')`),true,'Edit subject has it too');
+  await evaluate(`document.querySelector('#project-dialog').close()`);
+  await evaluate(`window.marginHome('ru')`);await wait(200);
   // A regular subject has none of it: no buttons, no sidebar entry
   assert.equal(await visible('#note-vocab'),false,'no Vocab button in a regular subject\'s note');
   assert.equal(await visible('#note-listening'),false,'no Listening button either');
@@ -45,6 +68,7 @@ try{
   await evaluate(`window.marginHome('bio')`);await wait(300);
   assert.equal(await count('.subject-vocab'),0);assert.equal(await count('.subject-listening'),0);
   await evaluate(`window.marginHome('ru')`);await wait(300);
+  await evaluate(`document.querySelectorAll('dialog[open]').forEach(d=>d.close())`);await wait(100);
   assert.equal(await count('.subject-vocab'),1,'Vocab section on the language subject\'s page');assert.equal(await count('.subject-listening'),1,'Listening section too');
   // Words are kept with their subject
   await evaluate(`document.querySelector('.subject-vocab .vocab-form input').focus()`);
@@ -55,8 +79,8 @@ try{
   // Make Biology a Spanish subject from its settings
   await evaluate(`window.marginHome('bio')`);await wait(300);
   await evaluate(`[...document.querySelectorAll('button')].find(b=>b.textContent==='Customize subject').click()`);await wait(250);
-  assert.equal(await evaluate(`!!document.querySelector('select[aria-label=Language]')`),true,'the settings have a Language choice');
-  await evaluate(`(()=>{const s=document.querySelector('select[aria-label=Language]');s.value='es';s.dispatchEvent(new Event('change'))})()`);
+  assert.equal(await evaluate(`!!document.querySelector('dialog[open] select[aria-label=Language]')`),true,'the settings have a Language choice');
+  await evaluate(`(()=>{const s=document.querySelector('dialog[open] select[aria-label=Language]');s.value='es';s.dispatchEvent(new Event('change'))})()`);
   await evaluate(`[...document.querySelectorAll('dialog[open] button')].find(b=>/^(Save|Done)/.test(b.textContent.trim())).click()`);await wait(300);
   assert.deepEqual(await evaluate(`state.projects.find(p=>p.id==='bio').language`),{code:'es',name:'Spanish',locale:'es-ES'},'the choice is saved on the subject');
   await evaluate(`window.marginHome('bio')`);await wait(300);
