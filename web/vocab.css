@@ -1,0 +1,39 @@
+/* The vocab drawer: slides in from the right edge of a note, and out of the way again. */
+#vocab-panel{position:fixed;z-index:130;top:72px;right:0;bottom:0;width:min(340px,92vw);display:flex;flex-direction:column;gap:12px;padding:16px;background:var(--bg);color:var(--ink);border-left:1px solid var(--line);box-shadow:-10px 0 30px #0000001a;animation:vocab-in .18s ease-out}
+#vocab-panel[hidden]{display:none}
+@keyframes vocab-in{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
+@media(prefers-reduced-motion:reduce){#vocab-panel{animation:none}}
+.vocab-head{display:flex;align-items:center;gap:8px}
+.vocab-head h2{flex:1;margin:0;font-size:15px}
+.vocab-chip{height:30px;padding:0 11px;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--muted);font-size:12px;cursor:pointer;white-space:nowrap}
+.vocab-chip[aria-pressed=true]{color:var(--ink);border-color:var(--accent,var(--green))}
+.vocab-chip[hidden]{display:none}
+.vocab-close{width:34px;height:34px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--muted);font-size:16px;cursor:pointer}
+.vocab-close:hover,.vocab-close:focus-visible,.vocab-remove:hover,.vocab-remove:focus-visible{background:var(--soft);color:var(--ink)}
+.vocab-form{display:grid;gap:8px}
+.vocab-form input,.vocab-tools input,.vocab-edit input{font:inherit;font-size:14px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);min-width:0;width:100%}
+.vocab-form input:focus,.vocab-tools input:focus,.vocab-edit input:focus{outline:2px solid color-mix(in srgb,var(--accent,var(--green)) 40%,transparent);outline-offset:1px}
+.vocab-add{justify-self:end;height:34px;padding:0 16px;border-radius:9px}
+.vocab-tools{display:flex;gap:8px;align-items:center}
+.vocab-list{flex:1;overflow:auto;display:grid;align-content:start;gap:2px;margin:0 -6px;padding:0 6px}
+.vocab-row{display:flex;align-items:center;gap:6px;padding:8px 4px;border-bottom:1px solid color-mix(in srgb,var(--line) 60%,transparent)}
+.vocab-text{flex:1;min-width:0;display:grid;gap:1px;cursor:text}
+.vocab-text strong{font-size:15px;font-weight:600;overflow-wrap:anywhere}
+.vocab-text span{font-size:13px;color:var(--muted);overflow-wrap:anywhere}
+.vocab-text span.is-blank{opacity:.55}
+.vocab-edit{flex:1;display:grid;gap:6px}
+.vocab-remove{flex:0 0 auto;width:32px;height:32px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--muted);font-size:14px;cursor:pointer}
+.vocab-empty{color:var(--muted);font-size:13px;margin:8px 2px}
+.vocab-quiz{flex:1;display:flex;flex-direction:column;align-items:stretch;justify-content:center;gap:14px;text-align:center}
+.vocab-quiz[hidden]{display:none}
+.vocab-card{padding:30px 14px;border:1px solid var(--line);border-radius:14px;font-size:22px;font-weight:600;overflow-wrap:anywhere}
+.vocab-progress{color:var(--muted)}
+.vocab-score{font-size:20px;font-weight:600;margin:0}
+.vocab-grade{display:flex;gap:8px}.vocab-grade button{flex:1;height:38px}
+.vocab-quiz button{border:1px solid var(--line);border-radius:10px;background:transparent;color:inherit;padding:9px 14px;font-size:13px;cursor:pointer}
+.vocab-quiz button.primary{background:var(--accent,var(--green));border-color:var(--accent,var(--green));color:var(--on-accent,#fff)}
+.vocab-stop{border:0!important;color:var(--muted)!important;font-size:12px!important}
+#note-vocab[aria-pressed=true]{background:var(--soft);border-color:color-mix(in srgb,var(--green) 40%,var(--line))}
+/* With the drawer open, the note gives up the width it needs so nothing hides underneath it. */
+@media(min-width:1000px){body.vocab-open[data-view=note]:not(.pdf-workspace) main{padding-right:340px}}
+@media(min-width:1000px){body.vocab-open[data-view=note] article>#note-rail{display:none!important}body.vocab-open[data-view=note].note-outline-visible:not(.pdf-workspace) article,body.vocab-open[data-view=note].context-open:not(.pdf-workspace) article{display:block}}
