@@ -77,19 +77,21 @@ const RecallModel=(()=>{
  // First recognising the word (what does it mean?), once that has stuck saying it (how do you say…?), and once that
  // has stuck using it: the example sentence with the word left out.
  const stable=(review,days)=>!!review&&(review.stability||review.interval||0)>=days;
- function vocabItems(state,{projectId=null}={}){
+ // `all` asks for every direction at once (word practice), plus 'hear': listen to the word and type it.
+ function vocabItems(state,{projectId=null,all=false}={}){
   const out=[],reviews=state.reviews||{};
   for(const word of state.vocab||[]){
    const term=squash(word.term||''),meaning=squash(word.meaning||'');
    if(!term||!meaning||(projectId&&word.projectId!==projectId))continue;
    const lang=(state.projects||[]).find(p=>p.id===word.projectId)?.language?.code||'';
-   const base={projectId:word.projectId||null,noteId:word.noteId||null,unitId:null,origin:'vocab',vocabId:word.id,lang,created:word.added||0};
+   const base={projectId:word.projectId||null,noteId:word.noteId||null,unitId:null,origin:'vocab',vocabId:word.id,lang,term,created:word.added||0};
    const know={...base,id:'vocab:'+word.id+':know',type:'qa',dir:'know',prompt:'What does \u201c'+term+'\u201d mean?',answer:meaning};
    out.push(know);
    const say={...base,id:'vocab:'+word.id+':say',type:'qa',dir:'say',prompt:'How do you say \u201c'+meaning+'\u201d?',answer:term};
-   if(stable(reviews[know.id],2)||reviews[say.id])out.push(say);
+   if(all||stable(reviews[know.id],2)||reviews[say.id])out.push(say);
+   if(all)out.push({...base,id:'vocab:'+word.id+':hear',type:'qa',dir:'hear',prompt:'Listen, then type what you hear',answer:term,speak:term});
    const at=word.sentence?String(word.sentence).toLowerCase().indexOf(term.toLowerCase()):-1;
-   if(at>=0&&(stable(reviews[say.id],3)||reviews['vocab:'+word.id+':use'])){
+   if(at>=0&&(all||stable(reviews[say.id],3)||reviews['vocab:'+word.id+':use'])){
     const sentence=squash(word.sentence);const start=sentence.toLowerCase().indexOf(term.toLowerCase());
     if(start>=0)out.push({...base,id:'vocab:'+word.id+':use',type:'cloze',dir:'use',text:sentence,blank:sentence.slice(start,start+term.length),hint:meaning,prompt:'',answer:sentence.slice(start,start+term.length)});
    }
@@ -403,7 +405,14 @@ const RecallModel=(()=>{
  // Short answers can be checked; long ones need the student's own judgement. So do equations: nobody should have to type LaTeX to answer.
  const hasMath=text=>/\$\$[\s\S]+?\$\$|\$[^$\n]+?\$/.test(String(text||''));
  const checkable=item=>!hasMath(item.type==='cloze'?item.blank:item.answer)&&(item.type==='cloze'||(item.type==='qa'&&normalize(item.answer).length<=40&&normalize(item.answer).split(' ').length<=6));
+ // A word's meaning can be given several ways: "hello; hi", "to eat" or "eat", "the house" or "house".
+ const meanings=answer=>String(answer).split(/\s*(?:[;/,]|\bor\b)\s*/i).map(part=>normalize(part).replace(/^to /,'')).filter(Boolean);
  function check(item,typed){
+  if(item.origin==='vocab'&&item.dir==='know'){
+   const got=normalize(typed).replace(/^to /,'');if(!got)return 'wrong';
+   const options=meanings(item.answer);if(options.includes(got))return 'correct';
+   return options.some(option=>option.length>3&&distance(got,option)<=Math.max(1,Math.floor(option.length/6)))?'close':'wrong';
+  }
   if(!checkable(item))return null;
   const answer=item.type==='cloze'?item.blank:item.answer,want=normalize(answer),got=normalize(typed);
   if(!want)return symbols(typed)&&symbols(typed)===symbols(answer)?'correct':'wrong';

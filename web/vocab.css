@@ -63,3 +63,6 @@
 .vocab-needs[hidden]{display:none}
 .vocab-review{color:var(--ink)!important;border-color:var(--accent,var(--green))!important}
 .vocab-review[hidden]{display:none}
+.vocab-speak{flex:0 0 auto;order:2;width:30px;height:30px;padding:0;border:0;border-radius:50%;background:transparent;font-size:14px;cursor:pointer;opacity:.7}
+.vocab-speak:hover,.vocab-speak:focus-visible{background:var(--soft);opacity:1}
+.vocab-row .vocab-text{order:1}.vocab-row .vocab-remove{order:3}

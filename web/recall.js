@@ -97,6 +97,62 @@
  // How you feel today shapes the session. It is asked once a day and can be changed whenever.
  const today=()=>new Date().toISOString().slice(0,10);
  const moodNow=()=>state.recallMood?.day===today()?state.recallMood.value:'ok';
+
+ // ── Hearing words: the Mac's own voice ──────────────────────────────────────
+ const canSpeak=()=>'speechSynthesis' in window&&typeof SpeechSynthesisUtterance!=='undefined';
+ function speak(text,code){
+  if(!canSpeak()||!text)return false;
+  const locale=(typeof NotivalLanguages!=='undefined'&&NotivalLanguages.list.find(l=>l.code===code)?.locale)||'en-US',voices=speechSynthesis.getVoices();
+  const voice=voices.find(v=>v.lang.replace('_','-')===locale)||voices.find(v=>v.lang.toLowerCase().startsWith(locale.slice(0,2).toLowerCase()));
+  speechSynthesis.cancel();const say=new SpeechSynthesisUtterance(text);say.lang=locale;if(voice)say.voice=voice;say.rate=.85;speechSynthesis.speak(say);return true;
+ }
+ window.marginSpeak=Object.assign(speak,{available:canSpeak});
+
+ // ── Word practice: pick a direction and type your answers ───────────────────
+ // Unlike a scheduled review, you choose what to practise: the word in the language → its meaning, the meaning → the word,
+ // both mixed together, or listening and typing what you hear. Every answer still teaches the memory model.
+ const PRACTICE='notival.vocab.practice';
+ const practicePref=()=>{try{return {dir:'know',which:'mixed',count:15,...JSON.parse(localStorage.getItem(PRACTICE)||'{}')}}catch{return {dir:'know',which:'mixed',count:15}}};
+ function practiceList(project,{dir,which,count}){
+  const kinds=dir==='both'?['know','say']:[dir],now=Date.now();
+  const items=M.vocabItems(state,{projectId:project.id,all:true}).filter(item=>kinds.includes(item.dir)&&!state.suspended?.[item.id]);
+  const rev=item=>reviews()[item.id],chance=item=>rev(item)?M.retrievability(rev(item),now):1.5;
+  const shuffled=[...items].sort(()=>Math.random()-.5);
+  let ordered;
+  if(which==='new')ordered=[...items].sort((a,b)=>b.created-a.created);
+  else if(which==='weak')ordered=[...shuffled].sort((a,b)=>chance(a)-chance(b));
+  else if(which==='all')ordered=shuffled;
+  else{
+   // a smart mix: what is due, then what has not been seen, then the rest, shakiest first
+   const due=shuffled.filter(i=>rev(i)&&rev(i).due<=now).sort((a,b)=>chance(a)-chance(b)),fresh=shuffled.filter(i=>!rev(i)),rest=shuffled.filter(i=>rev(i)&&rev(i).due>now).sort((a,b)=>chance(a)-chance(b));
+   ordered=[...due,...fresh,...rest];
+  }
+  const picked=count?ordered.slice(0,count):ordered;
+  // The same word never comes up twice in a row.
+  for(let i=1;i<picked.length;i++)if(picked[i].vocabId===picked[i-1].vocabId){const k=picked.findIndex((item,j)=>j>i&&item.vocabId!==picked[i-1].vocabId);if(k>0)[picked[i],picked[k]]=[picked[k],picked[i]]}
+  return {picked,pool:items};
+ }
+ function vocabPractice(project){
+  setScope({project});
+  const subject=state.projects.find(p=>p.id===project.id),name=subject?.language?.name||'the language';
+  const known=new Set(M.vocabItems(state,{projectId:project.id,all:true}).map(i=>i.vocabId)).size;
+  frame('Practice words',subject?.name);
+  if(known<2){dialog.append(el('p','Add at least two words with meanings to practise them.','recall-lead-text'));return}
+  const pref=practicePref(),choose=(key,value)=>{try{localStorage.setItem(PRACTICE,JSON.stringify({...practicePref(),[key]:value}))}catch{}vocabPractice(project)};
+  const group=(label,options,current,key)=>{
+   dialog.append(el('small',label,'recall-label'));const row=el('div',undefined,'recall-options');
+   for(const [value,title,hint] of options){const b=btn('',()=>choose(key,value),'recall-option');b.append(el('strong',title),...(hint?[el('small',hint)]:[]));b.setAttribute('aria-pressed',String(String(current)===String(value)));b.dataset.value=String(value);row.append(b)}
+   dialog.append(row);
+  };
+  const directions=[['know',name+' → English','See the word, type its meaning'],['say','English → '+name,'See the meaning, type the word'],['both','Both ways','Mixed together']];
+  if(canSpeak())directions.push(['hear','Listen and type','Hear the word, type it']);
+  group('Direction',directions,pref.dir,'dir');
+  group('Which words',[['mixed','Smart mix','Due first, then new'],['weak','Shakiest first',''],['new','Newest first',''],['all','All, shuffled','']],pref.which,'which');
+  group('How many',[[10,'10',''],[20,'20',''],[0,'All '+known,'']],pref.count,'count');
+  const row=el('div',undefined,'recall-actions');
+  row.append(btn('Start',()=>{const plan=practiceList(project,practicePref());if(!plan.picked.length){toast('Nothing to practise yet');return}run({mode:'vocab',list:plan.picked,pool:plan.pool})},'primary'));dialog.append(row);
+ }
+
  // ── Memory: what the system has learned about you ───────────────────────────
  const DAY_NAMES=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
  function memoryPanel(list){
@@ -147,13 +203,13 @@
  function chrome(item){
   const done=sess.results.length,bar=el('div',undefined,'recall-progress'),fill=el('span');fill.style.width=Math.round(done/sess.total*100)+'%';bar.append(fill);
   const x=btn('×',()=>dialog.close(),'dialog-close');x.title='Stop · progress is saved';x.setAttribute('aria-label','Stop');
-  const top=el('div',undefined,'recall-top');top.append(el('span',(sess.mode==='quiz'?'Practice':sess.mode==='weak'?'Shaky spots':sess.mode==='drill'?'Drill':'Review')+' · '+(Math.min(done+1,sess.total))+' of '+sess.total),el('span',typeNames[item.type]||'Question','recall-badge'));
+  const top=el('div',undefined,'recall-top');top.append(el('span',(sess.mode==='quiz'?'Practice':sess.mode==='vocab'?'Word practice':sess.mode==='weak'?'Shaky spots':sess.mode==='drill'?'Drill':'Review')+' · '+(Math.min(done+1,sess.total))+' of '+sess.total),el('span',typeNames[item.type]||'Question','recall-badge'));
   dialog.replaceChildren(x,top,bar);
  }
  function card(item){
   const shownAt=performance.now();let took=0;
   // Saying or using a word is typed, never picked from a list.
-  const fmt=M.format(item,sess.pool,{quiz:(sess.mode==='quiz'||sess.mode==='drill'||(sess.mode==='due'&&!reviews()[item.id]))&&!(item.origin==='vocab'&&item.dir!=='know')});
+  const fmt=M.format(item,sess.pool,{quiz:(sess.mode==='quiz'||sess.mode==='drill'||(sess.mode==='due'&&!reviews()[item.id]))&&!(item.origin==='vocab'&&item.dir!=='know')&&sess.mode!=='vocab'});
   chrome(item);dialog.onkeydown=null;
   const body=el('div',undefined,'recall-card');dialog.append(body);
   const source=sourceLabel(item);if(source)body.append(el('small',source,'recall-source'));
@@ -166,6 +222,11 @@
    if(item.hint)body.append(rich('small','Hint · '+item.hint,'recall-hint'));
   }else{
    body.append(rich('h3',item.prompt,'recall-prompt'));
+   // Hear it said: the word itself, or (listen and type) the whole question.
+   if(item.origin==='vocab'&&canSpeak()&&item.lang&&(item.dir==='hear'||item.dir==='know')){
+    const say=btn(item.dir==='hear'?'\ud83d\udd0a Play again':'\ud83d\udd0a Hear it',()=>speak(item.term,item.lang),'recall-speak');say.setAttribute('aria-label','Hear the word');body.append(say);
+    if(item.dir==='hear')setTimeout(()=>speak(item.term,item.lang),250);
+   }
    if(fmt.kind==='type'){field=el('input');field.type='text';field.autocomplete='off';field.placeholder='Your answer';field.setAttribute('aria-label','Your answer');body.append(field)}
    else if(fmt.kind==='self'){field=el('textarea');field.placeholder=item.type==='explain'||item.type==='passage'?'Explain it in your own words before you check…':'Say it from memory before you check…';field.setAttribute('aria-label','Your answer');body.append(field)}
   }
@@ -252,7 +313,7 @@
    reviews()[item.id]=M.schedule(before,grade,when,opts);persist();
    if(!sess.asked.has(item.id)){sess.asked.add(item.id);sess.results.push({item,rating:grade})}
    sess.queue.shift();
-   if(grade==='Again'&&!sess.queue.some(q=>q.id===item.id)&&(sess.mode==='due'||sess.mode==='weak'))sess.queue.push(item);
+   if(grade==='Again'&&!sess.queue.some(q=>q.id===item.id)&&(sess.mode==='due'||sess.mode==='weak'||sess.mode==='vocab'))sess.queue.push(item);
    next();
   }
  }
@@ -432,7 +493,7 @@
  window.marginReviewProject=project=>hub({project});
  window.marginReviewNotes=(name,notes,subjectId)=>hub({project:subjectId?{id:subjectId,name}:null,notes,title:name});
  window.marginRecallCapture=capture;window.marginAskQuestion=capture;
- window.marginRecall={hub,bank,compose,suggestions,start,setScope};
+ window.marginRecall={hub,bank,compose,suggestions,start,setScope,vocabPractice};
  window.marginRecallSummary=project=>{const stats=M.stats(M.collect(state,{projectId:project.id}),reviews());return stats};
  window.marginRecallWidget=project=>{
   const list=M.collect(state,{projectId:project.id}),stats=M.stats(list,reviews());

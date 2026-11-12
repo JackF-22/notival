@@ -43,7 +43,9 @@
   }
   // Words are reviewed in Recall, so each one comes back just before you would forget it.
   review=button('Review',()=>window.marginRecall?.hub({project:subjectOf(subjectId)}),'vocab-chip vocab-review','Review these words: each comes back just before you would forget it');
-  head.append(review);
+  // Free practice: choose the direction (word → meaning, meaning → word, both, or listen and type) and type your answers.
+  const practise=button('Practise',()=>window.marginRecall?.vocabPractice(subjectOf(subjectId)),'vocab-chip vocab-practise','Practise these words: choose a direction and type the answers');
+  head.append(practise,review);
   if(drawer)head.append(button('✕',()=>onClose?.(),'vocab-close','Hide vocab'));
   const translit=()=>!!russian&&russian.getAttribute('aria-pressed')==='true';
   form=el('div','vocab-form');
@@ -72,7 +74,7 @@
   function refresh(){
    const words=visible(),all=wordsOf(subjectId),ready=dueCount();
    title.textContent='Vocab'+(all.length?' · '+words.length:'');
-   review.textContent=ready?'Review · '+ready:'Review';review.hidden=!all.some(word=>word.meaning);
+   review.textContent=ready?'Review · '+ready:'Review';review.hidden=!all.some(word=>word.meaning);practise.hidden=all.filter(word=>word.meaning).length<2;
    const missing=all.filter(word=>!word.meaning).length;
    needs.hidden=!missing;needs.textContent=missing?missing+(missing===1?' word needs':' words need')+' a meaning before it can be reviewed. Click it to add one.':'';
    tools.hidden=all.length<6&&!filter;
@@ -94,6 +96,8 @@
     for(const field of [a,b,c])field.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();save()}if(event.key==='Escape'){event.stopPropagation();refresh()}});
     edit.addEventListener('focusout',()=>setTimeout(()=>{if(edit.isConnected&&!edit.contains(document.activeElement))save()},0));
    };
+   // Hear the word, in the Mac's own voice
+   if(window.marginSpeak?.available?.()&&lang)r.append(button('\ud83d\udd0a',()=>window.marginSpeak(word.term,lang.code),'vocab-speak','Hear “'+word.term+'”'));
    r.append(text,button('✕',()=>remove(word),'vocab-remove','Remove “'+word.term+'”'));
    return r;
   }

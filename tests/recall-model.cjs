@@ -217,6 +217,13 @@ assert(!vitems.some(i=>i.type==='cloze'),'the sentence comes last');
 vstate.reviews['vocab:w1:say']={stability:4,interval:4,due:1,reviewedAt:0};
 const vcloze=M.collect(vstate,{projectId:'ru'}).find(i=>i.type==='cloze');assert(vcloze,'once it can be said, it is used in its sentence');assert.equal(vcloze.blank,'Привет');assert.equal(M.clozeParts(vcloze).after,', как дела?');assert.equal(M.check(vcloze,'привет'),'correct');
 assert.equal(M.collect(vstate,{projectId:'other'}).length,0,'vocab stays with its subject');assert.equal(M.collect(vstate,{notes:[]}).filter(i=>i.origin==='vocab').length,0,'and is not part of a note\'s questions');
+// Word practice: every direction at once, and meanings can be given several ways
+const allWays=M.vocabItems(vstate,{projectId:'ru',all:true});assert.deepEqual(Array.from(allWays.filter(i=>i.vocabId==='w2').map(i=>i.dir)),['know','say','hear'],'recognise, say and listen for every word');
+assert.equal(allWays.find(i=>i.dir==='hear').speak,'привет');assert(allWays.some(i=>i.dir==='use'),'and the sentence, when there is one');
+const hi={origin:'vocab',dir:'know',type:'qa',prompt:'p',answer:'hello; hi'};assert.equal(M.check(hi,'hi'),'correct');assert.equal(M.check(hi,'Hello'),'correct');assert.equal(M.check(hi,'helo'),'close');assert.equal(M.check(hi,'goodbye'),'wrong');assert.equal(M.check(hi,''),'wrong');
+const eat={origin:'vocab',dir:'know',type:'qa',prompt:'p',answer:'to eat'};assert.equal(M.check(eat,'eat'),'correct');assert.equal(M.check(eat,'to eat'),'correct');
+const house={origin:'vocab',dir:'know',type:'qa',prompt:'p',answer:'the house, home'};assert.equal(M.check(house,'house'),'correct');assert.equal(M.check(house,'home'),'correct');
+const wordyMeaning={origin:'vocab',dir:'know',type:'qa',prompt:'p',answer:'to be able to do something well and quickly'};assert.equal(M.check(wordyMeaning,'to be able to do something well and quickly'),'correct','long meanings still work when typed exactly');
 vstate.suspended={'vocab:w2:know':true};assert(!M.collect(vstate,{projectId:'ru'}).some(i=>i.id==='vocab:w2:know'),'set-aside words are skipped');
 // Accents and ё do not count against an answer
 assert.equal(M.check({type:'qa',prompt:'water',answer:'вода́'},'вода'),'correct');assert.equal(M.check({type:'qa',prompt:'all',answer:'всё'},'все'),'correct');

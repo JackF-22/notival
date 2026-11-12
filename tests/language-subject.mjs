@@ -85,7 +85,7 @@ try{
   assert.deepEqual(await evaluate(`state.projects.find(p=>p.id==='bio').language`),{code:'es',name:'Spanish',locale:'es-ES'},'the choice is saved on the subject');
   await evaluate(`window.marginHome('bio')`);await wait(300);
   assert.equal(await count('.subject-vocab'),1,'it now has the sections');
-  assert.equal(await count('.subject-vocab .vocab-head .vocab-chip'),1,'and only a Quiz chip: Russian typing is for Russian');
+  assert.equal(await evaluate(`[...document.querySelectorAll('.subject-vocab .vocab-head .vocab-chip')].some(b=>b.textContent==='РУ')`),false,'and no Russian typing toggle: that is for Russian');
   assert.equal(await count('.subject-vocab .vocab-row'),0,'it does not show the Russian subject\'s words');
   // Listening is kept per subject and uses the subject's language
   await evaluate(`(()=>{window.__sent=[];window.__notivalHost=m=>window.__sent.push(m);document.querySelector('.subject-listening button').click()})()`);await wait(100);
