@@ -30,13 +30,13 @@ try{
 
   const text=selector=>evaluate(`document.querySelector(${JSON.stringify(selector)})?.textContent||''`);
   const count=selector=>evaluate(`document.querySelectorAll(${JSON.stringify(selector)}).length`);
-  const click=label=>evaluate(`[...document.querySelectorAll('.listening-dialog button')].find(b=>b.textContent.trim().startsWith(${JSON.stringify(label)}))?.click()`);
+  const click=label=>evaluate(`[...document.querySelectorAll('.listening-page button')].find(b=>b.textContent.trim().startsWith(${JSON.stringify(label)}))?.click()`);
   const sent=()=>evaluate(`JSON.stringify(window.__sent)`).then(JSON.parse);
   // A stand-in for the native side: remember what the page asks for.
   await evaluate(`window.__sent=[];window.__notivalHost=m=>window.__sent.push(m)`);
   await evaluate(`(()=>{state.projects=[{id:'ru',name:'Russian',icon:'🇷🇺',color:'#c4483c',description:'',units:[],materials:[],packs:[],assessments:[],checklist:[],language:{code:'ru',name:'Russian',locale:'ru-RU'}},{id:'bio',name:'Biology',icon:'🧬',color:'#4a9d6f',description:'',units:[],materials:[],packs:[],assessments:[],checklist:[]}];state.notes=[{id:'n1',title:'Lesson',projectId:'ru',updated:Date.now(),pinned:false,nodes:[],blocks:[{id:'b1',type:'text',text:'x',html:'<p>Hello privet world</p>'}]},{id:'n2',title:'Cells',projectId:'bio',updated:Date.now(),pinned:false,nodes:[],blocks:[{id:'b2',type:'text',text:'x',html:'<p>Cells</p>'}]}];state.vocab=[];state.listening=[];active='n1';render();setMode('write')})()`);await wait(300);
-  await evaluate(`document.querySelector('#note-listening').click()`);await wait(150);
-  assert.equal(await evaluate(`document.querySelector('.listening-dialog').open`),true,'the Listening button opens the screen');
+  await evaluate(`window.marginListening.open('ru')`);await wait(150);
+  assert.equal(await evaluate(`!!document.querySelector('.listening-page')`),true,'Listening opens as a page of the subject');
   assert.match(await text('.listening-empty'),/Add a voice message/);
   await click('+ Add a voice message');
   assert.deepEqual((await sent()).map(m=>m.type),['chooseAudio']);
@@ -51,7 +51,7 @@ try{
   // Without a draft there is nothing to check against yet
   await click('Check my answer');await wait(100);
   assert.match(await text('.listening-step:nth-of-type(3)'),/No words to check against/);
-  await click('Back');
+  await evaluate(`[...document.querySelectorAll('.listening-page button')].find(b=>b.textContent.trim()==='Back').click()`);
   // The draft arrives
   await evaluate(`marginTranscript({id:'${id}',text:'Привет! Как дела? Я хочу сказать тебе спасибо.',words:${JSON.stringify(['Привет','Как','дела','Я','хочу','сказать','тебе','спасибо'].map((t,i)=>({text:t,start:i*.5,duration:.4,confidence:.9})))},onDevice:true})`);await wait(150);
   assert.match(await text('.listening-reference'),/Drafted on this Mac/);
@@ -71,12 +71,41 @@ try{
   await click('Try again');
   await evaluate(`(()=>{const t=document.querySelector('.listening-reference textarea');t.value='Привет, как дела? Я хочу тебе сказать спасибо.';t.dispatchEvent(new Event('change'))})()`);await wait(100);
   await click('Check my answer');await wait(100);
-  assert.match(await text('.listening-hint'),/Compared with the correct text/);
+  assert.match(await text('.listening-results .listening-hint'),/Compared with the correct text/);
   // A Mac without offline Russian says so and offers Apple's servers only on request
   await evaluate(`(()=>{state.listening[0].draft=null;marginTranscript({id:'${id}',error:'This Mac has no offline speech recognition for this language.',code:11})})()`);await wait(100);
   assert.match(await text('.listening-reference'),/System Settings → Keyboard → Dictation/);
   await click('Use Apple');
   const last=(await sent()).at(-1);assert.deepEqual([last.type,last.allowServer],['transcribeAudio',true]);
+  // The pause-and-type loop: a stand-in player lets us see what the page does with it
+  await evaluate(`(()=>{window.FakeAudio=class{constructor(){this.paused=true;this.currentTime=10;this.playbackRate=1;this.duration=20;window.__fake=this}play(){this.paused=false;this.onplay?.();return Promise.resolve()}pause(){this.paused=true;this.onpause?.()}};window.__RealAudio=window.Audio;window.Audio=window.FakeAudio;marginListening.open('ru')})()`);await wait(300);
+  await evaluate(`marginAudioData({id:'${id}',data:'AAAA',mime:'audio/wav'})`);await wait(100);
+  await evaluate(`document.querySelector('.listening-text[lang=ru]').focus();document.querySelector('.listening-text[lang=ru]').setSelectionRange(3,3)`);
+  await click('▶');
+  assert.equal(await evaluate(`__fake.paused`),false,'play starts the audio');
+  assert.equal(await evaluate(`document.activeElement.dataset.field`),'ru','the caret stays in the box after pressing play');
+  await evaluate(`__fake.currentTime=10`);await click('❚❚');
+  assert.equal(await evaluate(`__fake.paused`),true);assert.equal(await evaluate(`__fake.currentTime`),8,'pausing backs up two seconds');
+  assert.deepEqual(await evaluate(`[document.activeElement.dataset.field,document.activeElement.selectionStart]`),['ru',3],'and the caret is back in the box, where you left it');
+  // Esc plays and pauses from inside the box, and does not leave it
+  await call('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27},sessionId);await wait(50);
+  assert.equal(await evaluate(`__fake.paused`),false,'Esc plays');
+  await evaluate(`__fake.currentTime=10`);
+  await call('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27},sessionId);await wait(50);
+  assert.equal(await evaluate(`[__fake.paused,__fake.currentTime,document.activeElement.dataset.field]`).then(v=>v.join()),'true,8,ru','Esc pauses, backs up, and keeps the caret in the box');
+  // The back-up amount can be changed, and switched off
+  await evaluate(`localStorage.setItem('notival.listening.rewind','0');marginListening.paint()`);
+  await evaluate(`__fake.paused=false;__fake.currentTime=10`);await evaluate(`document.querySelector('.listening-text[lang=ru]').focus()`);
+  await call('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27},sessionId);await wait(50);
+  assert.equal(await evaluate(`__fake.currentTime`),10,'with back-up off, pausing leaves the audio where it is');
+  await evaluate(`localStorage.removeItem('notival.listening.rewind')`);
+  // Pause while I type: pauses when you start typing, carries on after you stop
+  await evaluate(`localStorage.setItem('notival.listening.autopause','true');__fake.paused=false;document.querySelector('.listening-text[lang=ru]').focus()`);
+  await call('Input.dispatchKeyEvent',{type:'keyDown',key:'p',text:'p'},sessionId);await wait(80);
+  assert.equal(await evaluate(`__fake.paused`),true,'typing pauses the audio');
+  await wait(2200);
+  assert.equal(await evaluate(`__fake.paused`),false,'and it carries on shortly after you stop');
+  await evaluate(`localStorage.removeItem('notival.listening.autopause');window.Audio=window.__RealAudio`);
   // A draft far too short for the audio is flagged, with a way to try again
   await evaluate(`(()=>{const c=state.listening[0];c.duration=20;c.reference='';c.draftError=null;marginTranscript({id:'${id}',text:'Привет',words:[],onDevice:true})})()`);await wait(150);
   assert.match(await text('.listening-warning'),/short for a 0:20 message/);

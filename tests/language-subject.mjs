@@ -58,12 +58,12 @@ try{
   await evaluate(`window.marginHome('ru')`);await wait(200);
   // A regular subject has none of it: no buttons, no sidebar entry
   assert.equal(await visible('#note-vocab'),false,'no Vocab button in a regular subject\'s note');
-  assert.equal(await visible('#note-listening'),false,'no Listening button either');
+  assert.equal(await count('#note-listening'),0,'Listening is not part of any note');
   assert.equal(await count('#open-listening'),0,'and nothing about listening in the sidebar');
   assert.equal(await evaluate(`[...document.querySelectorAll('#selection-tools button')].find(b=>b.textContent==='Add to vocab').hidden`),true);
   // A language subject's note has both
   await evaluate(`active='n1';render();setMode('write')`);await wait(250);
-  assert.equal(await visible('#note-vocab'),true);assert.equal(await visible('#note-listening'),true);
+  assert.equal(await visible('#note-vocab'),true);assert.equal(await count('#note-listening'),0,'a language note has Vocab but Listening lives on the subject');
   // The subject pages: sections only on the language subject
   await evaluate(`window.marginHome('bio')`);await wait(300);
   assert.equal(await count('.subject-vocab'),0);assert.equal(await count('.subject-listening'),0);
@@ -93,8 +93,7 @@ try{
   await evaluate(`marginAudioChosen({id:'11111111-2222-3333-4444-555555555555',name:'Clase',duration:5})`);await wait(200);
   assert.equal(await evaluate(`state.listening[0].projectId`),'bio');
   assert.equal(await evaluate(`window.__sent.find(m=>m.type==='transcribeAudio').locale`),'es-ES');
-  assert.match(await text('.listening-head h2'),/Spanish/);
-  await evaluate(`document.querySelector('.listening-close').click()`);
+  assert.match(await text('.listening-head h2'),/Spanish/);assert.equal(await evaluate(`document.querySelector('.student-tabs [aria-current=page]').dataset.feature`),'listening','it is a tab of the subject');
   await evaluate(`window.marginHome('ru')`);await wait(300);
   assert.equal(await count('.subject-listening .listening-widget-clip'),0,'the Russian subject has none of the Spanish clips');
   console.log('PASS: language subjects — set from the subject\'s settings, vocab and listening on its page and in its notes only, kept per subject and per language.');
