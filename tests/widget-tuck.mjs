@@ -45,6 +45,8 @@ try{
   const spot=await evaluate(`(()=>{const r=document.querySelector('.widget-tab').getBoundingClientRect();return {top:Math.round(r.top),fromRight:Math.round(innerWidth-r.right)}})()`);
   assert.ok(spot.top<100&&spot.top>=72,'the tab sits at the top, just under the header: '+JSON.stringify(spot));
   assert.ok(spot.fromRight<=40&&spot.fromRight>=0,'and at the right: '+JSON.stringify(spot));
+  const gap=await evaluate(`(()=>{const tab=document.querySelector('.widget-tab').getBoundingClientRect(),first=[...document.querySelectorAll('.subject-widgets > section')].find(s=>s.offsetParent).getBoundingClientRect();return Math.round(first.top-tab.bottom)})()`);
+  assert.ok(gap>=14,'there is a clear gap between the tabs and the boxes still in place: '+gap+'px');
   const handle=await evaluate(`(()=>{const r=document.querySelector('.subject-widgets .widget-tuck').getBoundingClientRect(),o=getComputedStyle(document.querySelector('.subject-widgets .widget-tuck')).opacity;return {w:Math.round(r.width),h:Math.round(r.height),o}})()`);
   assert.ok(handle.w>=26&&handle.h>=60&&handle.o==='1','the push-out tab is big and fully visible: '+JSON.stringify(handle));
   assert.equal(await shown('.subject-widgets'),true,'the other boxes stay');

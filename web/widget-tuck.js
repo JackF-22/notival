@@ -57,6 +57,8 @@ const WidgetTuck=(()=>{
    }
   }
   edge.hidden=!tabs.length;
+  // The boxes still on the page sit a little lower, so the tabs above them have room (and keep it if they wrap).
+  document.body.style.setProperty('--widget-pill-space',tabs.length?Math.max(0,edge.offsetHeight-2)+'px':'0px');
   // When every box on a page is away, the page uses the room the column held.
   for(const view of document.querySelectorAll('.student-home-view')){
    const boxes=[...view.querySelectorAll(':scope > .subject-widgets > section, :scope > .global-todo')];
