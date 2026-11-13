@@ -34,7 +34,7 @@ try{
   assert.equal(await evaluate(`['#focus-writing-toggle','#class-mode-toggle'].map(s=>getComputedStyle(document.querySelector(s)).display).join()`),'none,none','the old Focus and Class buttons step aside');
   assert.equal(await evaluate(`document.querySelector('#focus-menu').textContent`),'Focus ▾');
   const header=await evaluate(`(()=>{const q=s=>document.querySelector(s).getBoundingClientRect();const visible=[...document.querySelectorAll('main>header button')].filter(b=>b.offsetParent);return {count:visible.length,furthest:Math.max(...visible.map(b=>b.getBoundingClientRect().right)),deleteWidth:Math.round(q('#delete').width),savedHeight:Math.round(q('#saved').height),home:getComputedStyle(document.querySelector('.student-home')).display,deleteName:document.querySelector('#delete').textContent.trim()}})()`);
-  assert(header.count<=10,'a short list of controls (nine, plus the Show and hide button): '+header.count);assert(header.furthest<=1200,'nothing runs off the edge');
+  assert(header.count<=11,'a short list of controls (nine, plus the Show and hide and MD buttons): '+header.count);assert(header.furthest<=1200,'nothing runs off the edge');
   assert(header.deleteWidth<=40,'Delete is an icon: '+header.deleteWidth);assert(header.savedHeight<=20,'the saved note is one line');
   assert.equal(header.home,'none','Home lives in the sidebar while it is open');assert.equal(header.deleteName,'Delete note','icons keep their names for screen readers');
   await shot('header');
