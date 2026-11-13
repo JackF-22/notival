@@ -18,6 +18,7 @@
  const langOf=()=>subjectOf(ctx)?.language||{code:'ru',name:'Russian',locale:'ru-RU'};
  const storiesHere=()=>[...StoriesData.forLanguage(langOf().code),...own().filter(s=>s.projectId===ctx)].map(M.clean).filter(M.valid);
  const directionOf=()=>{const d=pref('direction','to-target');return M.DIRECTIONS.includes(d)?d:'to-target'};
+ const styleOf=()=>pref('style','steps')==='whole'?'whole':'steps';
  const labels=()=>({'to-target':'English → '+langOf().name,'to-native':langOf().name+' → English','copy':'Copy it out'});
  const best=story=>runs().filter(r=>r.storyId===story.id&&r.projectId===ctx).reduce((m,r)=>Math.max(m,r.percent),-1);
  const tried=story=>runs().some(r=>r.storyId===story.id&&r.projectId===ctx);
@@ -46,7 +47,7 @@
  function paint(){
   if(!host)return;
   host.replaceChildren();
-  if(view==='play'&&session)play();else if(view==='done'&&session)done();else if(view==='add')compose();else library();
+  if(view==='play'&&session)play();else if(view==='write'&&session)write();else if(view==='done'&&session)done();else if(view==='add')compose();else library();
  }
 
  // ── The library ────────────────────────────────────────────────────────────
@@ -60,7 +61,13 @@
   }
   if(canSpeak()){const sound=button('Sound',()=>{remember('sound',!pref('sound',true));sound.setAttribute('aria-pressed',String(pref('sound',true)))},'stories-chip','Read sentences aloud');sound.setAttribute('aria-pressed',String(pref('sound',true)));bar.append(sound)}
   host.append(bar);
-  host.append(el('p','stories-lede',directionOf()==='to-target'?'You read the English and write each sentence in '+lang.name+'.':directionOf()==='to-native'?'You read each sentence in '+lang.name+' and write what it means.':'You write each sentence out exactly as you see it, to train spelling and typing.'));
+  const styles=el('div','stories-modes stories-styles');
+  for(const [id,label,tip] of [['steps','Sentence by sentence','One sentence at a time, checked as you go'],['whole','Whole story','Type the whole story in one go, with feedback as you type']]){
+   const chip=button(label,()=>{remember('style',id);paint()},'stories-chip',tip);chip.setAttribute('aria-pressed',String(styleOf()===id));styles.append(chip);
+  }
+  host.append(styles);
+  const whole=styleOf()==='whole';
+  host.append(el('p','stories-lede',(directionOf()==='to-target'?'You read the English and write '+(whole?'the whole story':'each sentence')+' in '+lang.name+'.':directionOf()==='to-native'?'You read '+(whole?'the story':'each sentence')+' in '+lang.name+' and write what it means.':'You write '+(whole?'the story':'each sentence')+' out exactly as you see it, to train spelling and typing.')+(whole?' Feedback appears as you type.':'')));
   const all=storiesHere();
   if(!all.length){host.append(el('p','stories-empty','There are no starter stories for '+lang.name+' yet. Add one of your own: paste the text and its English.'));return}
   const go=nextUp(null);
@@ -101,8 +108,9 @@
 
  // ── Reading and writing ────────────────────────────────────────────────────
  function begin(story,repaint=true){
-  session={projectId:ctx,story,direction:directionOf(),index:0,results:story.sentences.map(()=>null),checked:false};
-  view='play';if(repaint)paint();
+  const direction=directionOf(),style=styleOf();
+  session={projectId:ctx,story,direction,style,index:0,results:story.sentences.map(()=>null),checked:false,typed:style==='whole'?(state.storyDrafts?.[story.id+':'+direction]||''):''};
+  view=style==='whole'?'write':'play';if(repaint)paint();
  }
  const extraFor=(story,index,direction)=>acceptedStore()[M.key(story.id,index,direction==='to-native'?'n':'t')]||[];
  const writesTarget=()=>M.writes(session.direction,langOf().code)!=='en';
@@ -208,10 +216,100 @@
 
  function finish(){
   const sum=M.summarize(session.results);
-  runs().push({id:'run-'+Date.now().toString(36),storyId:session.story.id,projectId:session.projectId,direction:session.direction,percent:sum.percent,at:Date.now()});
+  runs().push({id:'run-'+Date.now().toString(36),storyId:session.story.id,projectId:session.projectId,direction:session.direction,style:session.style||'steps',percent:sum.percent,at:Date.now()});
   if(runs().length>500)state.storyRuns=runs().slice(-500);
   persist();window.marginUnderstandingRefresh?.();
   view='done';session.finished=sum;paint();
+ }
+
+ // ── Writing the whole story ────────────────────────────────────────────────
+ // One big box. As you type, each word you have written is marked right, close or wrong against the story, words you
+ // skipped show up where they belong, and the sentences fill in along the progress bar. The score so far counts only what you have reached.
+ const draftKey=()=>session.story.id+':'+session.direction;
+ const saveDraft=()=>{state.storyDrafts??={};if(session.typed.trim())state.storyDrafts[draftKey()]=session.typed;else delete state.storyDrafts[draftKey()];persist()};
+ const extraList=story=>index=>extraFor(story,index,session.direction);
+ function write(){
+  const {story,direction}=session,lang=langOf(),names=labels(),shownIsTarget=direction!=='to-target';
+  const top=el('div','stories-top');
+  const back=button('←',()=>{clearTimeout(session.saver);saveDraft();session=null;view='library';paint()},'stories-back','Back to the stories (your draft is kept)');
+  const meta=el('div','stories-meta');meta.append(el('strong','',story.title),el('small','',names[direction]+' · whole story'));
+  const stats=el('div','stories-stats'),score=el('span','stories-score'),count=el('span','stories-streak');stats.append(count,score);
+  top.append(back,meta,stats);host.append(top);
+  const bar=el('div','stories-progress');story.sentences.forEach(()=>bar.append(el('span','stories-seg')));host.append(bar);
+
+  // what to read
+  const source=el('section','stories-source');
+  const text=el('p','stories-source-text');if(shownIsTarget)text.lang=lang.code;
+  story.sentences.forEach((sentence,i)=>{
+   const span=el('span','stories-src',M.shown(sentence,direction));span.dataset.index=i;
+   if(shownIsTarget&&canSpeak()){span.title='Click to hear this sentence';span.onclick=()=>window.marginSpeak(M.shown(sentence,direction),lang.code)}
+   text.append(span,' ');
+  });
+  const head=el('div','stories-source-head');head.append(el('small','stories-step',direction==='to-target'?'Read it, then write the whole story in '+lang.name:direction==='to-native'?'Read it, then write what it says in English':'Copy the whole story out'));
+  if(shownIsTarget&&canSpeak())head.append(button('🔊 Hear it',()=>window.marginSpeak(story.sentences.map(x=>x.t).join(' '),lang.code),'stories-skip','Hear the whole story'));
+  source.append(head,text);host.append(source);
+
+  // where to write
+  const input=el('textarea','stories-input stories-big');input.rows=4;input.value=session.typed||'';input.spellcheck=false;input.setAttribute('aria-label','Your story');
+  input.placeholder=direction==='to-native'?'Write it in English…':lang.code==='ru'?'Напишите историю по-русски…':'Write the story in '+lang.name+'…';
+  if(direction!=='to-native')input.lang=lang.code;
+  host.append(input);
+  const row=el('div','stories-row');
+  if(direction!=='to-native'&&lang.code==='ru'){
+   const latin=button('Latin → Кириллица',()=>{const on=latin.getAttribute('aria-pressed')!=='true';latin.setAttribute('aria-pressed',String(on));remember('translit',on);input.focus()},'stories-chip','Type Russian with a Latin keyboard: privet becomes привет');
+   latin.setAttribute('aria-pressed',String(pref('translit',true)));Translit.attach(input,()=>latin.getAttribute('aria-pressed')==='true');
+   const guide=Translit.help(),keys=button('Keys ?',()=>{guide.hidden=!guide.hidden;keys.setAttribute('aria-pressed',String(!guide.hidden))},'stories-chip','Which keys type which letters');keys.setAttribute('aria-pressed','false');
+   row.append(latin,keys);host.append(row,guide);
+  }
+  const hints=button('Show corrections',()=>{remember('corrections',!pref('corrections',true));hints.setAttribute('aria-pressed',String(pref('corrections',true)));renderLive()},'stories-chip','Show the right word under a wrong one, and the words you skipped');
+  hints.setAttribute('aria-pressed',String(pref('corrections',true)));row.append(hints);if(!row.isConnected)host.append(row);
+
+  // how it is going
+  const live=el('section','stories-live');live.setAttribute('aria-live','off');host.append(live);
+  const actions=el('div','stories-actions');
+  actions.append(button('Finish',finishWhole,'primary stories-check','Grade the whole story (⌘Enter)'),button('Start over',()=>{if(session.typed&&!confirm('Clear what you have written?'))return;session.typed='';input.value='';saveDraft();renderLive();input.focus()},'stories-skip'));
+  host.append(actions,el('small','stories-hint','Feedback updates as you type · ⌘Enter to finish · your draft is kept if you leave'));
+
+  function renderLive(){
+   const t=M.trace(story.sentences,direction,session.typed||'',{extraFor:extraList(story)}),corrections=pref('corrections',true);
+   live.replaceChildren();
+   if(!t.words){live.append(el('p','stories-live-empty','Start typing and each word is checked as you go.'))}
+   else{
+    const words=el('p','stories-words');if(direction!=='to-native')words.lang=lang.code;
+    // words you skipped are shown where they belong, just before the word that follows them
+    let lastRef=-1;
+    const missedBetween=upto=>{for(let i=lastRef+1;i<upto;i++)if(t.refs[i].state==='missed'){const chip=el('span','stories-word is-missed',corrections?t.refs[i].word:'…');chip.title='You skipped a word';words.append(chip,' ')}};
+    for(const item of t.typed){
+     if(item.i!=null){missedBetween(item.i);lastRef=Math.max(lastRef,item.i)}
+     const chip=el('span','stories-word is-'+item.state,item.raw);
+     if(corrections&&(item.state==='wrong'||item.state==='close')&&item.ref)chip.append(el('small','stories-wrote stories-fix',item.ref));
+     if(item.state==='extra')chip.title='Not in the story';
+     words.append(chip,' ');
+    }
+    missedBetween(t.refs.length);
+    live.append(words);
+   }
+   // the sentences fill in as you reach them
+   const reached=t.frontier<0?0:t.refs[t.frontier].sentence;
+   [...bar.children].forEach((seg,i)=>{const r=t.sentences[i];seg.className='stories-seg'+(t.words&&i<reached&&r.covered?' is-'+(r.state==='empty'?'review':r.state):'')+(t.words&&i===reached||!t.words&&i===0?' is-current':'')});
+   bar.setAttribute('role','progressbar');bar.setAttribute('aria-valuenow',String(reached));bar.setAttribute('aria-valuemax',String(story.sentences.length));
+   [...text.children].forEach(span=>{if(span.dataset?.index!=null)span.classList.toggle('is-here',t.words>0&&Number(span.dataset.index)===reached)});
+   count.textContent=t.words?t.words+' words'+(t.missed?' · '+t.missed+' skipped':''):'';
+   score.textContent=t.words?t.percent+'%':'';
+  }
+  const mine=session;
+  input.oninput=()=>{session.typed=input.value;clearTimeout(session.saver);session.saver=setTimeout(()=>{if(session===mine&&view==='write')saveDraft()},600);renderLive()};
+  input.addEventListener('keydown',event=>{if(event.key==='Enter'&&(event.metaKey||event.ctrlKey)){event.preventDefault();finishWhole()}});
+  renderLive();requestAnimationFrame(()=>input.focus());
+ }
+
+ function finishWhole(){
+  if(!(session.typed||'').trim()){toast?.('Write something first');return}
+  clearTimeout(session.saver);
+  const t=M.trace(session.story.sentences,session.direction,session.typed,{extraFor:extraList(session.story),final:true});
+  session.results=t.sentences.map(r=>({...r,typed:r.typed}));
+  if(state.storyDrafts)delete state.storyDrafts[draftKey()];
+  finish();
  }
 
  // ── The end of a story ─────────────────────────────────────────────────────

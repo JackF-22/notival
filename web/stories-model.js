@@ -60,8 +60,86 @@ const StoriesModel=(()=>{
  }
  // The words worth learning from one result (missed, wrong or close).
  const toLearn=result=>Words.toLearn({words:result.words});
+ // ── Writing the whole story at once ───────────────────────────────────────
+ // Everything typed so far is lined up against the story, word by word, as you go. Each sentence may match any of its
+ // accepted wordings; the word being typed is not judged until it is finished; words you have not reached stay pending.
+ const value=(a,b,strict)=>{const v=Words.similar(a.key,b.key);return strict&&v<1?0:v};
+ // The best way to line two word lists up: the pairs {r, t, v} that match, in order (v is 1 for exact, .5 for close).
+ function align(ref,typed,strict=false){
+  const n=ref.length,m=typed.length,score=Array.from({length:n+1},()=>new Array(m+1).fill(0));
+  for(let i=n-1;i>=0;i--)for(let j=m-1;j>=0;j--){const v=value(ref[i],typed[j],strict);score[i][j]=Math.max(score[i+1][j],score[i][j+1],v?score[i+1][j+1]+v:0)}
+  const pairs=[];let i=0,j=0;
+  while(i<n&&j<m){
+   const v=value(ref[i],typed[j],strict);
+   if(v&&score[i][j]===score[i+1][j+1]+v){pairs.push({r:i,t:j,v});i++;j++}
+   else if(score[i][j]===score[i+1][j])i++;else j++;
+  }
+  return pairs;
+ }
+ // How well one wording of a sentence matches the typed words from `from` on, and where its match ends.
+ function reach(ref,typed,from,strict){
+  const n=ref.length,m=typed.length-from,f=Array.from({length:n+1},()=>new Array(m+1).fill(0));
+  for(let i=1;i<=n;i++)for(let j=1;j<=m;j++){const v=value(ref[i-1],typed[from+j-1],strict);f[i][j]=Math.max(f[i-1][j],f[i][j-1],v?f[i-1][j-1]+v:0)}
+  const score=f[n][m];let end=0;if(score>0){end=1;while(f[n][end]<score)end++}
+  return {score,end:from+end};
+ }
+ // The wording each sentence is held to: of its accepted wordings, the one the typed words fit best, in order.
+ function wordings(sentences,direction,typed,extraFor,strict){
+  let at=0;
+  return sentences.map((sentence,index)=>{
+   const options=accepted(sentence,direction,extraFor(index));
+   let pick={text:options[0],score:-1,end:at};
+   if(at<typed.length)for(const text of options){const hit=reach(Words.words(text),typed,at,strict);if(hit.score>pick.score)pick={text,score:hit.score,end:hit.end}}
+   // nothing matched: whatever was typed here took the place of this sentence
+   if(at<typed.length&&pick.score<=0)pick.end=Math.min(typed.length,at+Words.words(pick.text).length);
+   at=Math.max(at,pick.end);
+   return pick.text;
+  });
+ }
+ // The state of everything typed. `final` means you are done: words not reached count as missed.
+ function trace(sentences,direction,text,{extraFor=()=>[],final=false}={}){
+  const strict=direction==='copy',typedWords=Words.words(text),texts=wordings(sentences,direction,typedWords,extraFor,strict);
+  const ref=[];texts.forEach((t,k)=>Words.words(t).forEach(w=>ref.push({...w,sentence:k})));
+  const pairs=align(ref,typedWords,strict);
+  const r=ref.map(()=>({state:'pending'})),t=typedWords.map(word=>({state:'extra',raw:word.raw,sentence:0}));
+  let prevR=-1,prevT=-1;
+  const gap=(toR,toT,atEnd)=>{
+   const refs=[],typed=[];for(let i=prevR+1;i<toR;i++)refs.push(i);for(let j=prevT+1;j<toT;j++)typed.push(j);
+   const k=Math.min(refs.length,typed.length),near=prevR>=0?ref[prevR].sentence:0;
+   for(let x=0;x<k;x++){r[refs[x]]={state:'wrong',written:typedWords[typed[x]].raw};t[typed[x]]={state:'wrong',raw:typedWords[typed[x]].raw,ref:ref[refs[x]].raw,i:refs[x],sentence:ref[refs[x]].sentence}}
+   for(let x=k;x<typed.length;x++)t[typed[x]]={state:'extra',raw:typedWords[typed[x]].raw,sentence:near};
+   for(let x=k;x<refs.length;x++)r[refs[x]]={state:atEnd&&!final?'pending':'missed'};
+  };
+  for(const p of pairs){
+   gap(p.r,p.t,false);
+   const state=p.v===1?'right':'close';
+   r[p.r]={state,written:typedWords[p.t].raw};t[p.t]={state,raw:typedWords[p.t].raw,ref:ref[p.r].raw,i:p.r,sentence:ref[p.r].sentence};prevR=p.r;prevT=p.t;
+  }
+  gap(ref.length,typedWords.length,true);
+  // the word at the caret is not judged until you move on from it
+  const last=typedWords.length-1;
+  if(!final&&last>=0&&!/[\s.,!?;:…»"')\]]$/u.test(text)&&(t[last].state==='wrong'||t[last].state==='extra')){
+   if(t[last].i!=null)r[t[last].i]={state:'pending'};
+   t[last]={state:'typing',raw:t[last].raw,sentence:t[last].sentence};
+  }
+  const point=x=>x.state==='right'?1:x.state==='close'?.5:0;
+  const extras=t.filter(x=>x.state==='extra').length,frontier=r.reduce((at,x,i)=>x.state==='pending'?at:i,-1);
+  const points=r.reduce((sum,x)=>sum+point(x),0);
+  const percent=judged=>judged?Math.round(points/(judged+extras*.35)*100):0;
+  const sentenceResults=sentences.map((_,k)=>{
+   const idx=ref.map((w,i)=>w.sentence===k?i:-1).filter(i=>i>=0),own=t.filter(x=>x.sentence===k&&x.state!=='typing');
+   const words=idx.map(i=>({word:ref[i].raw,state:r[i].state==='pending'?'missed':r[i].state,written:r[i].written}));
+   const extra=own.filter(x=>x.state==='extra').map(x=>x.raw),got=idx.reduce((sum,i)=>sum+point(r[i]),0);
+   const pct=words.length?Math.round(got/(words.length+extra.length*.35)*100):0,wrote=idx.some(i=>r[i].written);
+   return {percent:pct,words,extra,reference:texts[k],typed:idx.filter(i=>r[i].written).map(i=>r[i].written).join(' '),
+    state:!wrote?'empty':pct>=PASS?'good':pct>=REVIEW?'near':'review',covered:idx.some(i=>r[i].state!=='pending')};
+  });
+  return {typed:t,refs:r.map((x,i)=>({...x,word:ref[i].raw,sentence:ref[i].sentence})),texts,sentences:sentenceResults,words:typedWords.length,total:ref.length,frontier,
+   percent:percent(frontier+1),finalPercent:percent(ref.length),extras,
+   missed:r.filter(x=>x.state==='missed').length,wrong:r.filter(x=>x.state==='wrong').length};
+ }
  // Alternate wordings are kept per story sentence and side: "storyId:3:t".
  const key=(storyId,index,side)=>storyId+':'+index+':'+side;
- return {DIRECTIONS,PASS,REVIEW,shown,writes,accepted,gradeSentence,summarize,streak,sentences,pair,clean,valid,toQuestion,toLearn,key};
+ return {DIRECTIONS,PASS,REVIEW,align,trace,shown,writes,accepted,gradeSentence,summarize,streak,sentences,pair,clean,valid,toQuestion,toLearn,key};
 })();
 if(typeof module!=='undefined')module.exports=StoriesModel;

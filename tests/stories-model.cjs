@@ -26,3 +26,28 @@ assert.deepEqual(M.toLearn(M.gradeSentence(s,'Каждое утро я пью к
 for(const [lang,stories] of Object.entries(D.list))for(const st of stories){assert.ok(M.valid(M.clean(st)),st.id);for(const x of st.sentences){assert.equal(M.gradeSentence(x,x.t,{direction:'copy'}).percent,100,st.id+': copy of '+x.t);assert.equal(M.gradeSentence(x,x.n,{direction:'to-native'}).percent,100,st.id+': '+x.n);for(const a of x.nAlt)assert.equal(M.gradeSentence(x,a,{direction:'to-native'}).percent,100,'alt '+a)}}
 assert.equal(new Set(Object.values(D.list).flat().map(x=>x.id)).size,Object.values(D.list).flat().length,'story ids are unique');
 console.log('PASS: stories — grading (alternates, endings, extras, strict copy), summaries, splitting and pairing, starter stories.');
+// ── Writing the whole story at once ──
+{
+ const st=D.list.ru[0].sentences,tr=(text,dir='to-target',o={})=>M.trace(st,dir,text,o);
+ let t=tr('');assert.equal(t.percent,0);assert.ok(t.refs.every(r=>r.state==='pending'),'nothing is judged before you type');
+ t=tr('Меня зовут Анна. Я живу в Москве. ');
+ assert.deepEqual(t.sentences.map(s=>s.percent).slice(0,2),[100,100]);assert.deepEqual(t.sentences.map(s=>s.covered),[true,true,false,false,false,false,false],'sentences not reached are not covered');
+ assert.equal(t.percent,100,'the score so far counts only what you have reached');assert.ok(t.finalPercent<40,'the final score counts all of it');
+ t=tr('Меня зовут Анна. Я живу в Питере. ');
+ assert.equal(t.typed.filter(x=>x.state==='wrong').length,1);assert.equal(t.typed.find(x=>x.state==='wrong').ref,'Москве','the right word is known for the wrong one');
+ t=tr('Меня зовут Анна. Я живу в Москве. Каждое утро я чай. ');
+ assert.equal(t.refs.filter(r=>r.state==='missed').length,1,'a skipped word in the middle is missed');assert.equal(t.sentences[2].words.find(w=>w.state==='missed').word,'пью');
+ t=tr('Меня зов');assert.equal(t.typed.at(-1).state,'typing','the word at the caret is not judged yet');assert.equal(t.refs[1].state,'pending');
+ t=tr('Меня зов ');assert.equal(t.typed.at(-1).state,'wrong');
+ t=tr('Меня зовут Анна. Я живу в Москве. ',...['to-target',{final:true}]);assert.ok(t.refs.slice(8).every(r=>r.state==='missed'),'when you finish, what was not reached is missed');
+ t=tr('My name is Anna. I live in Moscow. I drink tea every morning. ','to-native');
+ assert.deepEqual(t.sentences.slice(0,3).map(s=>s.percent),[100,100,100],'a sentence is held to whichever accepted wording you used');
+ t=tr('Меня зовут Анна. Я люблю свой городу. ','to-target');assert.equal(t.typed.at(-1).state,'close');
+ t=M.trace(st,'copy','Я люблю свой городу ',{});assert.equal(t.typed.at(-1).state,'wrong','copying gives no credit for a close word');
+ t=tr('Меня зовут Анна и ещё слова. Я живу в Москве. ');assert.ok(t.extras>=2,'extra words are counted');assert.ok(t.sentences[0].extra.length>=2&&t.sentences[0].percent<100);
+ assert.deepEqual(M.align([{key:'а'},{key:'б'}],[{key:'б'}]).map(p=>[p.r,p.t]),[[1,0]]);
+ const done=tr('Меня зовут Анна. Я живу в Москве. Каждое утро я пью чай. Потом я иду на работу. Я работаю в школе. Вечером я читаю книгу. Я люблю свой город.','to-target',{final:true});
+ assert.equal(done.finalPercent,100);assert.ok(done.sentences.every(s=>s.state==='good'&&s.covered),'the whole story typed out is perfect');
+ assert.equal(M.summarize(done.sentences).percent,100,'its sentence results feed the usual summary');
+ console.log('PASS: stories — live tracing of a whole typed story (pending, typing, wrong, missed, extra, wordings, strict copy).');
+}

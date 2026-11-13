@@ -45,6 +45,6 @@ const ListeningModel=(()=>{
  }
  // The words worth learning from a check: the ones missed, wrong or close.
  const toLearn=comparison=>[...new Set(comparison.words.filter(item=>item.state==='missed'||item.state==='wrong'||item.state==='close').map(item=>item.word.toLowerCase()))];
- return {normalize,words,compare,toLearn};
+ return {normalize,words,similar,compare,toLearn};
 })();
 if(typeof module!=='undefined')module.exports=ListeningModel;
