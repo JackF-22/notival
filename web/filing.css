@@ -29,3 +29,9 @@ body .note-item:not(.selected):hover{background:transparent}
 .trash-drop.available{opacity:1;transform:none;pointer-events:auto}
 .trash-drop.available.over{transform:scale(1.14);color:#d6453b;border-color:#d6453b;border-style:solid;background:color-mix(in srgb,#d6453b 9%,var(--bg))}
 @media(prefers-reduced-motion:reduce){.trash-drop{transition:none}}
+.filing-selection select{font:inherit;font-size:12px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:inherit;padding:5px 8px}
+.material-select-all{font:inherit;font-size:12px;border:0;background:transparent;color:var(--muted);padding:2px 0;margin:0 0 6px;cursor:pointer}
+.unit-choices{display:grid;gap:6px;margin:12px 0}
+.unit-choice{text-align:left;font:inherit;font-size:14px;border:1px solid var(--line);border-radius:10px;background:transparent;color:inherit;padding:10px 14px;cursor:pointer}
+.unit-choice:hover{background:var(--soft)}
+.subject-add-options .subject-add-danger{color:#c4483c}
