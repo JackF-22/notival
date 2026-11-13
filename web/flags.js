@@ -33,6 +33,38 @@
   for(const s of spans(id)){parents.add(s.closest('.rich-text'));s.replaceWith(...s.childNodes)}
   for(const rich of parents)if(rich){rich.normalize();rich.dispatchEvent(new Event('input',{bubbles:true}))}
  }
+ // A flag (or linked words, see line-links.js) covers exactly what was chosen. Typing at either edge of it, or pressing
+ // Enter there, would let the browser carry it on into the new text or the next bullet; whatever is written there is
+ // moved back outside.
+ let edge=null;
+ const textBefore=(span,node,offset)=>{const r=document.createRange();r.selectNodeContents(span);r.setEnd(node,offset);return r.toString().length};
+ function pointAt(span,chars){
+  const walker=document.createTreeWalker(span,NodeFilter.SHOW_TEXT);let last=null;
+  for(let n=walker.nextNode();n;n=walker.nextNode()){if(chars<=n.length)return [n,chars];chars-=n.length;last=n}
+  return last?[last,last.length]:[span,span.childNodes.length];
+ }
+ document.addEventListener('beforeinput',e=>{
+  edge=null;
+  if(!e.inputType.startsWith('insert')||!e.target.closest?.('#editor .rich-text'))return;
+  const selection=getSelection();if(!selection?.rangeCount||!selection.isCollapsed)return;
+  let node=selection.anchorNode,offset=selection.anchorOffset,span=(node?.nodeType===Node.ELEMENT_NODE?node:node?.parentElement)?.closest('[data-flag],[data-line-link]');
+  if(!span&&node?.nodeType===Node.ELEMENT_NODE){const before=node.childNodes[offset-1];if(before?.matches?.('[data-flag],[data-line-link]')){span=before;node=span;offset=span.childNodes.length}}
+  if(!span||!e.target.contains(span))return;
+  const text=span.textContent,at=textBefore(span,node,offset);
+  const kind=span.dataset.flag?'flag':'line-link',id=span.getAttribute('data-'+kind);
+  if(at===text.length)edge={span,kind,id,text,side:'end'};else if(at===0)edge={span,kind,id,text,side:'start'};
+ },true);
+ document.addEventListener('input',e=>{
+  const was=edge;edge=null;if(!was||!e.target.closest?.('#editor .rich-text'))return;
+  // Enter: the copy of the flag the browser put on the new line is dropped; it keeps whatever text it held.
+  const all=[...document.querySelectorAll('#editor [data-'+was.kind+']')].filter(s=>s.getAttribute('data-'+was.kind)===was.id),copies=all.filter(s=>!s.textContent.trim()&&!s.querySelector('img'));
+  if(copies.length&&copies.length<all.length)for(const s of copies)s.replaceWith(...s.childNodes);
+  const span=was.span;if(!span.isConnected)return;
+  const now=span.textContent;if(now===was.text)return;
+  const range=document.createRange();let moved;
+  if(was.side==='end'&&now.startsWith(was.text)){range.setStart(...pointAt(span,was.text.length));range.setEnd(span,span.childNodes.length);moved=range.extractContents();const last=moved.lastChild;span.after(moved);if(last){const caret=document.createRange();caret.setStartAfter(last);if(last.nodeType===Node.TEXT_NODE)caret.setStart(last,last.length);caret.collapse(true);getSelection().removeAllRanges();getSelection().addRange(caret)}}
+  else if(was.side==='start'&&now.endsWith(was.text)){range.setStart(span,0);range.setEnd(...pointAt(span,now.length-was.text.length));moved=range.extractContents();const last=moved.lastChild;span.before(moved);if(last){const caret=document.createRange();if(last.nodeType===Node.TEXT_NODE)caret.setStart(last,last.length);else caret.setStartAfter(last);caret.collapse(true);getSelection().removeAllRanges();getSelection().addRange(caret)}}
+ },true);
  function paint(){
   const note=current();
   for(const s of document.querySelectorAll('#editor [data-flag]')){

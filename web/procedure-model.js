@@ -49,7 +49,8 @@ const ProcedureModel=(()=>{
  const COMMAND=/\\[A-Za-z]+/;
  const open=text=>{let depth=0;for(const char of text.replace(/\\./g,''))if('({['.includes(char))depth++;else if(')}]'.includes(char))depth--;return depth};
  function autoMath(text,hold,katex){
-  if(!katex||!COMMAND.test(text))return text;
+  if(!katex)return text;
+  if(!COMMAND.test(text))return scripts(text,hold,katex);
   const parts=text.split(/(\s+)/);let out='';
   for(let i=0;i<parts.length;i++){
    if(!COMMAND.test(parts[i])){out+=parts[i];continue}
@@ -59,7 +60,18 @@ const ProcedureModel=(()=>{
    try{out+=hold(katex.renderToString(typeof MathSyntax!=='undefined'?MathSyntax.katexSource(span):span,{throwOnError:true,trust:false,output:'html'}));i=end}
    catch{out+=parts[i]}
   }
-  return out;
+  return scripts(out,hold,katex);
+ }
+ // Subscripts and powers without dollar signs: x_i, p_{LM}, x^2, 10^9, log_2. A short base (up to three letters, or a
+ // number) followed by _ or ^ and one character or a {group}; longer words like max_len stay plain text.
+ const FUNCTIONS=new Set(['log','ln','sin','cos','tan','exp','max','min','lim','det']);
+ const SCRIPT=/(^|[^A-Za-z0-9\\\u0001])([A-Za-z]{1,3}|\d+)('*)((?:[_^](?:\{[^{}]*\}|[A-Za-z0-9]))+)(?![A-Za-z0-9{])/g;
+ function scripts(text,hold,katex){
+  if(!katex)return text;
+  return text.replace(SCRIPT,(whole,before,base,primes,marks)=>{
+   const source=(FUNCTIONS.has(base)?'\\'+base:base)+primes+marks;
+   try{return before+hold(katex.renderToString(source,{throwOnError:true,trust:false,output:'html'}))}catch{return whole}
+  });
  }
  // `katex` is optional: without it, maths is shown as italic source.
  function inline(text,katex,{keywords=true}={}){

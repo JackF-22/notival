@@ -15,11 +15,13 @@
  }
  const selectionTools=document.createElement('div');selectionTools.id='selection-tools';selectionTools.hidden=true;selectionTools.setAttribute('role','toolbar');selectionTools.setAttribute('aria-label','Selected passage');document.body.append(selectionTools);
  const core=new Set(['bold','italic','insertUnorderedList','insertOrderedList','task']);
+ let highlightColor='yellow';
  const insert=menu('Insert','editor-insert',bar);
  for(const control of [...bar.children]){
   if(control.classList.contains('format-separator')){control.remove();continue}
   if(control.hidden||control.id==='heading-style'||control.classList.contains('editor-menu'))continue;
   if(core.has(control.dataset.command))continue;
+  if(control.dataset.command==='highlight'){control.onmousedown=e=>e.preventDefault();control.onclick=()=>RichEditor.command('highlight',highlightColor);continue}
   if(['underline','strikeThrough'].includes(control.dataset.command)){const copy=control.cloneNode(true);copy.onmousedown=e=>e.preventDefault();copy.onclick=()=>RichEditor.command(copy.dataset.command);selectionTools.append(copy);continue}
   if(control.id==='connect-passages')continue;
   control.textContent=control.getAttribute('aria-label')||control.textContent||control.title;insert.append(control);
@@ -38,6 +40,8 @@
  for(const id of ['project-connections','capture']){const node=$('#'+id);if(node)tools.append(node)}
  const writeTab=$('#write-tab'),mapTab=$('#map-tab');writeTab.textContent='Note';mapTab.textContent='Mind map';writeTab.title='Write in this note (⌘⇧M switches)';mapTab.title='See this note as a mind map (⌘⇧M switches)';
  for(const tab of [writeTab,mapTab])tab.setAttribute('aria-pressed',String(tab.classList.contains('selected')));
+ // Highlight colours sit in the selection bar: pick one to mark the passage, pick it again to take it off.
+ for(const color of ['yellow','green','blue','pink']){const dot=document.createElement('button');dot.type='button';dot.onclick=()=>{highlightColor=color;RichEditor.command('highlight',color)};dot.className='hl-dot';dot.dataset.hl=color;dot.title='Highlight '+color;dot.setAttribute('aria-label','Highlight '+color);dot.onmousedown=e=>e.preventDefault();selectionTools.append(dot)}
  const ask=makeButton('Make a question','selection-question',()=>window.marginAskQuestion?.());ask.title='Turn this into a question (⌘⇧K)';ask.onmousedown=e=>e.preventDefault();selectionTools.append(ask);
  const connect=makeButton('Connect passages','selection-connect',()=>$('#connect-passages').click());connect.onmousedown=e=>e.preventDefault();selectionTools.append(connect);
  const question=makeButton('Questions','note-questions',()=>window.marginBrowseNoteQuestions?.());actions.prepend(question);

@@ -23,27 +23,23 @@
 .procedure .proc-edit:hover{color:var(--ink);background:var(--soft)}
 @media (max-width:640px){.procedure{font-size:15px}.procedure .proc-line{gap:6px}}
 
-/* The editor window */
-.procedure-dialog{width:min(980px,calc(100vw - 32px));max-width:calc(100vw - 32px);max-height:calc(100vh - 48px);padding:20px 22px;border:1px solid var(--line);border-radius:16px;background:var(--bg);color:var(--ink);box-shadow:0 18px 60px #0004;overflow:auto}
-.procedure-dialog::backdrop{background:#0006}
-.proc-dialog-head h2{margin:0 0 12px;font-size:19px}
-.proc-dialog-body{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
-.proc-pane{display:flex;flex-direction:column;gap:6px;min-width:0}
-.proc-pane>small{color:var(--muted);font-size:11px;letter-spacing:.04em;text-transform:uppercase}
-/* long steps wrap instead of running past the box; wrapped text stays readable at any indent */
-.proc-source{min-height:220px;max-height:46vh;white-space:pre-wrap;overflow-wrap:anywhere;overflow-x:hidden;resize:vertical;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);font:13.5px/1.55 ui-monospace,"SF Mono",Menlo,Consolas,monospace;tab-size:2;overflow-y:auto}
-.proc-source:focus-visible{outline:2px solid var(--accent,var(--green));outline-offset:1px}
-.proc-note{min-height:1.2em;color:var(--muted);font-size:12px}
-.proc-preview{margin:0;padding:0 2px;min-height:60px}
-.proc-help{margin-top:12px;font-size:12.5px;color:var(--muted)}
-.proc-help summary{cursor:pointer;width:max-content}
-.proc-help ul{margin:8px 0 0;padding-left:18px;display:grid;gap:3px}
-.proc-help code{font:12px ui-monospace,Menlo,monospace;background:var(--soft);padding:1px 6px;border-radius:5px;color:var(--ink)}
-.proc-actions{display:flex;gap:8px;align-items:center;margin-top:16px}
-.proc-actions .proc-spacer{flex:1}
-.proc-option{font-size:13px;display:flex;gap:6px;align-items:center}
-.procedure-dialog button{border:1px solid var(--line);background:transparent;color:inherit;border-radius:8px;padding:7px 16px;font-size:13px;cursor:pointer}
-.procedure-dialog button.primary{background:var(--accent,var(--green));border-color:var(--accent,var(--green));color:var(--on-accent,#fff)}
-.procedure-dialog button.danger{color:#b3402f}
-.procedure-dialog button:focus-visible{outline:2px solid var(--accent,var(--green));outline-offset:2px}
-@media (max-width:820px){.proc-source{min-height:180px}}
+/* Editing in place: steps on top, the typeset result underneath */
+#editor .procedure.editing{cursor:auto;background:color-mix(in srgb,var(--accent,var(--green)) 4%,transparent);outline:2px solid color-mix(in srgb,var(--accent,var(--green)) 40%,transparent);outline-offset:4px;border-radius:2px}
+#editor .procedure.editing:hover{background:color-mix(in srgb,var(--accent,var(--green)) 4%,transparent)}
+.procedure .proc-source{display:block;width:100%;box-sizing:border-box;margin:8px 0 4px;min-height:60px;resize:none;overflow:hidden;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:13.5px/1.55 ui-monospace,"SF Mono",Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;tab-size:2}
+.procedure .proc-source:focus{outline:2px solid var(--accent,var(--green));outline-offset:0}
+.procedure .proc-note{min-height:0;color:var(--muted);font:12px -apple-system,BlinkMacSystemFont,sans-serif}
+.procedure .proc-note:empty{display:none}
+.procedure .proc-preview{border-top:1px dashed var(--line);padding-top:2px;min-height:24px}
+.procedure .proc-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 0 4px;border-top:1px solid var(--line);font:12.5px -apple-system,BlinkMacSystemFont,sans-serif}
+.procedure .proc-bar .proc-spacer{flex:1}
+.procedure .proc-keys{color:var(--muted);font-size:11.5px}
+.procedure .proc-option{display:flex;gap:6px;align-items:center}
+.procedure .proc-bar button{border:1px solid var(--line);background:var(--bg);color:inherit;border-radius:7px;padding:4px 12px;font:inherit;cursor:pointer}
+.procedure .proc-bar button.primary{background:var(--accent,var(--green));border-color:var(--accent,var(--green));color:var(--on-accent,#fff)}
+.procedure .proc-bar button.danger{color:#b3402f}
+.procedure .proc-bar button:focus-visible{outline:2px solid var(--accent,var(--green));outline-offset:2px}
+.procedure .proc-help{padding:0 0 8px;font:12px -apple-system,BlinkMacSystemFont,sans-serif;color:var(--muted)}
+.procedure .proc-help summary{cursor:pointer;width:max-content}
+.procedure .proc-help ul{margin:6px 0 0;padding-left:18px;display:grid;gap:3px}
+.procedure .proc-help code{font:11.5px ui-monospace,Menlo,monospace;background:var(--soft);padding:1px 6px;border-radius:5px;color:var(--ink)}

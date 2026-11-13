@@ -36,7 +36,8 @@ try{
   assert.equal(await evaluate(`(()=>{const h=document.querySelector('#block-handle');return !h.hidden&&h.textContent})()`),'¶');
   assert.equal(await evaluate(`(()=>{const h=document.querySelector('#block-handle').getBoundingClientRect(),e=document.querySelector('.rich-text').getBoundingClientRect();return h.right<=e.left})()`),true);
   await evaluate(`document.querySelector('#block-handle').click()`);await wait(60);
-  assert.equal(await evaluate(`document.querySelectorAll('.block-menu button').length`),9);
+  assert.equal(await evaluate(`document.querySelectorAll('.block-menu button[role=menuitemradio]').length`),9);
+  assert.equal(await evaluate(`[...document.querySelectorAll('.block-menu button[role=menuitem]')].map(b=>b.textContent).join('|')`),'↔Link this line to…|“Side note|}Brace this line');
   await evaluate(`document.querySelector('.block-menu button.current').click()`);await wait(60);
   assert.equal(await outline(),'P:Alpha / UL:OneTwoThree');
   // Turn a paragraph into a heading; typing continues in it.

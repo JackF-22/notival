@@ -44,6 +44,8 @@ body #format-bar .editor-menu:has(#editor-alignment){margin-left:auto}
 body #editor>.block:not(.code){padding:16px;margin:0 0 16px}
 body #editor .rich-text{padding:0;line-height:1.85}
 body #editor .rich-text p{margin-bottom:6px}
+/* Lines indented with Tab, one step per press */
+.rich-text [data-indent="1"]{margin-left:2em}.rich-text [data-indent="2"]{margin-left:4em}.rich-text [data-indent="3"]{margin-left:6em}.rich-text [data-indent="4"]{margin-left:8em}.rich-text [data-indent="5"]{margin-left:10em}.rich-text [data-indent="6"]{margin-left:12em}
 body #editor .rich-text>p:last-child{margin-bottom:0}
 body #editor>.block:not(.code) .block-tools{top:-15px;right:3px}
 body #editor>.block:not(.code) .remove{width:28px;height:28px;min-height:28px}
@@ -226,3 +228,15 @@ body #editor>.block:first-child:not(.code) .block-tools{top:4px}
 body #editor .rich-text :is(h1,h2,h3){margin:24px 0 6px}
 body #editor .rich-text>:first-child:is(h1,h2,h3){margin-top:0}
 body #editor .rich-text :is(h1,h2,h3)+:is(h1,h2,h3){margin-top:12px}
+
+/* Highlights: soft marker colours that keep the text readable in both themes. */
+.rich-text mark{color:inherit;background:#ffe14d66;border-radius:3px;padding:0 1px;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+.rich-text mark[data-hl=green]{background:#6fd88a66}
+.rich-text mark[data-hl=blue]{background:#6cb6ff66}
+.rich-text mark[data-hl=pink]{background:#ff8fb866}
+.hl-icon{display:inline-block;padding:0 3px;border-radius:3px;background:#ffe14d99;font-weight:600;line-height:1.25}
+#selection-tools .hl-dot{width:18px;height:18px;min-width:0;padding:0;border:1px solid color-mix(in srgb,var(--ink) 25%,transparent);border-radius:50%;background:#ffe14d}
+#selection-tools .hl-dot[data-hl=green]{background:#6fd88a}
+#selection-tools .hl-dot[data-hl=blue]{background:#6cb6ff}
+#selection-tools .hl-dot[data-hl=pink]{background:#ff8fb8}
+#selection-tools .hl-dot:first-of-type{margin-left:4px}

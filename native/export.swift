@@ -49,7 +49,7 @@ final class NoteExporter: NSObject, WKNavigationDelegate {
 
  // Where a page may end: after a whole paragraph, list item, table row or image, never through the middle of one.
  private static let measure = """
- (()=>{const y=window.scrollY,atomic=[...document.querySelectorAll('p,h1,h2,h3,img,tr,pre,.display-equation,.note-head,li')].filter(e=>e.tagName!=='LI'||!e.querySelector('ul,ol')).map(e=>{const r=e.getBoundingClientRect();return [r.top+y,r.bottom+y]});
+ (()=>{const y=window.scrollY,atomic=[...document.querySelectorAll('p,h1,h2,h3,img,tr,pre,.display-equation,.note-head,li,.pdf-anno,.pdf-brace')].filter(e=>e.tagName!=='LI'||!e.querySelector('ul,ol')).map(e=>{const r=e.getBoundingClientRect();return [r.top+y,r.bottom+y]});
  return JSON.stringify({height:document.documentElement.scrollHeight,atomic})})()
  """
 

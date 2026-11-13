@@ -215,9 +215,13 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
  var quickNoteHandler: EventHandlerRef?
  let storage = ProcessInfo.processInfo.environment["MARGIN_DATA_DIR"].map { URL(fileURLWithPath: $0).appendingPathComponent("notes.json") }
   ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Margin/notes.json")
+ lazy var updater = Updater(tell: { [weak self] name, value in self?.js(name, value) })
+ var updateTimer: Timer?
+ @objc func checkForUpdates() { updater.check(manual: true) }
  func applicationDidFinishLaunching(_ notification: Notification) {
   let menu = NSMenu(); let item = NSMenuItem(); menu.addItem(item)
   let appMenu = NSMenu(); appMenu.addItem(withTitle: "About Notival", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+  let updateItem = appMenu.addItem(withTitle: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: ""); updateItem.target = self
   appMenu.addItem(.separator()); appMenu.addItem(withTitle: "Quit Notival", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"); item.submenu = appMenu
   let fileItem=NSMenuItem();menu.addItem(fileItem);let fileMenu=NSMenu(title:"File");fileItem.submenu=fileMenu
   let openPDFItem=fileMenu.addItem(withTitle:"Open PDF…",action:#selector(choosePDF),keyEquivalent:"o");openPDFItem.target=self
@@ -323,6 +327,8 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
   for (name,active) in [(NSApplication.didBecomeActiveNotification,true),(NSApplication.didResignActiveNotification,false)] {
    NotificationCenter.default.addObserver(forName:name,object:nil,queue:.main){[weak self] _ in self?.web.evaluateJavaScript("window.notivalAppActive&&window.notivalAppActive(\(active))",completionHandler:nil)}
   }
+  // Mouse look in a memory palace: let go of the pointer if the app is left or the window closes.
+  NotificationCenter.default.addObserver(forName:NSApplication.didResignActiveNotification,object:nil,queue:.main){[weak self] _ in self?.setMouseLook(false); self?.web.evaluateJavaScript("window.marginMouseLookEnded&&window.marginMouseLookEnded()",completionHandler:nil)}
   // ...and whether the window is full screen, which can also change by the person's own hand (Esc, ⌃⌘F).
   for (name,on) in [(NSWindow.didEnterFullScreenNotification,true),(NSWindow.didExitFullScreenNotification,false)] {
    NotificationCenter.default.addObserver(forName:name,object:nil,queue:.main){[weak self] _ in self?.web.evaluateJavaScript("window.notivalFullscreen&&window.notivalFullscreen(\(on))",completionHandler:nil)}
@@ -710,6 +716,26 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
   _ = RegisterEventHotKey(UInt32(kVK_ANSI_N), UInt32(controlKey | optionKey | cmdKey),
    EventHotKeyID(signature: 0x4D4E4F54, id: 1), GetApplicationEventTarget(), 0, &quickNoteKey)
  }
+ // Walking about a memory palace with the mouse: the pointer is held still and hidden, and every movement of the mouse is
+ // sent to the page as a turn of the head. Works whatever the web view's own support for pointer lock.
+ private var mouseLookMonitor: Any?
+ private var mouseLooking = false
+ func setMouseLook(_ on: Bool) {
+  if on == mouseLooking { return }
+  mouseLooking = on
+  if on {
+   window.acceptsMouseMovedEvents = true
+   CGAssociateMouseAndMouseCursorPosition(0); NSCursor.hide()
+   mouseLookMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged]) { [weak self] event in
+    self?.web.evaluateJavaScript("window.marginMouseLook&&window.marginMouseLook(\(event.deltaX),\(event.deltaY))", completionHandler: nil)
+    return event
+   }
+  } else {
+   CGAssociateMouseAndMouseCursorPosition(1); NSCursor.unhide()
+   if let monitor = mouseLookMonitor { NSEvent.removeMonitor(monitor) }
+   mouseLookMonitor = nil
+  }
+ }
  func js(_ name: String, _ value: Any) { guard JSONSerialization.isValidJSONObject([value]), let data = try? JSONSerialization.data(withJSONObject: [value]), let text = String(data: data,encoding: .utf8) else { return }; web.evaluateJavaScript("\(name)(\(text).at(0))", completionHandler: nil) }
  func runProcess(_ executable:String,_ arguments:[String],in directory:URL,timeout:TimeInterval)->(Int32,String,Bool){
   let log=directory.appendingPathComponent(UUID().uuidString+".log");FileManager.default.createFile(atPath:log.path,contents:nil);guard let handle=try? FileHandle(forWritingTo:log) else{return(-1,"Could not capture process output.",false)}
@@ -765,6 +791,8 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
     let data = try? Data(contentsOf: storage); let state = data.flatMap { try? JSONSerialization.jsonObject(with: $0) }
     if data != nil && state == nil { js("window.marginError", "Notes could not be read. Original file preserved."); return }
     js("window.marginLoad", state ?? NSNull()); ready = true
+    // A quiet look for a newer release shortly after opening, and every few hours while Notival stays open.
+    if updateTimer == nil { DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in self?.updater.check() }; updateTimer = Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { [weak self] _ in self?.updater.check() } }
     web.evaluateJavaScript("requestAnimationFrame(()=>requestAnimationFrame(()=>window.notivalReplayLaunch?.()))",completionHandler:nil)
     web.evaluateJavaScript("window.notivalAppActive&&window.notivalAppActive(\(NSApp.isActive))",completionHandler:nil)
     let importScan = FolioseImporter.notes()
@@ -781,10 +809,14 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
      try FileManager.default.copyItem(at: storage, to: backup)
     }
     try data.write(to: storage,options: .atomic); web.evaluateJavaScript("window.marginSaved()",completionHandler: nil)
+   case "installUpdate": updater.install()
+   case "openUpdatePage": updater.openReleasePage()
+   case "checkUpdates": updater.check(manual: true)
    case "fullscreen":
     // Class mode asks for a whole-screen window and gives it back when the class ends.
     let wanted = body["on"] as? Bool ?? false
     if wanted != window.styleMask.contains(.fullScreen) { window.toggleFullScreen(nil) }
+   case "mouseLook": setMouseLook(body["on"] as? Bool ?? false)
    case "copy": NSPasteboard.general.clearContents(); NSPasteboard.general.setString(body["text"] as? String ?? "",forType: .string); js("toast","Snippet copied")
    case "runCode": if body["language"] as? String == "c" { runC(body) } else if body["language"] as? String == "python" { runPython(body) }
    case "revealFile":
@@ -851,6 +883,29 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
       self.js("window.marginImportBackup", backup)
      } catch { self.js("window.marginError", error.localizedDescription) }
     }
+   case "chooseAudio":
+    let panel=NSOpenPanel();panel.canChooseFiles=true;panel.canChooseDirectories=false;panel.allowsMultipleSelection=false;panel.prompt="Add Voice Message"
+    panel.allowedContentTypes=[.audio,.mpeg4Audio,.mpeg4Movie,.movie,.mp3,.wav,.aiff]
+    panel.beginSheetModal(for:window){response in
+     guard response == .OK, let url=panel.url else{self.js("window.marginAudioChosen",["cancelled":true]);return}
+     Listening.importClip(url,into:Listening.directory(next:self.storage)){result in DispatchQueue.main.async{switch result{
+      case .success(let clip):self.js("window.marginAudioChosen",["id":clip.id,"name":clip.name,"duration":clip.duration])
+      case .failure(let error):self.js("window.marginAudioChosen",["error":error.localizedDescription])}}}
+    }
+   case "loadAudio":
+    let id=body["id"] as? String ?? ""
+    DispatchQueue.global(qos:.userInitiated).async{
+     if let url=Listening.file(id,in:Listening.directory(next:self.storage)),let data=try? Data(contentsOf:url){DispatchQueue.main.async{self.js("window.marginAudioData",["id":id,"data":data.base64EncodedString(),"mime":"audio/mp4"])}}
+     else{DispatchQueue.main.async{self.js("window.marginAudioData",["id":id,"error":"This voice message's audio file is missing."])}}
+    }
+   case "transcribeAudio":
+    let id=body["id"] as? String ?? "",locale=body["locale"] as? String ?? "ru-RU",allowServer=body["allowServer"] as? Bool ?? false
+    guard let url=Listening.file(id,in:Listening.directory(next:storage)) else{js("window.marginTranscript",["id":id,"error":"This voice message's audio file is missing."]);return}
+    Listening.transcribe(url,locale:locale,allowServer:allowServer){result in DispatchQueue.main.async{switch result{
+     case .success(let draft):self.js("window.marginTranscript",["id":id,"text":draft.text,"words":draft.words,"onDevice":draft.onDevice])
+     case .failure(let error):self.js("window.marginTranscript",["id":id,"error":error.localizedDescription,"code":(error as NSError).code])}}}
+   case "deleteAudio":
+    if let url=Listening.file(body["id"] as? String ?? "",in:Listening.directory(next:storage)){try? FileManager.default.removeItem(at:url)}
    case "attachMaterials":
     let subjectID=body["subjectID"] as? String ?? "",unitID=body["unitID"] as? String ?? ""
     let finder={[weak self] in
@@ -960,7 +1015,8 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
   window?.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps:true)
  }
  @objc func formatNoteText(_ sender:NSMenuItem){js("window.notivalFormat",sender.representedObject as? String ?? "bold")}
- func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { window.makeKeyAndOrderFront(nil);web.evaluateJavaScript("requestAnimationFrame(()=>window.notivalReplayLaunch?.())",completionHandler:nil); return true }
+ // Coming back to an app that's already running just brings the window forward; the launch animation is only for starting up.
+ func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { window.makeKeyAndOrderFront(nil); return true }
  func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) { decisionHandler(navigationAction.request.url?.isFileURL == true ? .allow : .cancel) }
 }
 if CommandLine.arguments.contains("--check-foliose-import") {

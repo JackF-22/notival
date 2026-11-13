@@ -1,0 +1,53 @@
+const assert=require('node:assert/strict'),M=require('../web/stories-model.js'),D=require('../web/stories-data.js');
+const s=D.list.ru[0].sentences[2];
+let r=M.gradeSentence(s,'Every morning I drink tea.',{direction:'to-native'});
+assert.equal(r.percent,100);assert.equal(r.state,'good');
+r=M.gradeSentence(s,'i drink tea every morning',{direction:'to-native'});assert.equal(r.percent,100,'a listed alternate wording is fully right');
+r=M.gradeSentence(s,'Каждое утро я пью чай',{direction:'to-target'});assert.equal(r.percent,100,'punctuation and case are ignored');
+r=M.gradeSentence(s,'Я пью чай каждое утро',{direction:'to-target'});assert.equal(r.percent,100,'the alternate Russian order is accepted');
+r=M.gradeSentence(s,'Каждое утро я пью кофе',{direction:'to-target'});assert.equal(r.words.find(w=>w.word==='чай').state,'wrong');assert.ok(r.percent<85&&r.percent>=60,'one wrong word of five is near');assert.equal(r.state,'near');
+r=M.gradeSentence(s,'',{direction:'to-target'});assert.equal(r.percent,0);assert.equal(r.state,'empty');
+r=M.gradeSentence(D.list.ru[0].sentences[6],'Я люблю свой городу',{direction:'to-target'});assert.equal(r.words[3].state,'close','a wrong ending is close');
+const strict=M.gradeSentence(D.list.ru[0].sentences[6],'Я люблю свой городу',{direction:'copy'});assert.ok(strict.percent<r.percent,'copying gives no credit for a close word');
+r=M.gradeSentence(s,'Every morning I drink tea and coffee',{direction:'to-native'});assert.ok(r.percent<100&&r.percent>=85,'extra words cost a little');assert.deepEqual(r.extra,['and','coffee']);
+r=M.gradeSentence(s,'Each dawn I sip tea',{direction:'to-native',extra:['Each dawn I sip tea']});assert.equal(r.percent,100,'a wording you accepted counts');
+assert.equal(M.shown(s,'to-target'),s.n);assert.equal(M.shown(s,'to-native'),s.t);assert.equal(M.shown(s,'copy'),s.t);
+assert.equal(M.writes('to-native','ru'),'en');assert.equal(M.writes('to-target','ru'),'ru');assert.equal(M.writes('copy','ru'),'ru');
+const sum=M.summarize([{percent:100},{percent:50},null,{percent:90}]);
+assert.deepEqual([sum.done,sum.total,sum.percent,sum.perfect,sum.passed,sum.weak],[3,4,80,1,2,[1]]);
+assert.equal(M.streak([{percent:30},{percent:95},{percent:100},null]),2);assert.equal(M.streak([{percent:95},{percent:20}]),0);
+assert.deepEqual(M.sentences('Привет! Как дела? Хорошо… А у тебя? «Да.» Нет'),['Привет!','Как дела?','Хорошо…','А у тебя?','«Да.»','Нет']);
+const p=M.pair('Привет. Пока.','Hello. Bye.');assert.equal(p.ok,true);assert.equal(p.sentences[1].n,'Bye.');
+assert.equal(M.pair('Привет. Пока.','Hello.').ok,false,'sentence counts must match');
+assert.equal(M.valid(M.clean({title:'  ',sentences:[{t:'a',n:''},{t:'x',n:'y'}]})),true);assert.equal(M.clean({sentences:[{t:'a',n:''}]}).sentences.length,0);
+assert.equal(M.clean({sentences:[]}).title,'Untitled story');
+const q=M.toQuestion(s,'to-target','ru');assert.equal(q.answer,s.t);assert.match(q.prompt,/How do you say/);assert.equal(M.toQuestion(s,'to-native').answer,s.n);
+assert.deepEqual(M.toLearn(M.gradeSentence(s,'Каждое утро я пью кофе',{direction:'to-target'})),['чай']);
+for(const [lang,stories] of Object.entries(D.list))for(const st of stories){assert.ok(M.valid(M.clean(st)),st.id);for(const x of st.sentences){assert.equal(M.gradeSentence(x,x.t,{direction:'copy'}).percent,100,st.id+': copy of '+x.t);assert.equal(M.gradeSentence(x,x.n,{direction:'to-native'}).percent,100,st.id+': '+x.n);for(const a of x.nAlt)assert.equal(M.gradeSentence(x,a,{direction:'to-native'}).percent,100,'alt '+a)}}
+assert.equal(new Set(Object.values(D.list).flat().map(x=>x.id)).size,Object.values(D.list).flat().length,'story ids are unique');
+console.log('PASS: stories — grading (alternates, endings, extras, strict copy), summaries, splitting and pairing, starter stories.');
+// ── Writing the whole story at once ──
+{
+ const st=D.list.ru[0].sentences,tr=(text,dir='to-target',o={})=>M.trace(st,dir,text,o);
+ let t=tr('');assert.equal(t.percent,0);assert.ok(t.refs.every(r=>r.state==='pending'),'nothing is judged before you type');
+ t=tr('Меня зовут Анна. Я живу в Москве. ');
+ assert.deepEqual(t.sentences.map(s=>s.percent).slice(0,2),[100,100]);assert.deepEqual(t.sentences.map(s=>s.covered),[true,true,false,false,false,false,false],'sentences not reached are not covered');
+ assert.equal(t.percent,100,'the score so far counts only what you have reached');assert.ok(t.finalPercent<40,'the final score counts all of it');
+ t=tr('Меня зовут Анна. Я живу в Питере. ');
+ assert.equal(t.typed.filter(x=>x.state==='wrong').length,1);assert.equal(t.typed.find(x=>x.state==='wrong').ref,'Москве','the right word is known for the wrong one');
+ t=tr('Меня зовут Анна. Я живу в Москве. Каждое утро я чай. ');
+ assert.equal(t.refs.filter(r=>r.state==='missed').length,1,'a skipped word in the middle is missed');assert.equal(t.sentences[2].words.find(w=>w.state==='missed').word,'пью');
+ t=tr('Меня зов');assert.equal(t.typed.at(-1).state,'typing','the word at the caret is not judged yet');assert.equal(t.refs[1].state,'pending');
+ t=tr('Меня зов ');assert.equal(t.typed.at(-1).state,'wrong');
+ t=tr('Меня зовут Анна. Я живу в Москве. ',...['to-target',{final:true}]);assert.ok(t.refs.slice(8).every(r=>r.state==='missed'),'when you finish, what was not reached is missed');
+ t=tr('My name is Anna. I live in Moscow. I drink tea every morning. ','to-native');
+ assert.deepEqual(t.sentences.slice(0,3).map(s=>s.percent),[100,100,100],'a sentence is held to whichever accepted wording you used');
+ t=tr('Меня зовут Анна. Я люблю свой городу. ','to-target');assert.equal(t.typed.at(-1).state,'close');
+ t=M.trace(st,'copy','Я люблю свой городу ',{});assert.equal(t.typed.at(-1).state,'wrong','copying gives no credit for a close word');
+ t=tr('Меня зовут Анна и ещё слова. Я живу в Москве. ');assert.ok(t.extras>=2,'extra words are counted');assert.ok(t.sentences[0].extra.length>=2&&t.sentences[0].percent<100);
+ assert.deepEqual(M.align([{key:'а'},{key:'б'}],[{key:'б'}]).map(p=>[p.r,p.t]),[[1,0]]);
+ const done=tr('Меня зовут Анна. Я живу в Москве. Каждое утро я пью чай. Потом я иду на работу. Я работаю в школе. Вечером я читаю книгу. Я люблю свой город.','to-target',{final:true});
+ assert.equal(done.finalPercent,100);assert.ok(done.sentences.every(s=>s.state==='good'&&s.covered),'the whole story typed out is perfect');
+ assert.equal(M.summarize(done.sentences).percent,100,'its sentence results feed the usual summary');
+ console.log('PASS: stories — live tracing of a whole typed story (pending, typing, wrong, missed, extra, wordings, strict copy).');
+}

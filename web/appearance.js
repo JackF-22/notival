@@ -33,6 +33,9 @@
    b.onclick=()=>{try{localStorage.setItem('notival-file-source',value)}catch{}if(window.webkit?.messageHandlers?.margin)window.webkit.messageHandlers.margin.postMessage({type:'setFileSource',value});gallery()};sources.append(b);
   }
   dialog.append(sources);const sourceNote=document.createElement('p');sourceNote.className='file-source-note';sourceNote.textContent=current==='foliose'?'Open PDF and Attach materials open Foliose. Double-click a file there to bring it into Notival. Falls back to Finder if Foliose is not installed.':'Open PDF and Attach materials use the standard Finder file picker.';dialog.append(sourceNote);
+  // Less on screen: hide the parts you don't use.
+  const showTitle=document.createElement('h3');showTitle.textContent='What Notival shows';showTitle.className='file-source-title';dialog.append(showTitle);
+  const show=document.createElement('button');show.textContent='Show and hide parts of Notival…  ⌘,';show.className='customize-open';show.onclick=()=>{if(typeof Customize!=='undefined')Customize.open()};dialog.append(show);
   const close=document.createElement('button');close.textContent='Done';close.className='primary';close.onclick=()=>dialog.close();dialog.append(close)}
  button.onclick=()=>{gallery();dialog.showModal()};system.addEventListener('change',apply);apply();window.addEventListener('load',()=>setTimeout(sendTheme,150));try{const saved=localStorage.getItem('notival-file-source');if(saved&&window.webkit?.messageHandlers?.margin)window.webkit.messageHandlers.margin.postMessage({type:'setFileSource',value:saved})}catch{}
 })();

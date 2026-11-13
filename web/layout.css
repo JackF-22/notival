@@ -5,6 +5,12 @@
 .rich-text img[data-align=right]{float:right;margin:4px 0 10px 18px}
 .rich-text img[data-align=center]{display:block;margin:10px auto}
 .rich-text::after{content:"";display:block;clear:both}
+/* Nothing runs under a picture. Lists, equations, quotes and code sit in their own box that narrows
+   to fit beside it (so bullets are never hidden), and a heading, table or rule always starts below it. */
+.rich-text>:is(ul,ol),.rich-text :is(.display-equation,blockquote,pre){display:flow-root}
+.rich-text>:is(h1,h2,h3,hr,table){clear:both}
+/* A blank line ends the text beside a picture: whatever comes after it starts below both. */
+.rich-text>p:has(>br:only-child)+*{clear:both}
 .image-align{position:absolute;left:50%;top:-38px;transform:translateX(-50%);display:flex;gap:2px;padding:3px;background:var(--bg,#fff);border:1px solid var(--line,#ddd);border-radius:8px;box-shadow:0 2px 10px #0002;pointer-events:auto}
 .image-align button{width:28px;height:26px;padding:0;border:0;border-radius:5px;background:transparent;color:var(--ink,#333);font-size:15px;line-height:1;cursor:pointer}
 .image-align button:hover{background:var(--soft,#eee)}
@@ -30,3 +36,11 @@ body.cell-dragging,body.cell-dragging *{cursor:grabbing!important;user-select:no
 .layout-drop.is-refused{background:#d4584a;box-shadow:0 0 0 3px #d4584a33}
 .layout-drop.is-refused::after{content:attr(data-note);position:absolute;left:0;top:8px;white-space:nowrap;padding:3px 8px;border-radius:6px;background:#d4584a;color:#fff;font-size:12px}
 @media (prefers-reduced-motion:no-preference){.layout-drop{transition:left .08s,top .08s,width .08s,height .08s}}
+
+/* Picking up a picture or an equation: a bar shows where it will land. */
+body.block-moving,body.block-moving *{cursor:grabbing!important;user-select:none!important;-webkit-user-select:none!important}
+.rich-text .is-moving{opacity:.35}
+.move-drop{position:fixed;z-index:1049;display:none;border-radius:3px;background:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 20%,transparent);pointer-events:none}
+.move-ghost{position:fixed;z-index:1050;max-width:220px;padding:4px 9px;border-radius:8px;background:var(--bg,#fff);border:1px solid var(--accent);color:var(--ink,#333);font-size:12px;box-shadow:0 6px 20px #0003;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rich-text .display-equation:not(.editing){cursor:grab}
+.rich-text img{cursor:grab}

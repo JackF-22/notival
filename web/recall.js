@@ -3,6 +3,18 @@
  const M=RecallModel,DAY=86400000,$=s=>document.querySelector(s);
  const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined&&text!==null)n.textContent=text;if(cls)n.className=cls;return n};
  const btn=(label,fn,cls)=>{const b=el('button',label,cls);b.type='button';b.onclick=fn;return b};
+ // Text containing $…$ or $$…$$ comes back as a fragment with the math typeset (plain source if KaTeX can't parse it).
+ const MATH_SPLIT=/(\$\$[\s\S]+?\$\$|\$[^$\n]+?\$)/;
+ function typeset(text){
+  const out=document.createDocumentFragment();
+  for(const part of String(text).split(MATH_SPLIT)){
+   if(!part)continue;const m=part.match(/^(\$\$?)([\s\S]+?)\1$/);
+   if(m&&typeof katex!=='undefined'){const s=el('span',undefined,'recall-math'+(m[1]==='$$'?' is-display':''));try{katex.render(m[2].trim(),s,{displayMode:m[1]==='$$',throwOnError:true,trust:false,maxExpand:1000,maxSize:20})}catch{s.textContent=part}out.append(s)}
+   else out.append(part);
+  }
+  return out;
+ }
+ const rich=(tag,text,cls)=>{const n=el(tag,undefined,cls);n.append(typeset(text));return n};
  const dialog=el('dialog',undefined,'recall-dialog');document.body.append(dialog);
  const typeNames={qa:'Question',cloze:'Fill in',explain:'Explain',passage:'Passage'};
  let ctx={project:null,notes:null,title:'',unitId:''},sess=null,onKey=null;
@@ -12,10 +24,12 @@
  const scope=()=>ctx.notes?{notes:ctx.notes}:{projectId:ctx.project?.id||null,unitId:ctx.unitId||null,exclude:ctx.exclude||null};
  const noteOf=id=>state.notes.find(n=>n.id===id);
  const reviews=()=>state.reviews??={};
+ const allowance=()=>M.allowance(state);
+ const sessionFor=list=>M.queue(list,reviews(),{mode:'due',limit:15,newLimit:allowance()});
  const isMade=item=>item.origin==='made'&&(state.items||[]).some(i=>i.id===item.id);
  function setScope(o={}){ctx={project:o.project||null,notes:o.notes||null,title:o.title||o.project?.name||'All notes',unitId:o.unitId||'',exclude:o.exclude?new Set(o.exclude):null}}
  function unitLabel(item){const p=state.projects.find(p=>p.id===item.projectId);return p?.units?.find(u=>u.id===item.unitId)?.name||''}
- function sourceLabel(item){const n=item.noteId&&noteOf(item.noteId);return [n?(n.title||'Untitled'):'',unitLabel(item)].filter(Boolean).join(' · ')}
+ function sourceLabel(item){if(item.origin==='vocab')return 'Vocabulary';const n=item.noteId&&noteOf(item.noteId);return [n?(n.title||'Untitled'):'',unitLabel(item)].filter(Boolean).join(' · ')}
  function frame(title,subtitle,exit=()=>dialog.close()){
   const x=btn('×',exit,'dialog-close');x.title='Close';x.setAttribute('aria-label','Close');
   dialog.replaceChildren(x,el('small',subtitle||ctx.title,'recall-eyebrow'),el('h2',title));dialog.onkeydown=null;onKey=null;
@@ -41,7 +55,7 @@
  // ── Hub ─────────────────────────────────────────────────────────────────────
  function hub(options){
   if(options)setScope(options);
-  const list=M.collect(state,scope()),stats=M.stats(list,reviews()),made=list.length;
+  const list=M.collect(state,scope()),stats=M.stats(list,reviews(),Date.now(),allowance()),made=list.length;
   frame('Recall');
   const subject=ctx.project&&state.projects.find(p=>p.id===ctx.project.id);
   if(subject?.units?.length&&!ctx.notes){
@@ -54,37 +68,148 @@
    dialog.append(el('p','Tip: in a note, select a phrase and press ⌘⇧K. You can also type Q: and A: on two lines, or put {{double braces}} around words to hide.','recall-note'));
    return;
   }
-  const session=M.queue(list,reviews(),{mode:'due',limit:15,newLimit:6}).length;
+  const session=sessionFor(list).length,work=M.workload(list,reviews(),Date.now(),allowance()),ready=session?work.ready:0;
   const lead=el('div',undefined,'recall-lead');
-  lead.append(el('strong',String(session),'recall-count'),el('span',session?(session===1?'question ready':'questions ready'):'All caught up'));dialog.append(lead);
-  const when=nextDue(list);
-  dialog.append(el('p',session?(stats.new?stats.new+' new · ':'')+made+' in total':(when?'Next review '+when+'.':'Nothing is due yet.'),'recall-note'));
+  lead.append(el('strong',String(ready),'recall-count'),el('span',ready?(ready===1?'question ready':'questions ready'):'All caught up'));dialog.append(lead);
+  const when=nextDue(list),limitHit=stats.new>0&&!allowance();
+  dialog.append(el('p',session?made+(made===1?' question':' questions')+' in total':[when?'Next review '+when+'.':'Nothing is due yet.',limitHit?'Today’s new-question limit is reached.':''].filter(Boolean).join(' '),'recall-note'));
+  if(session){
+   // How are you feeling? It decides how big today's session is.
+   const feel=el('div',undefined,'recall-mood'),mood=moodNow();feel.append(el('small','How are you feeling today?','recall-label'));
+   const chips=el('div',undefined,'recall-mood-chips');
+   for(const [key,info] of Object.entries(M.MOODS)){const chip=btn(info.label,()=>{state.recallMood={day:today(),value:key};persist();hub()},'recall-chip');chip.setAttribute('aria-pressed',String(key===mood));chips.append(chip)}
+   feel.append(chips);
+   const plan=M.plan(list,reviews(),state,{mood}),minutes=Math.max(1,Math.round(plan.seconds/60));
+   feel.append(el('small',plan.queue.length+' in this session · about '+minutes+' min'+(plan.new?' · '+plan.new+' new':'')+(plan.note?' · '+plan.note:''),'recall-plan'));
+   dialog.append(feel);
+  }
   const row=el('div',undefined,'recall-actions');
   row.append(session?btn('Start',()=>start('due',15),'primary'):btn('Practice anyway',()=>start('quiz',10),'primary'));dialog.append(row);
   const links=el('div',undefined,'recall-links');
   links.append(btn('Make a question',()=>compose({note:ctx.notes?.[0]||null,after:hub})),btn('Import from AI',()=>importFromAI()),btn('Browse all '+made,()=>bank()));
   dialog.append(links);
+  const limit=el('label','New per day ',undefined),limitSelect=el('select');limitSelect.setAttribute('aria-label','New questions per day');
+  for(const n of new Set([5,10,20,40,Number(state.recallNewPerDay)||M.DEFAULT_NEW_PER_DAY].sort((a,b)=>a-b))){const o=el('option',String(n));o.value=String(n);limitSelect.append(o)}
+  limitSelect.value=String(Number(state.recallNewPerDay)||M.DEFAULT_NEW_PER_DAY);limitSelect.onchange=()=>{state.recallNewPerDay=Number(limitSelect.value);persist();hub()};
+  limit.className='recall-limit';limit.append(limitSelect);dialog.append(limit);
+  memoryPanel(list);
+ }
+ // How you feel today shapes the session. It is asked once a day and can be changed whenever.
+ const today=()=>new Date().toISOString().slice(0,10);
+ const moodNow=()=>state.recallMood?.day===today()?state.recallMood.value:'ok';
+
+ // ── Hearing words: the Mac's own voice ──────────────────────────────────────
+ const canSpeak=()=>'speechSynthesis' in window&&typeof SpeechSynthesisUtterance!=='undefined';
+ function speak(text,code){
+  if(!canSpeak()||!text)return false;
+  const locale=(typeof NotivalLanguages!=='undefined'&&NotivalLanguages.list.find(l=>l.code===code)?.locale)||'en-US',voices=speechSynthesis.getVoices();
+  const voice=voices.find(v=>v.lang.replace('_','-')===locale)||voices.find(v=>v.lang.toLowerCase().startsWith(locale.slice(0,2).toLowerCase()));
+  speechSynthesis.cancel();const say=new SpeechSynthesisUtterance(text);say.lang=locale;if(voice)say.voice=voice;say.rate=.85;speechSynthesis.speak(say);return true;
+ }
+ window.marginSpeak=Object.assign(speak,{available:canSpeak});
+
+ // ── Word practice: pick a direction and type your answers ───────────────────
+ // Unlike a scheduled review, you choose what to practise: the word in the language → its meaning, the meaning → the word,
+ // both mixed together, or listening and typing what you hear. Every answer still teaches the memory model.
+ const PRACTICE='notival.vocab.practice';
+ const practicePref=()=>{try{return {dir:'know',which:'mixed',count:15,...JSON.parse(localStorage.getItem(PRACTICE)||'{}')}}catch{return {dir:'know',which:'mixed',count:15}}};
+ function practiceList(project,{dir,which,count}){
+  const kinds=dir==='both'?['know','say']:[dir],now=Date.now();
+  const items=M.vocabItems(state,{projectId:project.id,all:true}).filter(item=>kinds.includes(item.dir)&&!state.suspended?.[item.id]);
+  const rev=item=>reviews()[item.id],chance=item=>rev(item)?M.retrievability(rev(item),now):1.5;
+  const shuffled=[...items].sort(()=>Math.random()-.5);
+  let ordered;
+  if(which==='new')ordered=[...items].sort((a,b)=>b.created-a.created);
+  else if(which==='weak')ordered=[...shuffled].sort((a,b)=>chance(a)-chance(b));
+  else if(which==='all')ordered=shuffled;
+  else{
+   // a smart mix: what is due, then what has not been seen, then the rest, shakiest first
+   const due=shuffled.filter(i=>rev(i)&&rev(i).due<=now).sort((a,b)=>chance(a)-chance(b)),fresh=shuffled.filter(i=>!rev(i)),rest=shuffled.filter(i=>rev(i)&&rev(i).due>now).sort((a,b)=>chance(a)-chance(b));
+   ordered=[...due,...fresh,...rest];
+  }
+  const picked=count?ordered.slice(0,count):ordered;
+  // The same word never comes up twice in a row.
+  for(let i=1;i<picked.length;i++)if(picked[i].vocabId===picked[i-1].vocabId){const k=picked.findIndex((item,j)=>j>i&&item.vocabId!==picked[i-1].vocabId);if(k>0)[picked[i],picked[k]]=[picked[k],picked[i]]}
+  return {picked,pool:items};
+ }
+ function vocabPractice(project){
+  setScope({project});
+  const subject=state.projects.find(p=>p.id===project.id),name=subject?.language?.name||'the language';
+  const known=new Set(M.vocabItems(state,{projectId:project.id,all:true}).map(i=>i.vocabId)).size;
+  frame('Practice words',subject?.name);
+  if(known<2){dialog.append(el('p','Add at least two words with meanings to practise them.','recall-lead-text'));return}
+  const pref=practicePref(),choose=(key,value)=>{try{localStorage.setItem(PRACTICE,JSON.stringify({...practicePref(),[key]:value}))}catch{}vocabPractice(project)};
+  const group=(label,options,current,key)=>{
+   dialog.append(el('small',label,'recall-label'));const row=el('div',undefined,'recall-options');
+   for(const [value,title,hint] of options){const b=btn('',()=>choose(key,value),'recall-option');b.append(el('strong',title),...(hint?[el('small',hint)]:[]));b.setAttribute('aria-pressed',String(String(current)===String(value)));b.dataset.value=String(value);row.append(b)}
+   dialog.append(row);
+  };
+  const directions=[['know',name+' → English','See the word, type its meaning'],['say','English → '+name,'See the meaning, type the word'],['both','Both ways','Mixed together']];
+  if(canSpeak())directions.push(['hear','Listen and type','Hear the word, type it']);
+  group('Direction',directions,pref.dir,'dir');
+  group('Which words',[['mixed','Smart mix','Due first, then new'],['weak','Shakiest first',''],['new','Newest first',''],['all','All, shuffled','']],pref.which,'which');
+  group('How many',[[10,'10',''],[20,'20',''],[0,'All '+known,'']],pref.count,'count');
+  const row=el('div',undefined,'recall-actions');
+  row.append(btn('Start',()=>{const plan=practiceList(project,practicePref());if(!plan.picked.length){toast('Nothing to practise yet');return}run({mode:'vocab',list:plan.picked,pool:plan.pool})},'primary'));dialog.append(row);
+ }
+
+ // ── Memory: what the system has learned about you ───────────────────────────
+ const DAY_NAMES=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+ function memoryPanel(list){
+  const stat=M.retention(state),cal=M.calibration(state),forecast=M.forecast(list,reviews()),leeches=M.leeches(list,reviews()),exam=ctx.project?M.examFor(state,ctx.project.id):null;
+  const known=list.filter(i=>reviews()[i.id]).length;if(!known&&!stat.count)return;
+  const box=el('details',undefined,'recall-memory');
+  box.append(el('summary','Memory'+(stat.pct!=null?' · '+stat.pct+'% recalled lately':'')));
+  const tiles=el('div',undefined,'recall-tiles');
+  for(const [value,label] of [[stat.pct!=null?stat.pct+'%':'—','Recalled (30 days)'],[String(M.reviewedToday(state)),'Reviewed today'],[String(list.filter(i=>reviews()[i.id]&&M.status(reviews()[i.id])==='mature').length),'Well known']]){const t=el('div',undefined,'recall-tile');t.append(el('strong',value),el('small',label));tiles.append(t)}
+  box.append(tiles);
+  // The week ahead: how many reviews fall due each day
+  const max=Math.max(1,...forecast),bars=el('div',undefined,'recall-forecast');bars.setAttribute('role','img');bars.setAttribute('aria-label','Reviews due over the next week: '+forecast.join(', '));
+  forecast.forEach((count,i)=>{const col=el('div'),bar=el('span');bar.style.height=Math.max(3,Math.round(count/max*38))+'px';bar.title=count+' due';col.append(el('small',String(count||'')),bar,el('small',i===0?'Today':DAY_NAMES[(new Date().getDay()+i)%7]));bars.append(col)});
+  box.append(el('small','The week ahead','recall-label'),bars);
+  // Insights are only said once there is something real to say.
+  const notes=[],time=M.bestTime(state),moods=M.byMood(state);
+  if(time)notes.push('You remember best in the '+time.best.name+' ('+time.best.pct+'% vs '+time.worst.pct+'% in the '+time.worst.name+').');
+  if(moods)notes.push('On tired days you recall '+moods.tired.pct+'% against '+moods.fresh.pct+'% when fresh, so a lighter session on those days is worth it.');
+  if(cal.factor<.9)notes.push('You forget a little faster than average, so reviews come back sooner for you.');
+  else if(cal.factor>1.1)notes.push('You hold on to things well, so your reviews are spaced further apart.');
+  for(const text of notes)box.append(el('p',text,'recall-insight'));
+  if(exam){
+   const ready=M.readiness(list,reviews(),exam.ts);
+   if(ready.pct!=null){
+    const line=el('p',undefined,'recall-insight recall-exam-line');line.append(el('b',exam.title+' '+(exam.days<=0?'is today':exam.days===1?'is tomorrow':'is in '+exam.days+' days')),' \u2014 if you stopped now you\u2019d remember about '+ready.pct+'% of it'+(ready.shaky.length?', with '+ready.shaky.length+' shaky.':'.'));
+    if(ready.shaky.length)line.append(' ',btn('Review the shaky ones',()=>run({mode:'weak',list:ready.shaky.slice(0,15),pool:list}),'recall-link'));
+    box.append(line);
+   }
+  }
+  if(leeches.length){const line=el('p',undefined,'recall-insight');line.append(leeches.length+(leeches.length===1?' question keeps':' questions keep')+' slipping. ',btn('See them',()=>bank(),'recall-link'));box.append(line)}
+  dialog.append(box);
  }
  function start(modeName,limit){
-  const list=M.collect(state,scope()),picked=M.queue(list,reviews(),{mode:modeName,limit,newLimit:modeName==='due'?6:limit});
+  const list=M.collect(state,scope());
+  // A normal review is planned: the likeliest-forgotten first, sized to your mood, backlog and recent accuracy.
+  const planned=modeName==='due'?M.plan(list,reviews(),state,{mood:moodNow()}):null;
+  const picked=planned?planned.queue:M.queue(list,reviews(),{mode:modeName,limit,newLimit:modeName==='due'?allowance():limit});
   if(!picked.length){toast('Nothing to ask yet');return}
   run({mode:modeName,list:picked,pool:list});
  }
 
  // ── Session ─────────────────────────────────────────────────────────────────
  function run({mode:modeName,list,pool}){
-  sess={mode:modeName,queue:list.slice(),total:list.length,results:[],asked:new Set(),pool:pool||M.collect(state,scope())};
+  sess={mode:modeName,queue:list.slice(),total:list.length,results:[],asked:new Set(),pool:pool||M.collect(state,scope()),mood:moodNow()};
   next();
  }
  function next(){sess.queue.length?card(sess.queue[0]):summary()}
  function chrome(item){
   const done=sess.results.length,bar=el('div',undefined,'recall-progress'),fill=el('span');fill.style.width=Math.round(done/sess.total*100)+'%';bar.append(fill);
   const x=btn('×',()=>dialog.close(),'dialog-close');x.title='Stop · progress is saved';x.setAttribute('aria-label','Stop');
-  const top=el('div',undefined,'recall-top');top.append(el('span',(sess.mode==='quiz'?'Practice':sess.mode==='weak'?'Shaky spots':sess.mode==='drill'?'Drill':'Review')+' · '+(Math.min(done+1,sess.total))+' of '+sess.total),el('span',typeNames[item.type]||'Question','recall-badge'));
+  const top=el('div',undefined,'recall-top');top.append(el('span',(sess.mode==='quiz'?'Practice':sess.mode==='vocab'?'Word practice':sess.mode==='weak'?'Shaky spots':sess.mode==='drill'?'Drill':'Review')+' · '+(Math.min(done+1,sess.total))+' of '+sess.total),el('span',typeNames[item.type]||'Question','recall-badge'));
   dialog.replaceChildren(x,top,bar);
  }
  function card(item){
-  const fmt=M.format(item,sess.pool,{quiz:sess.mode==='quiz'||sess.mode==='drill'||(sess.mode==='due'&&!reviews()[item.id])});
+  const shownAt=performance.now();let took=0;
+  // Saying or using a word is typed, never picked from a list.
+  const fmt=M.format(item,sess.pool,{quiz:(sess.mode==='quiz'||sess.mode==='drill'||(sess.mode==='due'&&!reviews()[item.id]))&&!(item.origin==='vocab'&&item.dir!=='know')&&sess.mode!=='vocab'});
   chrome(item);dialog.onkeydown=null;
   const body=el('div',undefined,'recall-card');dialog.append(body);
   const source=sourceLabel(item);if(source)body.append(el('small',source,'recall-source'));
@@ -93,12 +218,21 @@
    const p=M.clozeParts(item),sentence=el('p',undefined,'recall-sentence');
    if(fmt.kind==='type'){field=el('input',undefined,'recall-blank');field.type='text';field.autocomplete='off';field.spellcheck=false;field.setAttribute('aria-label','Hidden words');field.style.width=Math.max(7,Math.min(30,item.blank.length+3))+'ch';gap=field}
    else gap=el('span','▁▁▁▁▁','recall-gap');
-   sentence.append(p.before,gap,p.after);body.append(sentence);
-   if(item.hint)body.append(el('small','Hint · '+item.hint,'recall-hint'));
+   sentence.append(typeset(p.before),gap,typeset(p.after));body.append(sentence);
+   if(item.hint)body.append(rich('small','Hint · '+item.hint,'recall-hint'));
   }else{
-   body.append(el('h3',item.prompt,'recall-prompt'));
+   body.append(rich('h3',item.prompt,'recall-prompt'));
+   // Hear it said: the word itself, or (listen and type) the whole question.
+   if(item.origin==='vocab'&&canSpeak()&&item.lang&&(item.dir==='hear'||item.dir==='know')){
+    const say=btn(item.dir==='hear'?'\ud83d\udd0a Play again':'\ud83d\udd0a Hear it',()=>speak(item.term,item.lang),'recall-speak');say.setAttribute('aria-label','Hear the word');body.append(say);
+    if(item.dir==='hear')setTimeout(()=>speak(item.term,item.lang),250);
+   }
    if(fmt.kind==='type'){field=el('input');field.type='text';field.autocomplete='off';field.placeholder='Your answer';field.setAttribute('aria-label','Your answer');body.append(field)}
    else if(fmt.kind==='self'){field=el('textarea');field.placeholder=item.type==='explain'||item.type==='passage'?'Explain it in your own words before you check…':'Say it from memory before you check…';field.setAttribute('aria-label','Your answer');body.append(field)}
+  }
+  // Typing a Russian word: let a Latin keyboard do it (privet → привет), and say so.
+  if(field&&field.tagName==='INPUT'&&item.origin==='vocab'&&item.lang==='ru'&&item.dir!=='know'&&typeof Translit!=='undefined'){
+   Translit.attach(field,()=>true);field.lang='ru';body.append(el('small','Type with Latin letters: privet → привет','recall-hint'));
   }
   const controls=el('div',undefined,'recall-actions');body.append(controls);
   let phase='ask';
@@ -118,14 +252,14 @@
   requestAnimationFrame(()=>field?.focus());
 
   function choose(choice,button){
-   const right=choice===fmt.answer;phase='graded';
+   const right=choice===fmt.answer;phase='graded';took=Math.round(performance.now()-shownAt);
    for(const b of body.querySelectorAll('.recall-choice')){b.disabled=true;if(b.dataset.choice===fmt.answer)b.classList.add('is-right')}
    if(!right)button.classList.add('is-wrong');
    if(gap){gap.textContent=item.blank||'';gap.classList.add(right?'is-right':'is-wrong')}
    feedback(right?'correct':'wrong','',{auto:true});
   }
   function reveal(typed,result,skipped=false){
-   if(phase!=='ask')return;phase='graded';
+   if(phase!=='ask')return;phase='graded';took=Math.round(performance.now()-shownAt);
    if(field){field.readOnly=true;field.classList.add('is-'+(result||'checked'))}
    controls.remove();
    feedback(result,typed,{skipped});
@@ -134,10 +268,10 @@
    const panel=el('div',undefined,'recall-feedback');body.append(panel);
    if(result){panel.append(el('strong',result==='correct'?'Correct':result==='close'?'Close — check the spelling':skipped?'Here it is':'Not quite','recall-result is-'+result))}
    const reference=item.type==='cloze'?item.blank:Knowledge.prose(item.answer||'');
-   if(item.type==='cloze'){if(result!=='correct'){const a=el('p',undefined,'recall-answer');a.append('Answer · ',el('b',item.blank));panel.append(a)}}
+   if(item.type==='cloze'){if(result!=='correct'){const a=el('p',undefined,'recall-answer');a.append('Answer · ',rich('b',item.blank));panel.append(a)}}
    else if(reference||typed){
     if(typed.trim()&&result!=='correct'){panel.append(el('small','You wrote','recall-label'),el('blockquote',typed.trim(),'recall-yours'))}
-    if(reference){panel.append(el('small',result==='correct'?'Answer':'From your notes','recall-label'),el('blockquote',reference,'recall-reference'))}
+    if(reference){panel.append(el('small',result==='correct'?'Answer':'From your notes','recall-label'),rich('blockquote',reference,'recall-reference'))}
     if(!result&&typed.trim().length>12&&reference){
      const cover=M.coverage(reference,typed);
      if(cover.hit.length+cover.missed.length>=3){const row=el('p',undefined,'recall-coverage');if(cover.hit.length){const a=el('span','Covered · '+cover.hit.slice(0,6).join(', '),'is-hit');row.append(a)}if(cover.missed.length){const b=el('span','Not mentioned · '+cover.missed.slice(0,6).join(', '),'is-missed');row.append(b)}panel.append(row)}
@@ -146,25 +280,40 @@
    }
    if(item.noteId&&noteOf(item.noteId))panel.append(btn('Open in note',()=>goTo(item.noteId,item.blockId),'recall-link'));
    const grades=el('div',undefined,'recall-grades');panel.append(grades);
-   const prev=reviews()[item.id],forecast=M.preview(prev),suggested=skipped?'Again':M.suggestedGrade(result);
+   const prev=reviews()[item.id],opts=M.optionsFor(state,item),forecast=M.preview(prev,Date.now(),opts);
+   // A right answer that took far longer than usual was probably a struggle: suggest Hard, and say why.
+   const usual=M.usualMs(state),slow=!skipped&&!!usual&&took>Math.max(8000,usual*2.5)&&(result==='correct'||result==='close');
+   const suggested=skipped?'Again':slow&&M.suggestedGrade(result)==='Good'?'Hard':M.suggestedGrade(result);
+   // An item that keeps slipping needs a different approach, not more of the same.
+   if(prev&&prev.lapses>=4){
+    const leech=el('div',undefined,'recall-leech');leech.append(el('strong','This one keeps slipping'),el('span','You\u2019ve missed it '+prev.lapses+' times. Rewording it, or setting it aside for now, usually works better than more repeats.'));
+    const acts=el('div',undefined,'recall-leech-actions');
+    if(item.origin!=='vocab'&&item.type!=='cloze')acts.append(btn('Reword',()=>reword(item)));
+    acts.append(btn('Set aside',()=>{state.suspended??={};state.suspended[item.id]=true;persist();sess.queue.shift();next()}));leech.append(acts);panel.append(leech);
+   }
    if(auto){
     const go=btn('Continue',()=>rate(result==='correct'?'Good':'Again'),'primary');grades.append(go);
     if(result==='correct')grades.append(btn('Too easy',()=>rate('Easy')));
+    if(result==='correct'&&slow)grades.append(btn('Took a while',()=>rate('Hard')));
     requestAnimationFrame(()=>go.focus());
     onKey=e=>{if(e.key==='Enter'&&document.activeElement!==go){e.preventDefault();go.click()}};
    }else{
-    grades.append(el('small','How well did you know it?','recall-label'));
+    grades.append(el('small',slow?'That took a while \u2014 Hard may be more honest.':'How well did you know it?','recall-label'));
     M.GRADES.forEach((g,i)=>{const b=btn('',()=>rate(g),'recall-grade'+(g===suggested?' is-suggested':''));b.append(el('kbd',String(i+1)),el('span',g),el('small',forecast[g]));grades.append(b)});
+    if(opts.examDays!=null&&opts.examDays<=60){const exam=M.examFor(state,item.projectId);if(exam)grades.append(el('small',exam.title+' is '+(exam.days<=0?'today':exam.days===1?'tomorrow':'in '+exam.days+' days')+', so this comes back sooner.','recall-exam'))}
     requestAnimationFrame(()=>grades.querySelector('.is-suggested')?.focus());
     onKey=e=>{const k=Number(e.key);if(k>=1&&k<=4&&!e.metaKey&&!e.ctrlKey){e.preventDefault();rate(M.GRADES[k-1])}};
    }
   }
   function rate(grade){
    onKey=null;
-   reviews()[item.id]=M.schedule(reviews()[item.id],grade);M.logReview(state,item.id,grade,sess.mode);persist();
+   const first=!reviews()[item.id];
+   const before=reviews()[item.id],when=Date.now(),opts=M.optionsFor(state,item,when);
+   M.logReview(state,item.id,grade,sess.mode,when,first,{ms:took,mood:sess.mood,...(before&&before.due<=when+DAY/2?{r:+M.retrievability(before,when).toFixed(3)}:{})});
+   reviews()[item.id]=M.schedule(before,grade,when,opts);persist();
    if(!sess.asked.has(item.id)){sess.asked.add(item.id);sess.results.push({item,rating:grade})}
    sess.queue.shift();
-   if(grade==='Again'&&!sess.queue.some(q=>q.id===item.id)&&(sess.mode==='due'||sess.mode==='weak'))sess.queue.push(item);
+   if(grade==='Again'&&!sess.queue.some(q=>q.id===item.id)&&(sess.mode==='due'||sess.mode==='weak'||sess.mode==='vocab'))sess.queue.push(item);
    next();
   }
  }
@@ -181,7 +330,7 @@
   const bar=el('div',undefined,'recall-progress');const fill=el('span');fill.style.width=result.pct+'%';bar.append(fill);dialog.append(score,bar);
   if(missed.length){
    dialog.append(el('h3','To revisit'));
-   for(const item of missed){const row=el('div',undefined,'recall-missed');row.append(el('p',M.promptText(item)));const answer=item.type==='cloze'?item.blank:Knowledge.prose(item.answer||'');if(answer)row.append(el('small',answer.length>200?answer.slice(0,200)+'…':answer));if(item.noteId&&noteOf(item.noteId))row.append(btn('Open in note',()=>goTo(item.noteId,item.blockId),'recall-link'));dialog.append(row)}
+   for(const item of missed){const row=el('div',undefined,'recall-missed');row.append(rich('p',M.promptText(item)));const answer=item.type==='cloze'?item.blank:Knowledge.prose(item.answer||'');if(answer)row.append(rich('small',answer.length>200&&!M.hasMath(answer)?answer.slice(0,200)+'…':answer));if(item.noteId&&noteOf(item.noteId))row.append(btn('Open in note',()=>goTo(item.noteId,item.blockId),'recall-link'));dialog.append(row)}
   }
   const row=el('div',undefined,'recall-actions');
   if(missed.length)row.append(btn('Drill the '+missed.length+' missed',()=>run({mode:'drill',list:missed,pool}),'primary'));
@@ -317,8 +466,8 @@
    if(!rows.length&&!open.length&&!list.children.length)list.append(el('p',everything.length?'Nothing matches.':'No questions here yet.','recall-note'));
    for(const item of rows.slice(0,150)){
     const paused=!!state.suspended?.[item.id],row=el('div',undefined,'recall-bank-row'+(paused?' is-paused':''));
-    const main=el('div');main.append(el('small',(typeNames[item.type]||'')+(sourceLabel(item)?' · '+sourceLabel(item):''),'recall-source'),el('p',M.promptText(item)));
-    const answer=item.type==='cloze'?item.blank:Knowledge.prose(item.answer||'');if(answer)main.append(el('small',answer.length>140?answer.slice(0,140)+'…':answer,'recall-hint'));
+    const main=el('div');main.append(el('small',(typeNames[item.type]||'')+(sourceLabel(item)?' · '+sourceLabel(item):''),'recall-source'),rich('p',M.promptText(item)));
+    const answer=item.type==='cloze'?item.blank:Knowledge.prose(item.answer||'');if(answer)main.append(rich('small',answer.length>140&&!M.hasMath(answer)?answer.slice(0,140)+'…':answer,'recall-hint'));
     const side=el('div',undefined,'recall-bank-side');side.append(el('span',paused?'Paused':when(reviews()[item.id]),'recall-chip'));
     if(item.kind==='authored'){const qid=item.id.match(/:question:([^:]+):/)?.[1],owner=noteOf(item.noteId),q=owner?.questions?.find(x=>x.id===qid);if(q)side.append(btn('Explore',()=>{dialog.close();window.marginExploreQuestion?.(owner,q)}))}
     if(isMade(item))side.append(btn('Edit',()=>compose({item:state.items.find(i=>i.id===item.id),note:item.noteId?noteOf(item.noteId):null,after:()=>bank()})));
@@ -344,7 +493,7 @@
  window.marginReviewProject=project=>hub({project});
  window.marginReviewNotes=(name,notes,subjectId)=>hub({project:subjectId?{id:subjectId,name}:null,notes,title:name});
  window.marginRecallCapture=capture;window.marginAskQuestion=capture;
- window.marginRecall={hub,bank,compose,suggestions,start,setScope};
+ window.marginRecall={hub,bank,compose,suggestions,start,setScope,vocabPractice};
  window.marginRecallSummary=project=>{const stats=M.stats(M.collect(state,{projectId:project.id}),reviews());return stats};
  window.marginRecallWidget=project=>{
   const list=M.collect(state,{projectId:project.id}),stats=M.stats(list,reviews());
@@ -352,7 +501,7 @@
   head.append(el('h2','Recall'),btn(list.length?'Open':'Set up',()=>hub({project})));box.append(head);
   if(!list.length)box.append(el('p','Turn what you’re learning into questions you answer from memory.','recall-note'));
   else{
-   const ready=M.queue(list,reviews(),{mode:'due',limit:15,newLimit:6}).length;
+   const ready=sessionFor(list).length?M.workload(list,reviews(),Date.now(),allowance()).ready:0;
    box.append(el('p',ready?ready+(ready===1?' question ready':' questions ready'):'All caught up'+(nextDue(list)?' · next '+nextDue(list):''),'recall-line'));
    if(ready){const go=btn('Start',()=>{setScope({project});start('due',15)},'primary');box.append(go)}
   }

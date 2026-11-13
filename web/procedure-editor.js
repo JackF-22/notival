@@ -1,4 +1,4 @@
-// The Procedure box in a note: drawn from its steps, and edited in a small window with a live preview.
+// The Procedure box in a note: drawn from its steps, and edited in place with the typeset result updating as you type.
 // Reading and drawing live in procedure-model.js; this is the part that touches the page.
 const ProcedureBox=(()=>{
  const M=ProcedureModel;
@@ -42,38 +42,43 @@ const ProcedureBox=(()=>{
   render();open(box,{isNew:true});
  }
 
- // ── The editor window ──────────────────────────────────────────────────────
+ // ── Editing in place ───────────────────────────────────────────────────────
+ // Like an equation, the box becomes its own editor where it sits: the steps at the top, the typeset result
+ // underneath, redrawn as you type. Clicking away or ⌘↵ keeps the change; Esc puts it back.
+ let editing=null;   // {box, finish}
+ const TIPS=[['Algorithm: Name','a title (or Procedure: / Function:)'],['Input: … / Output: …','bold labels above the steps; a blank line starts the steps'],['indent','nests a step inside the one above it (Tab / Shift-Tab)'],['<-   ->   !=   <=   >=','become ←  →  ≠  ≤  ≥'],['x_i   x^2   p_{LM}   \\Sigma   \\in','maths, no dollar signs needed'],['$…$','for anything longer, like $\\sum_{i=1}^n x_i$'],['// note','a comment, set apart in small type'],['paste \\State … \\EndIf','a LaTeX algorithm is converted for you']];
  function open(box,{isNew=false}={}){
+  if(editing&&!editing.box.isConnected)editing=null;      // the note was redrawn underneath it
+  if(editing?.box===box)return;
+  editing?.finish(true);
   const editor=editorOf(box);if(!editor)return;
   const before={source:box.dataset.procedure||'',numbered:box.dataset.numbered==='1'};
-  document.querySelector('dialog.procedure-dialog')?.remove();
-  const dlg=make('dialog','procedure-dialog');dlg.setAttribute('aria-label','Write a procedure');
-  const head=make('div','proc-dialog-head');head.append(make('h2','',isNew?'New procedure':'Edit procedure'));
+  box.classList.add('editing');box.removeAttribute('title');box.tabIndex=-1;box.setAttribute('aria-label','Editing a procedure');
+  box.replaceChildren();
   const field=make('textarea','proc-source');field.value=before.source;field.spellcheck=false;field.setAttribute('aria-label','Procedure steps');
-  // a new procedure starts empty; the hint fades as soon as you type
-  field.placeholder='Write each step on its own line. Indent a step to put it inside the one above.\n\nOptional, at the top:\nAlgorithm: Name\nInput: …\nOutput: …';
-  const preview=make('div','procedure proc-preview');preview.setAttribute('aria-live','polite');
-  const options=make('label','proc-option'),numbered=make('input');numbered.type='checkbox';numbered.checked=before.numbered;options.append(numbered,' Number the lines');
-  const help=make('details','proc-help'),summary=make('summary','','How to write one');
-  const tips=make('ul');
-  for(const [code,what] of [['Algorithm: Name','a title (or Procedure: / Function:)'],['Input: … / Output: …','bold labels above the steps; a blank line starts the steps'],['indent','nests a step inside the one above it'],['<-   ->   !=   <=   >=','become ←  →  ≠  ≤  ≥'],['// note','a comment, set apart in small type'],['$x_i^2$','typeset maths'],['\\leftarrow  \\in  \\Sigma','LaTeX commands are typeset on their own, no dollar signs needed'],['paste \\State … \\EndIf','a LaTeX algorithm is converted for you'],['while  if  then  do  return','keywords are made bold for you']]){
-   const item=make('li');item.append(make('code','',code),' '+what);tips.append(item);
-  }
-  help.append(summary,tips);
-  const body=make('div','proc-dialog-body'),left=make('div','proc-pane'),right=make('div','proc-pane');
+  field.placeholder='Write each step on its own line. Indent a step to put it inside the one above.\nOptional, at the top: Algorithm: Name / Input: … / Output: …';
   const note=make('div','proc-note');note.setAttribute('aria-live','polite');
-  left.append(make('small','','Steps'),field,note);right.append(make('small','','Preview'),preview);body.append(left,right);
-  const actions=make('div','proc-actions');
-  const done=make('button','primary','Done'),cancel=make('button','','Cancel');done.type=cancel.type='button';
-  actions.append(options,make('span','proc-spacer'),...(!isNew&&before.source?[(()=>{const b=make('button','danger','Delete');b.type='button';b.onclick=()=>{box.remove();dlg.close();commit(editor)};return b})()]:[]),cancel,done);
-  dlg.append(head,body,help,actions);document.body.append(dlg);
+  const preview=make('div','proc-preview');preview.setAttribute('aria-live','polite');
+  const bar=make('div','proc-bar');
+  const options=make('label','proc-option'),numbered=make('input');numbered.type='checkbox';numbered.checked=before.numbered;options.append(numbered,' Number the lines');
+  const help=make('details','proc-help');help.append(make('summary','','How to write one'));
+  const tips=make('ul');for(const [code,what] of TIPS){const item=make('li');item.append(make('code','',code),' '+what);tips.append(item)}help.append(tips);
+  const button=(label,cls,run)=>{const b=make('button',cls,label);b.type='button';b.onmousedown=event=>event.preventDefault();b.onclick=run;return b};
+  bar.append(options,make('span','proc-keys','⌘↵ done · esc cancel'),make('span','proc-spacer'));
+  if(!isNew&&before.source)bar.append(button('Delete','danger',()=>{editing=null;stop.abort();box.remove();commit(editor);editor.focus({preventScroll:true})}));
+  bar.append(button('Cancel','',()=>finish(false)),button('Done','primary',()=>finish(true)));
+  box.append(field,note,preview,bar,help);
 
-  const paint=()=>{preview.innerHTML=M.html(field.value,{number:numberOf(box),numbered:numbered.checked,katex:window.katex||null})};
-  field.oninput=paint;numbered.onchange=paint;paint();
-  // Typing steps: Tab nests, Shift-Tab un-nests, Enter keeps (and deepens) the indent, ⌘↵ finishes
-  field.onkeydown=event=>{
+  const grow=()=>{field.style.height='auto';field.style.height=Math.max(field.scrollHeight,60)+'px'};
+  const paint=()=>{preview.innerHTML=M.html(field.value,{number:numberOf(box),numbered:numbered.checked,katex:window.katex||null});grow()};
+  // Typing in the box is the box's own business: the note around it shouldn't react to these keys and edits.
+  for(const type of ['keydown','keypress','keyup','beforeinput','input','paste','cut','copy'])field.addEventListener(type,event=>event.stopPropagation());
+  field.addEventListener('input',paint);numbered.onchange=paint;
+  // Tab nests, Shift-Tab un-nests, Enter keeps (and deepens) the indent, ⌘↵ finishes, Esc cancels
+  field.addEventListener('keydown',event=>{
    const {selectionStart:start,selectionEnd:end,value}=field;
-   if((event.metaKey||event.ctrlKey)&&event.key==='Enter'){event.preventDefault();done.click();return}
+   if(event.key==='Escape'){event.preventDefault();finish(false);return}
+   if((event.metaKey||event.ctrlKey)&&event.key==='Enter'){event.preventDefault();finish(true);return}
    if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){
     event.preventDefault();
     const lineStart=value.lastIndexOf('\n',start-1)+1,indent=M.nextIndent(value.slice(lineStart,start));
@@ -82,43 +87,52 @@ const ProcedureBox=(()=>{
    if(event.key==='Tab'){
     event.preventDefault();
     const first=value.lastIndexOf('\n',start-1)+1,last=end>start&&value[end-1]==='\n'?end-1:end;
-    const chunk=value.slice(first,Math.max(last,first)),lines=chunk.split('\n');
+    const lines=value.slice(first,Math.max(last,first)).split('\n');
     const changed=lines.map(line=>event.shiftKey?line.replace(/^( {1,2}|\t)/,''):'  '+line).join('\n');
-    if(start===end&&!event.shiftKey){field.setRangeText('  ',start,end,'end')}
+    if(start===end&&!event.shiftKey)field.setRangeText('  ',start,end,'end');
     else{field.setRangeText(changed,first,Math.max(last,first),'select');field.setSelectionRange(first,first+changed.length)}
     paint();
    }
-  };
-  // Pasting a paper's LaTeX algorithm (\State, \If{…}, \EndIf …) turns it into steps, and can be undone with ⌘Z.
+  });
+  // Pasting a paper's LaTeX algorithm (\State, \If{…}, \EndIf …) turns it into steps, and ⌘Z undoes it.
   field.addEventListener('paste',event=>{
    const pasted=event.clipboardData?.getData('text/plain')||'';
    if(!M.looksLikeLatex(pasted))return;
    const converted=M.fromLatex(pasted);if(!converted.trim())return;
    event.preventDefault();
-   if(!document.execCommand('insertText',false,converted)){field.setRangeText(converted,field.selectionStart,field.selectionEnd,'end');}
+   if(!document.execCommand('insertText',false,converted))field.setRangeText(converted,field.selectionStart,field.selectionEnd,'end');
    paint();note.textContent='Converted from a LaTeX algorithm. ⌘Z undoes it.';
   });
-  const finish=save=>{
+  // Clicking anywhere outside the box keeps what was written.
+  // Each editing session listens only while it lasts, so reopening a box never wakes an old session.
+  const session={},stop=new AbortController();
+  box.addEventListener('focusout',event=>{
+   if(box.contains(event.relatedTarget))return;
+   if(event.relatedTarget){finish(true,{refocus:false});return}      // focus went somewhere definite: keep it now
+   setTimeout(()=>{if(editing?.session===session&&!box.contains(document.activeElement))finish(true,{refocus:false})},0);
+  },{signal:stop.signal});
+  function finish(save,{refocus=true}={}){
+   if(editing?.session!==session)return;
+   editing=null;stop.abort();
    if(save){
     const steps=field.value.replace(/\s+$/,'');
     if(!steps.trim())box.remove();
     else{box.dataset.procedure=steps;if(numbered.checked)box.dataset.numbered='1';else delete box.dataset.numbered}
    }else if(isNew)box.remove();
-   delete box.dataset.drawn;
+   box.classList.remove('editing');delete box.dataset.drawn;
    commit(editor);
-   dlg.close();
+   if(!refocus)return;
    if(box.isConnected)box.focus({preventScroll:true});else editor.focus({preventScroll:true});
-  };
-  done.onclick=()=>finish(true);cancel.onclick=()=>finish(false);
-  dlg.addEventListener('cancel',event=>{event.preventDefault();finish(false)});   // Escape
-  dlg.addEventListener('close',()=>dlg.remove());
-  dlg.showModal();field.focus();field.setSelectionRange(0,0);
+  }
+  editing={box,session,finish:save=>finish(save,{refocus:false})};
+  paint();field.focus({preventScroll:true});field.setSelectionRange(field.value.length,field.value.length);
+  box.scrollIntoView({block:'nearest'});
  }
 
  // ── Working with a box in the page ─────────────────────────────────────────
  document.addEventListener('dblclick',event=>{const box=event.target.closest?.('#editor .procedure');if(box){event.preventDefault();open(box)}});
  document.addEventListener('keydown',event=>{
-  const box=event.target.closest?.('#editor .procedure');if(!box||event.target!==box)return;
+  const box=event.target.closest?.('#editor .procedure');if(!box||event.target!==box||box.classList.contains('editing'))return;
   if(event.key==='Enter'||event.key===' '){event.preventDefault();open(box);return}
   if((event.key==='Backspace'||event.key==='Delete')&&!event.metaKey&&!event.ctrlKey){
    event.preventDefault();

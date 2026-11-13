@@ -127,5 +127,20 @@ try{
   await evaluate(`[...document.querySelectorAll('.class-summary button')].find(b=>b.textContent==='Skip').click()`);await wait(150);
   assert.equal(await evaluate(`current().blocks.length`),blocks);
 
+  // A meeting: its own note title each week, and just the note (no timer) when it's time.
+  await evaluate(`(()=>{state.classSchedule=[{id:'m1',subjectId:'bio',days:[5],start:'16:00',minutes:60,title:'{iso} - CoStaff Meeting',timer:false}];state.classHandled={};state.notes=state.notes.filter(n=>!n.classDate);render()})()`);
+  await evaluate(`clockAt(15,56)`);await wait(100);
+  assert.equal(await text('#class-due .primary'),'Open note');
+  await evaluate(`document.querySelector('#class-due .primary').click()`);await wait(250);
+  assert.match(await evaluate(`current().title`),/^\d{4}-\d\d-\d\d - CoStaff Meeting$/);
+  assert.equal(await evaluate(`marginClass.session()`),null,'no class timer for an item with the timer off');
+
+  // The subject's own page is where meetings are set.
+  await evaluate(`(()=>{state.classSchedule=[];window.marginHome('bio')})()`);await wait(300);
+  assert.equal(await count('.subject-schedule'),1,'the subject page has a Schedule section');
+  await evaluate(`[...document.querySelectorAll('.subject-schedule button')].find(b=>b.textContent==='+ Add').click()`);await wait(150);
+  await evaluate(`(()=>{const t=document.querySelector('.subject-schedule .schedule-title');t.value='CoStaff Meeting';t.dispatchEvent(new Event('change'))})()`);
+  assert.deepEqual(await evaluate(`state.classSchedule.map(e=>[e.subjectId,e.title])`),[['bio','{date} - CoStaff Meeting']],'the item belongs to this subject, and Date puts the date in front of its name');
+
   console.log('PASS: scheduled classes — timetable in the Focus menu, offered from just before the start, opens today\'s note and runs class mode for the rest of the class, once a day, and an after-class wrap-up that writes the note and keeps questions for Recall.');
 }finally{browser.kill();for(const pending of waiting.values())clearTimeout(pending.timer);await rm(profile,{recursive:true,force:true,maxRetries:10,retryDelay:100})}

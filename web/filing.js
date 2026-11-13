@@ -11,7 +11,19 @@
  window.marginCaptureDestination=()=>{if(!state)return {projectId:null,unitId:null};return (state.captureTarget&&valid(state.captureTarget))||valid(context())||{projectId:null,unitId:null}};
  function repaintCapture(){if(!state)return;const target=window.marginCaptureDestination();captureLabel.textContent=label(target);captureLabel.title=(state.captureTarget?'Pinned destination: ':'Follows your location: ')+label(target);capture.classList.toggle('capture-pinned',!!state.captureTarget)}
  function selected(){return [...selection.values()]}
- function updateSelection(){toolbar.replaceChildren(el('strong',selection.size+' selected'),button('Move to…',()=>chooseDestination(selected())),...(selected().every(i=>i.kind==='note')?[button('Archive',()=>removeNotes(selected(),'archive')),Object.assign(button('Delete',()=>removeNotes(selected(),'trash')),{className:'filing-danger'})]:[]),button('Clear',()=>{selection.clear();refresh()}));toolbar.hidden=!selection.size;for(const n of document.querySelectorAll('[data-filing-kind][data-filing-id]')){const active=selection.has(n.dataset.filingKind+':'+n.dataset.filingId);n.classList.toggle('filing-selected',active);const check=n.querySelector('.filing-select');if(check)check.checked=active}}
+ // Materials of one subject can be assigned to a unit straight from the selection bar, with no dialog.
+ function unitPicker(){
+  const items=selected();if(!items.length||!items.every(i=>i.kind==='material'))return [];
+  const owners=new Set(items.map(i=>state.projects.find(s=>(s.materials||[]).some(m=>m.id===i.id))?.id));
+  const subject=owners.size===1?state.projects.find(s=>s.id===[...owners][0]):null;if(!subject?.units?.length)return [];
+  const pick=el('select');pick.setAttribute('aria-label','Assign selected materials to a unit');
+  const first=el('option','Assign to unit…');first.value='__';pick.append(first);
+  const none=el('option','Unsorted');none.value='';pick.append(none);
+  for(const u of subject.units){const o=el('option',u.name);o.value=u.id;pick.append(o)}
+  pick.onchange=()=>{if(pick.value==='__')return;move(items,{projectId:subject.id,unitId:pick.value||null})};
+  return [pick];
+ }
+ function updateSelection(){toolbar.replaceChildren(el('strong',selection.size+' selected'),button('Move to…',()=>chooseDestination(selected())),...unitPicker(),...(selected().every(i=>i.kind==='note')?[button('Archive',()=>removeNotes(selected(),'archive')),Object.assign(button('Delete',()=>removeNotes(selected(),'trash')),{className:'filing-danger'})]:[]),button('Clear',()=>{selection.clear();refresh()}));toolbar.hidden=!selection.size;for(const n of document.querySelectorAll('[data-filing-kind][data-filing-id]')){const active=selection.has(n.dataset.filingKind+':'+n.dataset.filingId);n.classList.toggle('filing-selected',active);const check=n.querySelector('.filing-select');if(check)check.checked=active}}
  // Archive or delete the selected notes together; one Undo restores them to where they were.
  function removeNotes(items,kind){
   const ids=new Set(items.filter(i=>i.kind==='note').map(i=>i.id)),notes=state.notes.filter(n=>ids.has(n.id));
@@ -31,6 +43,7 @@
  function refreshView(){if(dialog.open)dialog.close();selection.clear();if(current())render();else window.marginHome(window.marginCurrentStudyLocation?.().projectId||null);refresh()}
  function move(items,target){try{const result=FilingModel.move(state,items,target);if(!result.count){toast('Already in '+label(target));return}persist();refreshView();offerUndo('Moved '+result.count+' item'+(result.count===1?'':'s')+' to '+label(target),()=>{result.undo();persist();refreshView()})}catch(error){toast(error.message)}}
  window.marginMoveItemsTo=move;
+ window.marginSelectAll=kind=>{for(const n of document.querySelectorAll('[data-filing-kind="'+kind+'"][data-filing-id]'))selection.set(kind+':'+n.dataset.filingId,{kind,id:n.dataset.filingId});updateSelection()};
  function chooseDestination(items){dialog.replaceChildren(el('h2',items?'Move '+items.length+' item'+(items.length===1?'':'s'):'Where should new captures go?'),el('p',items?'Move notes or materials without changing their contents or source links.':'Global New note, newly opened PDFs, and external captures use this destination. Subject-specific actions still use the subject you choose.'));
   const form=el('form'),subject=el('select'),unit=el('select');subject.setAttribute('aria-label','Destination subject');unit.setAttribute('aria-label','Destination unit');const personal=el('option','Personal notes');personal.value='';if(!items||items.every(i=>i.kind==='note'))subject.append(personal);for(const s of state.projects){const option=el('option',s.name);option.value=s.id;subject.append(option)}const initial=window.marginCaptureDestination();subject.value=initial.projectId||'';if(!subject.value&&items?.some(i=>i.kind==='material'))subject.value=state.projects[0]?.id||'';
   function units(){unit.replaceChildren();const unsorted=el('option','Subject overview · no unit');unsorted.value='';unit.append(unsorted);for(const u of state.projects.find(s=>s.id===subject.value)?.units||[]){const option=el('option',u.name);option.value=u.id;unit.append(option)}unit.disabled=!subject.value}subject.onchange=units;units();unit.value=initial.unitId||'';

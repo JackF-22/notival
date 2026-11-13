@@ -3,6 +3,7 @@
  const mac=/Mac|iPhone|iPad/.test(navigator.platform),primary=mac?'⌘':'Ctrl+',option=mac?'⌥':'Alt+',shift=mac?'⇧':'Shift+';
  const shortcuts=[
   {command:'inlineequation',code:'KeyE',shift:true,label:primary+shift+'E'},
+  {command:'highlight',code:'KeyH',shift:true,label:primary+shift+'H'},
   {command:'equation',code:'KeyE',alt:true,label:primary+option+'E'},
   {command:'table',code:'KeyT',alt:true,label:primary+option+'T'},
   {command:'image',code:'KeyI',alt:true,label:primary+option+'I'},

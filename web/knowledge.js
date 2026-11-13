@@ -1,7 +1,9 @@
 // Evidence-based local discovery. Scores indicate shared vocabulary, not factual agreement.
 const Knowledge = (()=>{
  const stop=new Set('the and for that this with from have your you are was were will would could should into about their there these those then than also what when where which how does did has had not but can its our out all one two use using used note notes lecture chapter section example'.split(' '));
- function prose(text){return String(text).replace(/```[\s\S]*?```/g,'').replace(/!\[[^\]]*\]\([^)]*\)/g,'').replace(/\[([^\]]+)\]\([^)]*\)/g,'$1').replace(/https?:\/\/\S+/g,'').replace(/[*_`~]/g,'').replace(/^\s*(?:#{1,6}|>|[-+]\s\[[ xX]\])\s*/gm,'').trim()}
+ // Math ($…$ and $$…$$) is set aside while markup is stripped, so x_i and 2*3 inside an equation survive.
+ function prose(text){const math=[];return String(text).replace(/\$\$[\s\S]+?\$\$|\$[^$\n]+?\$/g,m=>'\uE010'+(math.push(m)-1)+'\uE011')
+  .replace(/```[\s\S]*?```/g,'').replace(/!\[[^\]]*\]\([^)]*\)/g,'').replace(/\[([^\]]+)\]\([^)]*\)/g,'$1').replace(/https?:\/\/\S+/g,'').replace(/[*_`~]/g,'').replace(/^\s*(?:#{1,6}|>|[-+]\s\[[ xX]\])\s*/gm,'').trim().replace(/\uE010(\d+)\uE011/g,(_,i)=>math[i] ?? '')}
  function terms(text){return (prose(text).toLowerCase().match(/[\p{L}][\p{L}\p{N}-]{2,}/gu)||[]).filter(word=>!stop.has(word))}
  function analyze(notes){
   const docs=notes.map(note=>{const passages=note.blocks.filter(b=>b.type==='text'&&b.text.trim()).map(b=>({noteId:note.id,blockId:b.id,text:b.text}));const counts=new Map();for(const word of terms(note.title+' '+passages.map(p=>p.text).join(' ')))counts.set(word,(counts.get(word)||0)+1);return {note,passages,counts}});

@@ -61,6 +61,15 @@ const ScheduleModel=(()=>{
  // Today's note for a subject: the one made for a class on this date, if there is one.
  const classNote=(notes,subjectId,time)=>(notes||[]).find(note=>note.projectId===subjectId&&note.classDate===dayKey(time))||null;
 
- return {MINUTE,LEAD,LATE,DAY_NAMES,parseTime,valid,dayKey,onDay,due,next,minutesLeft,timeLabel,span,daysLabel,when,classNote};
+ // The title of a scheduled note: the student's own pattern, e.g. "{date} - CoStaff Meeting". {date} is "Tue, Nov 11",
+ // {iso} is 2026-11-11 (sorts well), {weekday} and {subject} are what they say. With no pattern: "Subject · date".
+ const dateText=time=>new Date(time).toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});
+ function noteTitle(entry,subjectName,time){
+  const pattern=String(entry?.title||'').trim();
+  if(!pattern)return subjectName+' · '+dateText(time);
+  const values={date:dateText(time),iso:dayKey(time),weekday:new Date(time).toLocaleDateString(undefined,{weekday:'long'}),subject:subjectName};
+  return pattern.replace(/\{(\w+)\}/g,(whole,name)=>values[name.toLowerCase()]??whole);
+ }
+ return {noteTitle,MINUTE,LEAD,LATE,DAY_NAMES,parseTime,valid,dayKey,onDay,due,next,minutesLeft,timeLabel,span,daysLabel,when,classNote};
 })();
 if(typeof module!=='undefined')module.exports=ScheduleModel;

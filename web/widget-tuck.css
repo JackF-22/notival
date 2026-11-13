@@ -1,0 +1,23 @@
+/* Boxes pushed to the side */
+.subject-widgets > section,.global-todo{position:relative}
+[data-tucked]{display:none!important}
+.widget-tuck{position:absolute;right:-28px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:28px;height:64px;padding:0;border:1px solid color-mix(in srgb,var(--accent,var(--green)) 45%,var(--line));border-left:0;border-radius:0 14px 14px 0;background:color-mix(in srgb,var(--accent,var(--green)) 10%,var(--bg));color:var(--accent,var(--green));font-size:24px;font-weight:700;line-height:1;cursor:pointer;box-shadow:3px 2px 10px #0000001a;transition:background .15s,width .15s,right .15s}
+.widget-tuck:hover,.widget-tuck:focus-visible{background:var(--accent,var(--green));color:var(--on-accent,#fff);width:32px;right:-32px}
+/* Sliding away to the right, and back */
+.widget-leaving{transition:transform .22s ease-in,opacity .22s ease-in;transform:translateX(70px);opacity:0;pointer-events:none}
+.widget-arriving{animation:widget-in .24s ease-out}
+@keyframes widget-in{from{transform:translateX(70px);opacity:0}to{transform:none;opacity:1}}
+/* The tabs for boxes that are away: pills at the top right, just under the header */
+#widget-tabs{position:fixed;z-index:60;right:22px;top:76px;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;max-width:min(560px,60vw)}
+#widget-tabs[hidden]{display:none}
+.widget-tab{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 13px 0 9px;border:1px solid color-mix(in srgb,var(--accent,var(--green)) 55%,var(--line));border-radius:999px;background:color-mix(in srgb,var(--accent,var(--green)) 10%,var(--bg));color:var(--ink);font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;box-shadow:0 3px 12px #0000001a;animation:widget-tab-in .24s ease-out}
+.widget-tab-arrow{font-size:20px;line-height:1;margin-top:-2px;color:var(--accent,var(--green));font-weight:700}
+.widget-tab:hover,.widget-tab:focus-visible{background:var(--accent,var(--green));color:var(--on-accent,#fff)}
+.widget-tab:hover .widget-tab-arrow,.widget-tab:focus-visible .widget-tab-arrow{color:inherit}
+@keyframes widget-tab-in{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
+/* Room for the tabs above the boxes that are still here */
+body[data-view=home] .student-home-view>.subject-widgets,body[data-view=home] .student-home-view>.global-todo{margin-top:var(--widget-pill-space,0px)!important}
+/* With every box away, the main column takes the whole width */
+body .student-home-view[data-widgets-away].overview-layout,body .student-home-view[data-widgets-away].home-layout{grid-template-columns:minmax(0,1fr)!important}
+@media(prefers-reduced-motion:reduce){.widget-leaving,.widget-arriving,.widget-tab{transition:none;animation:none}}
+@media(max-width:1000px){.widget-tuck{display:none}}

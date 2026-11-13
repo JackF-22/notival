@@ -79,7 +79,9 @@ try{
   await clickControl('#editor-insert-panel [data-add=code]');
   assert.equal(await evaluate(`current().blocks.length`),2);
   assert.equal(await evaluate(`document.querySelector('#editor-insert-panel').hidden`),true);
-  await clickControl('#focus-writing-toggle');
+  // Focus lives in one menu now: Focus ▾ → Quiet page
+  await clickControl('#focus-menu');
+  await clickControl('.focus-popover .focus-item');
   assert.equal(await evaluate(`document.body.classList.contains('focus-writing')`),true);
   await call('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27},sessionId);
   assert.equal(await evaluate(`document.body.classList.contains('focus-writing')`),false);
