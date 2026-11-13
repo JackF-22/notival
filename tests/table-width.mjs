@@ -44,13 +44,25 @@ try{
   let edge=await rightEdge();
   await hover(edge.x,edge.y);await wait(30);
   assert.equal(await evaluate('document.querySelector(".rich-text").classList.contains("col-resize")'),true,'the resize cursor shows at the right edge');
-  await hover(edge.x,edge.y);await mouse('mousePressed',edge.x,edge.y);await mouse('mouseMoved',edge.x-w.t*0.4,edge.y);await mouse('mouseReleased',edge.x-w.t*0.4,edge.y,0);await wait(60);
-  w=await widthOf();assert.ok(w.t<w.room*0.7&&w.t>w.room*0.5,'dragging the right edge narrows the table to about 60%: '+JSON.stringify(w));
-  assert.match(await saved(),/<table data-span="[\d.]+"/,'the width is saved with the note');
+  const cols=()=>evaluate('[...document.querySelector(".rich-text table").rows[0].cells].map(c=>c.getBoundingClientRect().width)');
+  const before=await cols();
+  // A short drag: only the last column gives way; the others keep their width exactly
+  await hover(edge.x,edge.y);await mouse('mousePressed',edge.x,edge.y);await mouse('mouseMoved',edge.x-100,edge.y);await mouse('mouseReleased',edge.x-100,edge.y,0);await wait(60);
+  let now=await cols();w=await widthOf();
+  assert.ok(Math.abs(now[0]-before[0])<2&&Math.abs(now[1]-before[1])<2,'the columns before the last one are not touched: '+JSON.stringify([before,now]));
+  assert.ok(Math.abs((before[2]-now[2])-100)<3,'the last column took the whole 100px');
+  assert.ok(Math.abs(w.t-(w.room-100))<3,'the table is 100px narrower');
+  assert.match(await saved(),/<table data-widths="[\d.,]+" data-span="[\d.]+"/,'the width is saved with the note');
+  // Dragging further than the last column can give: it stops at a small minimum and only then does the next one shrink
+  edge=await rightEdge();
+  await hover(edge.x,edge.y);await mouse('mousePressed',edge.x,edge.y);await mouse('mouseMoved',edge.x-200,edge.y);await mouse('mouseReleased',edge.x-200,edge.y,0);await wait(60);
+  const squeezed=await cols();
+  assert.ok(squeezed[2]>=40&&squeezed[2]<=56,'the last column stops at its minimum: '+JSON.stringify(squeezed));
+  assert.ok(Math.abs(squeezed[0]-before[0])<2,'the first column is still untouched');assert.ok(squeezed[1]<before[1]-10,'the middle column squeezes only when it has to');
   assert.equal(await evaluate('document.querySelectorAll(".rich-text table td").length'),6);
   // It survives a reload of the note's HTML
   await evaluate('(()=>{const b=current().blocks[0];render()})()');await wait(150);
-  w=await widthOf();assert.ok(w.t<w.room*0.7,'still narrow after the note is redrawn');
+  w=await widthOf();assert.ok(w.t<w.room-200,'still narrow after the note is redrawn');
   // Drag past the full width and it snaps back to filling the note
   edge=await rightEdge();
   await hover(edge.x,edge.y);await mouse('mousePressed',edge.x,edge.y);await mouse('mouseMoved',edge.x+800,edge.y);await mouse('mouseReleased',edge.x+800,edge.y,0);await wait(60);

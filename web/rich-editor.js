@@ -740,14 +740,20 @@ const RichEditor = (() => {
     if(cell.previousElementSibling&&Math.abs(event.clientX-box.left)<=5)return {table,index:cell.cellIndex-1};
     return null;
   }
-  // The table's right edge: drag to make the table narrower (or wider again, up to the full note).
+  // The table's right edge: drag to make the table narrower (or wider again, up to the full note). Only the last column
+  // gives way; the columns before it keep their width and are squeezed only once the ones after them cannot shrink more.
   function startTableDrag(editor, table, event) {
     const style=getComputedStyle(editor), room=(editor.clientWidth-parseFloat(style.paddingLeft)-parseFloat(style.paddingRight))||1;
-    const start=table.getBoundingClientRect().width, origin=event.clientX, minimum=Math.min(100,Math.max(15,(table.rows[0]?.cells.length||1)*8));
+    const cells=[...table.rows[0].cells], start=cells.map(cell=>cell.getBoundingClientRect().width), origin=event.clientX;
+    const floor=start.map(width=>Math.min(48,width)), startTotal=start.reduce((a,b)=>a+b,0);
     const move=moved=>{
-      const share=Math.max(minimum,(start+moved.clientX-origin)/room*100);
+      const widths=start.slice(), shift=Math.min(moved.clientX-origin,room-startTotal);
+      if(shift>=0)widths[widths.length-1]+=shift;
+      else{let need=-shift;for(let i=widths.length-1;i>=0&&need>0;i--){const take=Math.min(need,widths[i]-floor[i]);widths[i]-=take;need-=take;}}
+      const total=widths.reduce((a,b)=>a+b,0);
       delete table.dataset.fit;
-      if(share>=97)delete table.dataset.span;else table.dataset.span=share.toFixed(1);
+      table.dataset.widths=widths.map(width=>(width/total*100).toFixed(2)).join(',');
+      if(total/room>=0.97)delete table.dataset.span;else table.dataset.span=(total/room*100).toFixed(1);
       applyTableWidths(table);
     };
     const finish=()=>{document.removeEventListener('pointermove',move);document.removeEventListener('pointerup',finish);document.removeEventListener('pointercancel',finish);document.body.classList.remove('resizing-table');editor.dispatchEvent(new Event('input',{bubbles:true}));};
