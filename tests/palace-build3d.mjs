@@ -127,7 +127,7 @@ try{
   await wait(250);assert(put);assert.equal(await pal(`p.props.filter(q=>q.type==='succulent').length`),mugs+1);assert.equal(await pal(`p.props.at(-1).hostId`),desk.id,'on the table');
   // 8 · click a thing to select it, Delete removes it, undo brings it back
   const sel=await ed(`e.S.prop`);assert.equal(typeof sel,'string');
-  await press('Delete');await wait(200);assert.equal(await pal(`p.props.some(q=>q.id==='${sel}')`),false,'Delete removes the selected thing');
+  await evaluate(`document.activeElement?.blur()`);await press('Delete');await wait(200);assert.equal(await pal(`p.props.some(q=>q.id==='${sel}')`),false,'Delete removes the selected thing');
   await ed(`e.history.undo()`);assert.equal(await pal(`p.props.some(q=>q.id==='${sel}')`),true,'undo');
   // move a thing: pick it up and point somewhere else
   await ed(`(e.ctl.rebuild(),e.selectProp('${sel}'),0)`);await evaluate(`[...document.querySelectorAll('.pe-actions button')].find(b=>b.textContent==='Move').click()`);await wait(100);assert.equal(await ed(`e.S.placing.kind`),'moveP');

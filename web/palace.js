@@ -46,7 +46,7 @@
   const cross=el('div','pe-cross');stage.append(canvas,labels,cross,toolbar,hud,card,recallBox);
   const body=el('div','pe-body');body.append(stage,side);root.append(top,body);document.body.append(root);
 
-  const S={look:false,edit:false,placing:null,tool:'select',tab:'build',room:null,furniture:null,prop:null,station:null,drag:null,space:false,recall:null,labelNodes:[],hudTimer:0,collapsed:false};
+  const S={look:false,edit:false,placing:null,tool:'select',tab:'build',room:null,furniture:null,prop:null,station:null,drag:null,space:false,recall:null,labelNodes:[],hudTimer:0,collapsed:false,fresh:null,free:false};
   let ctl=null;
   const toast_=message=>window.toast?.(message);
   // Text with LaTeX in it ($x^2$ inline, $$…$$ on its own line), typeset.
@@ -56,6 +56,17 @@
    const box=el('div','pe-math-preview');box.hidden=true;
    const update=()=>{const text=inputs.map(i=>i.value).filter(v=>v.includes('$')).join('\n');box.hidden=!text;box.replaceChildren();if(text)box.append(PalaceBook.typeset(text))};
    for(const i of inputs)i.addEventListener('input',update);update();return box;
+  }
+  // A thing you have just made: once you have written what it is, you go back to exploring (while building in the house).
+  const isFresh=id=>S.fresh===id&&ctl?.getMode()==='walk'&&S.edit;
+  function finishFresh(id){if(S.fresh!==id)return;S.fresh=null;if(ctl?.getMode()==='walk'&&S.edit){setEdit(false);hudShow('Saved. Point at it to see it.',2600)}}
+  function freshEntry(id,title,detail,save,box,more=[]){
+   if(!isFresh(id))return;
+   const done=()=>{save();finishFresh(id)};
+   title.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();done()}});
+   for(const f of [detail,...more])f.addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){e.preventDefault();done()}});
+   box.append(el('small','pe-hint','Press Enter after the first line to finish and go back to exploring.'),button('Done · back to exploring',done,'primary pe-done'));
+   if(S.focusFresh===id){S.focusFresh=null;setTimeout(()=>{title.focus();title.select?.()},0)}
   }
   const furnitureName=f=>P.spec(f.type)?.name||f.type;
   const roomNameOf=f=>P.roomOf(palace,f)?.name||'';
@@ -104,7 +115,7 @@
    renderToolbar();overlay();ctl?.redraw();
   }
   function lookOn(){
-   if(S.look||ctl?.getMode()!=='walk'||reading)return;
+   if(S.look||S.free||ctl?.getMode()!=='walk'||reading)return;
    if(bridge){bridge.postMessage({type:'mouseLook',on:true});S.look=true;lookChanged()}
    else if(canvas.requestPointerLock){try{const r=canvas.requestPointerLock();r&&r.catch&&r.catch(()=>{})}catch{}}
   }
@@ -162,6 +173,7 @@
    toolbar.replaceChildren();
    if(ctl?.getMode()==='walk'){
     for(const [edit,label,hint] of [[false,'Explore','Look around, take books down, read things'],[true,'Build','Add, move and change things while you walk']]){const b=button(label,()=>setEdit(edit),'pe-tool',hint);b.setAttribute('aria-pressed',String(S.edit===edit));toolbar.append(b)}
+    const free=button('Free cursor',()=>{S.free=!S.free;if(S.free)lookOff();else if(!S.edit)lookOn();hudShow(S.free?'Free cursor: point at things and click them · drag to look around':'Mouse look: the dot in the middle is your pointer',3200);renderToolbar()},'pe-tool','Use the mouse as a pointer instead of turning your head with it');free.setAttribute('aria-pressed',String(S.free));toolbar.append(free);
     const door=button('Front door',()=>{toFrontDoor();hudShow('The front door: where every walk begins',2200)},'pe-tool','Go back to the front door');toolbar.append(door);
     return;
    }
@@ -208,7 +220,7 @@
    if(!P.surfacesOf(host).length){toast_('Nothing can stand on a '+furnitureName(host).toLowerCase());return}
    const q=P.placeProp(palace,type,host.id,type==='book'?P.bookLike(P.propsOn(palace,host.id).length+2):{});
    if(!q){toast_('There is no room left on it');return}
-   S.prop=q.id;S.tab='selected';commit();
+   S.prop=q.id;S.tab='selected';S.fresh=q.id;S.focusFresh=q.id;commit();
   }
   const localOf=(f,x,z)=>{const rad=f.rot*Math.PI/180,dx=x-f.x,dz=z-f.z;return {lx:dx*Math.cos(rad)-dz*Math.sin(rad),lz:dx*Math.sin(rad)+dz*Math.cos(rad)}};
   function selectProp(id){const q=P.propsOf(palace).find(g=>g.id===id);if(!q)return;S.prop=id;S.furniture=q.hostId;S.room=null;S.station=null;S.tab='selected';renderSide();overlay()}
@@ -277,9 +289,9 @@
    row.append(button('Delete',()=>deleteProp(),'pe-danger','Remove it (Delete)'));box.append(row);
    box.append(button('← The '+furnitureName(host).toLowerCase(),()=>select('furniture',host.id),'pe-link'));
    const title=el('input','pe-input');title.placeholder='What it stands for (use $…$ for an equation)';title.value=q.title||'';title.setAttribute('aria-label','What it stands for');
-   const detail=el('input','pe-input');detail.placeholder='Meaning or note (optional)';detail.value=q.detail||'';detail.setAttribute('aria-label','Meaning or note');
+   const detail=el('textarea','pe-input');detail.rows=3;detail.placeholder='Meaning or note (optional)';detail.value=q.detail||'';detail.setAttribute('aria-label','Meaning or note');
    const sync=()=>{q.title=title.value.trim();q.detail=detail.value.trim();const st=P.stationOf(palace,q.id);if(st){st.title=q.title||sp.name;st.detail=q.detail}commit()};
-   title.onchange=sync;detail.onchange=sync;box.append(el('small','pe-label','Value'),title,detail,preview(title,detail));
+   title.onchange=sync;detail.onchange=sync;box.append(el('small','pe-label','Value'),title,detail,preview(title,detail));freshEntry(q.id,title,detail,sync,box);
    const on=P.stationOf(palace,q.id),route=el('label','pe-check'),check=el('input');check.type='checkbox';check.checked=!!on;check.onchange=()=>{P.toggleRoute(palace,q.id);commit()};
    route.append(check,el('span','','Stop on my recall walk'+(on?' · stop '+(P.route(palace).findIndex(s=>s.id===on.id)+1):'')));box.append(route);
    box.append(el('small','pe-label','Colour'),swatches(q.color,q.type==='book'?['#b5533c','#3f6f8f','#d6a64a','#5f8a5a','#8a5a8a','#c9c2b2','#2f3e5c','#7a5a3d']:P.TINTS,c=>{q.color=c;commit()}));
@@ -361,12 +373,12 @@
   function stationFields(station){
    const wrap=el('div','pe-station');
    const title=el('input','pe-input');title.placeholder='What to remember (use $…$ for an equation)';title.value=station.title;title.setAttribute('aria-label','What to remember');
-   const detail=el('input','pe-input');detail.placeholder='Meaning or note (optional)';detail.value=station.detail;detail.setAttribute('aria-label','Meaning or note');
+   const detail=el('textarea','pe-input');detail.rows=3;detail.placeholder='Meaning or note (optional)';detail.value=station.detail;detail.setAttribute('aria-label','Meaning or note');
    const image=el('textarea','pe-input');image.rows=2;image.placeholder='Picture it: a silly, vivid image that ties it to this spot (optional)';image.value=station.image||'';image.setAttribute('aria-label','Vivid image');
    const save=()=>{station.title=title.value.trim();station.detail=detail.value.trim();station.image=image.value.trim();station.link=station.link;commit()};
    for(const f of [title,detail,image])f.onchange=save;
    const head=el('div','pe-station-head');head.append(el('b','','Stop '+(P.route(palace).findIndex(s=>s.id===station.id)+1)),station.link?el('small','pe-linked',station.link.kind==='vocab'?'from your vocab':'from your questions'):el('span'),button('✕',()=>{P.removeStation(palace,station.id);S.station=null;commit()},'pe-x','Remove this'));
-   wrap.append(head,title,detail,image,preview(title,detail,image));return wrap;
+   wrap.append(head,title,detail,image,preview(title,detail,image));freshEntry(station.id,title,detail,save,wrap,[image]);return wrap;
   }
   function renderStations(box,f){
    box.append(el('small','pe-label','Left here'));
@@ -375,7 +387,7 @@
     const o=P.propsOf(palace).find(g=>g.id===s.propId);if(o)box.append(button('Stop '+(P.route(palace).findIndex(x=>x.id===s.id)+1)+' · '+(o.title||P.PROPS[o.type].name),()=>selectProp(o.id),'pe-chip','It is set on the thing itself'));
    }
    const adder=el('div','pe-add');
-   adder.append(button('+ Write something to remember',()=>{const s=P.addStation(palace,f.id,{title:'New thing'});S.station=s.id;commit()},'pe-add-write'));
+   adder.append(button('+ Write something to remember',()=>{const s=P.addStation(palace,f.id,{title:'New thing'});S.station=s.id;S.fresh=s.id;S.focusFresh=s.id;commit()},'pe-add-write'));
    // pick from what the subject already has
    const pick=el('div','pe-pick');
    const vocab=(state.vocab||[]).filter(w=>w.projectId===palace.projectId&&w.meaning&&!palace.stations.some(s=>s.link?.kind==='vocab'&&s.link.id===w.id));
@@ -541,7 +553,7 @@
    if(d.type==='lookclick'){walkClick(centre(),event);return}
    if(d.type==='look'){
     if(d.moved){canvas.style.cursor='';return}
-    if(bridge&&!S.edit&&!S.look&&!reading&&!S.recall&&!S.placing){lookOn();return}   // a click on the free mouse just takes it back
+    if(bridge&&!S.free&&!S.edit&&!S.look&&!reading&&!S.recall&&!S.placing){lookOn();return}   // a click on the free mouse just takes it back
     walkClick(p,event);
     if(!S.edit&&!S.look&&!reading&&!S.placing&&!S.recall)lookOn();
     return;
@@ -582,15 +594,36 @@
   });
   // ── Walking: what is under the pointer, and what a click does ─────────────
   // Pointing at a book (or a staircase, or a stop) lights it up; while placing, a ghost shows where it would go.
+  // The little diamonds over what there is to remember are things to point at and click, too.
+  function pickMarker(p){
+   if(ctl.getMode()!=='walk')return null;
+   let best=null,reach=26;
+   P.route(palace).forEach(st=>{
+    const f=palace.furniture.find(g=>g.id===st.furnitureId);if(!f)return;
+    const spec=P.spec(f.type),o=st.propId?P.propsOf(palace).find(g=>g.id===st.propId):null,pw=o?P.propWorld(palace,o):null;
+    const s=ctl.toScreen(pw?pw.x:f.x,pw?pw.y+pw.h+.22:(spec.lift||0)+spec.h+.4,pw?pw.z:f.z);if(!s)return;
+    const d=Math.hypot(s.x-p.x,s.y-p.y);if(d<reach){reach=d;best={station:st,furniture:f,prop:o}}
+   });
+   return best;
+  }
+  function openMarker(m){
+   if(m.prop){if(P.PROPS[m.prop.type].read)readProp(m.prop);else showPropCard(m.prop);return}
+   showCard(m.furniture,m.station);
+  }
   function walkHover(p){
    p=aimPoint(p);
    if(S.placing){const g=placement(p);S.hover={ghost3:g?g.box:null};S.aimed=g;overlay();canvas.style.cursor=g&&g.ok?'copy':'not-allowed';return}
+   const mk=S.edit?null:pickMarker(p);
+   if(mk){
+    if(S.hover.station!==mk.station.id){S.hover={station:mk.station.id};overlay();hudShow('Open: '+(resolve(mk.station).title||'this').replace(/\$/g,''),1800)}
+    canvas.style.cursor='pointer';return;
+   }
    const o=ctl.pickProp(p.x,p.y);let cursor='grab',tip='';
    if(o){cursor='pointer';tip=(P.PROPS[o.type].read?'Take it down: ':'')+(o.title||P.PROPS[o.type].name)}
    else if(!S.edit){const f=ctl.pickFurniture(p.x,p.y);if(f&&f.link){cursor='pointer';tip=P.spec(f.type).link==='up'?'Go upstairs':'Go downstairs'}else if(f&&P.stationsOn(palace,f.id).some(s=>!s.propId)){cursor='pointer'}}
    else cursor='default';
    const id=o?o.id:null;
-   if((S.hover.hoverProp||null)!==id){S.hover={hoverProp:id};overlay();if(tip)hudShow(tip,1800)}
+   if((S.hover.hoverProp||null)!==id||S.hover.station){S.hover={hoverProp:id};overlay();if(tip)hudShow(tip,1800)}
    canvas.style.cursor=cursor;
   }
   // Where the thing being placed would land if clicked now: {ok, box, place:fn}
@@ -625,7 +658,7 @@
     const done=g.place();if(!done){toast_('It doesn\'t fit there');return}
     const pl=S.placing,isProp=pl.kind==='prop'||pl.kind==='moveP'||!!done.hostId;
     if(isProp){S.prop=done.id;S.furniture=done.hostId}else{S.prop=null;S.furniture=done.id}
-    S.room=null;if(!(event&&event.shiftKey)||pl.kind.startsWith('move'))S.placing=null;S.hover={};S.tab='selected';commit();return;
+    S.room=null;if(!(event&&event.shiftKey)||pl.kind.startsWith('move'))S.placing=null;S.hover={};S.tab='selected';if(isProp&&!pl.kind.startsWith('move')){S.fresh=done.id;S.focusFresh=done.id}commit();return;
    }
    const o=ctl.pickProp(p.x,p.y);
    if(S.edit){
@@ -635,6 +668,7 @@
     const r=ctl.ray(p.x,p.y);if(r.dir.y<-.01){const t=-r.origin.y/r.dir.y,x=r.origin.x+r.dir.x*t,z=r.origin.z+r.dir.z*t;if(P.roomAt(palace,x,z))ctl.setTarget(x,z)}
     return;
    }
+   const mk=pickMarker(p);if(mk){openMarker(mk);return}
    if(o){if(P.PROPS[o.type].read)readProp(o);else showPropCard(o);return}
    const f=ctl.pickFurniture(p.x,p.y);
    if(f&&f.link){useStairs(f);return}
