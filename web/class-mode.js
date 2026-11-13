@@ -169,7 +169,10 @@
  function buildHud(){
   hud=el('div');hud.id='class-hud';hud.setAttribute('role','region');hud.setAttribute('aria-label','Class timer and stats');
   const clock=el('div','hud-clock'),big=el('strong','hud-left','0:00'),label=el('small','hud-label','');
-  const bar=el('div','hud-bar');bar.append(el('i'));clock.append(big,label,bar);
+  const bar=el('div','hud-bar');bar.append(el('i'));
+  // The timer can be put away when it distracts: the stats and buttons stay, and the end-of-class prompt still comes.
+  const toggle=button('',()=>{const hidden=!hud.classList.contains('timer-hidden');remember('hideTimer',hidden);paintTimerToggle()},'hud-toggle');
+  clock.append(big,label,bar,toggle);
   const stats=el('div','hud-stats');
   for(const [key,name] of [['here','here'],['away','away'],['lookups','looked up'],['words','written']]){
    const stat=el('div','hud-stat');stat.dataset.stat=key;stat.append(el('b','','–'),el('small','',name));stats.append(stat);
@@ -181,7 +184,13 @@
    button('Full screen',()=>setFullscreen(!fullscreenOn),'hud-fullscreen','Enter or leave full screen'),
    button('End class',()=>end(),'hud-end')
   );
-  hud.append(clock,stats,actions);document.body.append(hud);
+  hud.append(clock,stats,el('div','hud-parked'),actions);document.body.append(hud);paintTimerToggle();
+ }
+ function paintTimerToggle(){
+  if(!hud)return;
+  const hidden=!!recall('hideTimer',false),toggle=hud.querySelector('.hud-toggle');
+  hud.classList.toggle('timer-hidden',hidden);
+  toggle.textContent=hidden?'Show timer':'Hide timer';toggle.title=hidden?'Bring the timer back':'Hide the timer. The time-up prompt still appears.';toggle.setAttribute('aria-pressed',String(hidden));
  }
  function paintHud(now){
   if(!hud||!live)return;
@@ -200,6 +209,8 @@
   set('words','+'+live.wordsAdded);
   const looking=live.lookupUntil>now,lookup=hud.querySelector('.hud-lookup');
   lookup.textContent=looking?'Lookup window · '+M.duration(live.lookupUntil-now):'Looking something up';lookup.classList.toggle('is-open',looking);
+  const list=hud.querySelector('.hud-parked');list.replaceChildren();
+  if(live.parked.length){list.append(el('small','','Parked for after class'));for(const item of live.parked.slice(-4))list.append(el('p','',item.text))}
   hud.querySelector('.hud-park').textContent=live.parked.length?'Park a thought ('+live.parked.length+')':'Park a thought';
   hud.querySelector('.hud-fullscreen').textContent=fullscreenOn?'Exit full screen':'Full screen';
  }
