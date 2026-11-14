@@ -45,12 +45,15 @@ article>.anno-start:not(#anno-none){width:30px}
 .anno-preview .anno-stroke{stroke-dasharray:3 3}
 
 /* Remove: appears with the drawing's other handles */
-.anno-remove{position:absolute;right:-24px;top:-10px;width:18px;height:18px;padding:0;border:1px solid var(--line);border-radius:50%;background:var(--bg);color:var(--muted);font:13px/15px -apple-system,sans-serif;cursor:pointer;opacity:0;pointer-events:none}
+.anno-remove{position:absolute;right:-24px;top:-10px;width:18px;height:18px;padding:0;border:1px solid var(--line);border-radius:50%;background:var(--bg);color:var(--muted);font:13px/15px -apple-system,sans-serif;cursor:pointer;opacity:0;visibility:hidden;transition:opacity .12s .45s,visibility 0s .45s}
 .anno-bubble .anno-remove,.anno-box .anno-remove{right:-8px;top:-8px}
-.anno-more{position:absolute;right:-46px;top:-10px;width:20px;height:18px;padding:0;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--muted);font:600 11px/14px -apple-system,sans-serif;cursor:pointer;opacity:0;pointer-events:none}
+.anno-more{position:absolute;right:-46px;top:-10px;width:20px;height:18px;padding:0;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--muted);font:600 11px/14px -apple-system,sans-serif;cursor:pointer;opacity:0;visibility:hidden;transition:opacity .12s .45s,visibility 0s .45s}
 .anno-bubble .anno-more,.anno-box .anno-more{right:14px;top:-8px}
 .anno-shape .anno-more{right:14px;top:-8px}
-.anno:hover>:is(.anno-remove,.anno-more),.anno:focus-within>:is(.anno-remove,.anno-more),.anno-more[aria-expanded=true]{opacity:1;pointer-events:auto}
+.anno:hover>:is(.anno-remove,.anno-more),.anno:focus-within>:is(.anno-remove,.anno-more),.anno-more[aria-expanded=true]{opacity:1;visibility:visible;transition-delay:0s}
+/* The x and the dots stay put while the pointer travels to them: a short delay before they go, and an invisible margin that bridges the gap to the drawing */
+.anno-remove::before,.anno-more::before{content:"";position:absolute;inset:-9px}
+.anno:has(>:is(.anno-remove,.anno-more):hover)>:is(.anno-remove,.anno-more){opacity:1;visibility:visible;transition-delay:0s}
 .anno-more:hover{color:var(--ink);border-color:var(--ink)}
 .anno.tucked>.anno-more{display:none}
 /* The menu: a row of shapes, then outline and text colours */
