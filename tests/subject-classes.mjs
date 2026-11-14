@@ -42,6 +42,15 @@ try{
   assert.equal(await evaluate(`getComputedStyle(document.querySelector('.student-dialog .student-check input')).appearance`),'none','checkboxes are custom switches');
   await evaluate(`document.querySelector('.student-dialog form').requestSubmit()`);await wait(300);
   assert.equal(await evaluate(`state.projects[0].color`),'#dd7088','chosen accent is saved');
+  await evaluate(`window.marginHome('s0')`);await wait(300);
+  await evaluate(`document.querySelector('.subject-units .section-hide').click()`);await wait(300);
+  assert.equal(await evaluate(`state.projects[0].overview.units`),false,'the Hide button next to Units hides it');
+  await evaluate(`document.querySelector('.subject-classes .section-hide').click()`);await wait(300);
+  assert.equal(await evaluate(`[...document.querySelectorAll('.hidden-strip button')].map(b=>b.textContent).join()`),'＋ Units,＋ Classes','a strip offers to bring them back');
+  await evaluate(`document.querySelector('.hidden-strip button').click()`);await wait(300);
+  assert.equal(await evaluate(`!!document.querySelector('.subject-units')&&!document.querySelector('.subject-classes')`),true,'one click restores Units');
+  assert.equal(await evaluate(`document.querySelector('#projects .project-edit').textContent`),'Edit','the sidebar edit button is labelled');
+  assert.equal(await evaluate(`!!document.querySelector('.subject-main-actions .edit-subject')`),true,'subject page has an Edit subject button');
   // hiding what you never use
   await evaluate(`Object.assign(state.projects[0].overview,{units:false,classes:false});state.projects[0].hiddenTabs={palace:true,tests:true};window.marginHome('s0')`);await wait(300);
   assert.equal(await evaluate(`!document.querySelector('.subject-units')&&!document.querySelector('.subject-classes')`),true,'Units and Classes are gone from the overview');
