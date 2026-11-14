@@ -101,3 +101,5 @@ body>aside .aside-bottom{flex-shrink:0;padding-top:12px;margin-top:0;border-top:
 .student-dialog .subject-swatches input.swatch-custom{flex:0 0 22px;width:22px;height:22px;min-height:0;padding:0;border:0;border-radius:50%;background:conic-gradient(#e86a6a,#e8c46a,#7ee86a,#6ae8d8,#6a7ee8,#d86ae8,#e86a6a)}
 .student-dialog .subject-swatches input.swatch-custom::-webkit-color-swatch-wrapper{padding:0}.student-dialog .subject-swatches input.swatch-custom::-webkit-color-swatch{border:0;border-radius:50%;opacity:0}
 .student-dialog .subject-swatches input.swatch-custom.selected::-webkit-color-swatch{opacity:1}
+.subject-edit-checks.tab-switches{grid-template-columns:1fr 1fr 1fr}.subject-edit h3+.subject-edit-checks{margin-bottom:2px}
+.subject-edit-checks{grid-template-columns:1fr 1fr 1fr;gap:2px 16px}

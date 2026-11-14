@@ -33,7 +33,7 @@ try{
   const h=await evaluate(`document.querySelector('.student-dialog').getBoundingClientRect().height`);console.log('edit dialog height',h,await evaluate('document.querySelector(".student-dialog").open'));
   console.log(await evaluate(`[...document.querySelectorAll('.student-dialog form>*, .student-dialog>h2')].map(e=>e.className+':'+Math.round(e.getBoundingClientRect().height)).join(' | ')`));
   assert.equal(await evaluate(`document.querySelector('.student-dialog select[aria-label="Part of a larger subject"]').value`),'','edit page has the parent dropdown');
-  assert.ok(h>100&&h<560,'edit dialog is compact');
+  assert.ok(h>100&&h<640,'edit dialog is compact');
   assert.equal(await evaluate(`(d=>d.scrollHeight<=d.clientHeight)(document.querySelector('.student-dialog'))`),true,'edit dialog needs no scrolling');
   await evaluate(`document.querySelector('.student-dialog').close();openProjectComposer()`);await wait(300);
   console.log('create dialog height',await evaluate(`document.querySelector('#project-dialog').getBoundingClientRect().height`));
@@ -42,5 +42,12 @@ try{
   assert.equal(await evaluate(`getComputedStyle(document.querySelector('.student-dialog .student-check input')).appearance`),'none','checkboxes are custom switches');
   await evaluate(`document.querySelector('.student-dialog form').requestSubmit()`);await wait(300);
   assert.equal(await evaluate(`state.projects[0].color`),'#dd7088','chosen accent is saved');
+  // hiding what you never use
+  await evaluate(`Object.assign(state.projects[0].overview,{units:false,classes:false});state.projects[0].hiddenTabs={palace:true,tests:true};window.marginHome('s0')`);await wait(300);
+  assert.equal(await evaluate(`!document.querySelector('.subject-units')&&!document.querySelector('.subject-classes')`),true,'Units and Classes are gone from the overview');
+  assert.equal(await evaluate(`[...document.querySelectorAll('.student-tabs button')].map(b=>b.dataset.feature).join()`),'overview,notes,materials,synthesis','hidden tabs are gone');
+  assert.equal(await evaluate(`!document.querySelector('#projects .subject-expand')||[...document.querySelectorAll('#projects .project-row')][0].querySelector('.subject-expand')==null`),true,'no unit expander in the sidebar');
+  await evaluate(`window.marginEditProject(state.projects[0])`);await wait(300);
+  assert.equal(await evaluate(`[...document.querySelectorAll('.student-dialog .student-check')].filter(c=>!c.querySelector('input').checked).map(c=>c.textContent).join()`),'Units,Classes,Test packs,Memory palace','they stay switched off on the edit page, ready to bring back');
   console.log('PASS: subjects can contain classes, which stay off the home page.');
 }finally{browser.kill();for(const pending of waiting.values())clearTimeout(pending.timer);await rm(profile,{recursive:true,force:true,maxRetries:10,retryDelay:100})}
