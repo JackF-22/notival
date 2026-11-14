@@ -10,6 +10,8 @@
 /* The tabs for boxes that are away: pills at the top right, just under the header */
 #widget-tabs{position:fixed;z-index:60;right:22px;top:76px;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;max-width:min(560px,60vw)}
 #widget-tabs[hidden]{display:none}
+/* The tabs belong to the home and subject pages; over a note they would sit on top of what you are writing */
+body[data-view=note] #widget-tabs{display:none}
 .widget-tab{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 13px 0 9px;border:1px solid color-mix(in srgb,var(--accent,var(--green)) 55%,var(--line));border-radius:999px;background:color-mix(in srgb,var(--accent,var(--green)) 10%,var(--bg));color:var(--ink);font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;box-shadow:0 3px 12px #0000001a;animation:widget-tab-in .24s ease-out}
 .widget-tab-arrow{font-size:20px;line-height:1;margin-top:-2px;color:var(--accent,var(--green));font-weight:700}
 .widget-tab:hover,.widget-tab:focus-visible{background:var(--accent,var(--green));color:var(--on-accent,#fff)}

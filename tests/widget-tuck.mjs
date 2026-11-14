@@ -74,6 +74,11 @@ try{
   await evaluate(`document.querySelector('.global-todo > .widget-tuck').click()`);await wait(450);
   assert.equal(await evaluate(`document.querySelector('.global-todo').offsetParent===null`),true);
   assert.equal(await evaluate(`document.querySelector('.widget-tab-label')?.textContent`),'To do','and it has its tab');
+  // Over a note the tabs stay out of the way
+  await evaluate(`document.body.dataset.view='note'`);await wait(100);
+  assert.equal(await shown('#widget-tabs'),false,'no edge tabs over a note');
+  await evaluate(`document.body.dataset.view='home'`);await wait(100);
+  assert.equal(await shown('#widget-tabs'),true,'and they are back on the home page');
   await evaluate(`WidgetTuck.clear()`);
   console.log('PASS: boxes slide out to the right edge, leave a tab to bring them back, are remembered, and the page closes up around them.');
 }finally{browser.kill();for(const pending of waiting.values())clearTimeout(pending.timer);await rm(profile,{recursive:true,force:true,maxRetries:10,retryDelay:100})}
