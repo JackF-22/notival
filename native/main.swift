@@ -817,7 +817,7 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
     let wanted = body["on"] as? Bool ?? false
     if wanted != window.styleMask.contains(.fullScreen) { window.toggleFullScreen(nil) }
    case "mouseLook": setMouseLook(body["on"] as? Bool ?? false)
-   case "copy": NSPasteboard.general.clearContents(); NSPasteboard.general.setString(body["text"] as? String ?? "",forType: .string); js("toast","Snippet copied")
+   case "copy": NSPasteboard.general.clearContents(); NSPasteboard.general.setString(body["text"] as? String ?? "",forType: .string); js("toast",body["message"] as? String ?? "Snippet copied")
    case "runCode": if body["language"] as? String == "c" { runC(body) } else if body["language"] as? String == "python" { runPython(body) }
    case "revealFile":
     guard let path = body["path"] as? String, path.hasPrefix("/"), FileManager.default.fileExists(atPath: path) else {
@@ -854,6 +854,31 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
      do { try text.write(to: url, atomically: true, encoding: .utf8); NSWorkspace.shared.activateFileViewerSelecting([url]); self.js("toast", "Saved “\(url.lastPathComponent)”") }
      catch { self.js("window.marginError", error.localizedDescription) }
     }
+   case "saveMarkdown":
+    let panel = NSSavePanel(); panel.canCreateDirectories = true
+    panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
+    panel.nameFieldStringValue = NoteExporter.suggestedName(body["title"] as? String ?? "Notes") + ".md"
+    panel.message = "Choose where this note's Markdown goes, for example your project's folder. Its pictures are saved beside it."
+    let markdown = body["text"] as? String ?? "", pictures = body["images"] as? [[String: Any]] ?? [], pictureFolder = body["imagesDir"] as? String ?? "images", noteID = body["noteId"] as? String ?? ""
+    panel.beginSheetModal(for: window) { response in
+     guard response == .OK, let url = panel.url else { return }
+     do {
+      let saved = try MarkdownFiles.write(text: markdown, images: pictures, to: url, imagesDir: pictureFolder)
+      MarkdownFiles.grant(url)
+      self.js("window.marginMarkdownSaved", ["noteId": noteID, "path": url.path, "name": url.lastPathComponent, "images": saved])
+      NSWorkspace.shared.activateFileViewerSelecting([url])
+     } catch { self.js("window.marginError", error.localizedDescription) }
+    }
+   case "writeMarkdown":
+    let noteID = body["noteId"] as? String ?? ""
+    guard let path = body["path"] as? String, path.hasPrefix("/"), path.hasSuffix(".md"), MarkdownFiles.isGranted(path) else {
+     js("window.marginMarkdownSaved", ["noteId": noteID, "error": "Save the file again to keep it updated."]); return
+    }
+    do {
+     let url = URL(fileURLWithPath: path)
+     let saved = try MarkdownFiles.write(text: body["text"] as? String ?? "", images: body["images"] as? [[String: Any]] ?? [], to: url, imagesDir: body["imagesDir"] as? String ?? "images")
+     js("window.marginMarkdownSaved", ["noteId": noteID, "path": path, "name": url.lastPathComponent, "images": saved, "quiet": true])
+    } catch { js("window.marginMarkdownSaved", ["noteId": noteID, "error": error.localizedDescription]) }
    case "exportGuide":
     let panel = NSSavePanel(); panel.canCreateDirectories = true
     panel.allowedContentTypes = [.pdf]

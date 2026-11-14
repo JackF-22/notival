@@ -1,0 +1,23 @@
+/* Markdown for GitHub: the pane beside the note */
+#markdown-note{font:600 11px -apple-system,BlinkMacSystemFont,sans-serif;letter-spacing:.03em;padding:6px 9px}
+#markdown-note[aria-pressed=true]{background:var(--soft);border-color:var(--green)}
+#markdown-note[hidden]{display:none}
+#markdown-pane{position:fixed;z-index:90;top:0;right:0;bottom:0;width:min(420px,100vw);display:flex;flex-direction:column;gap:12px;padding:16px 18px;background:var(--bg);border-left:1px solid var(--line);color:var(--ink)}
+#markdown-pane[hidden]{display:none}
+body.md-open main{margin-right:min(420px,45vw)!important}
+.md-head{display:flex;align-items:flex-start;gap:10px}
+.md-title{flex:1;display:grid;gap:2px}.md-title strong{font:600 15px Georgia,serif}.md-title small{color:var(--muted);font-size:12px}
+#markdown-pane button{font:inherit;font-size:12.5px;border:1px solid var(--line);border-radius:8px;background:transparent;color:inherit;padding:7px 12px;cursor:pointer}
+#markdown-pane button:hover{background:var(--soft)}
+#markdown-pane button.primary{background:var(--green);border-color:var(--green);color:#fff}
+#markdown-pane .md-close{border:0;color:var(--muted);padding:4px 8px}
+.md-options{font-size:12.5px;color:var(--muted)}.md-options label{display:flex;align-items:center;gap:6px;cursor:pointer}
+.md-source{flex:1;min-height:120px;margin:0;overflow:auto;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--soft);font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere;user-select:text}
+.md-stats{margin:0;color:var(--muted);font-size:12px}
+.md-actions{display:flex;gap:8px;flex-wrap:wrap}
+.md-link{display:grid;gap:8px}.md-linked{display:flex;align-items:center;gap:8px;font-size:12.5px}.md-file{flex:1;font-weight:600;overflow-wrap:anywhere}
+#markdown-pane .md-small{padding:4px 9px;font-size:12px;color:var(--muted)}
+#markdown-pane .md-now{justify-self:start}
+.md-sync{display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer}
+.md-note{margin:0;min-height:1.2em;color:var(--muted);font-size:12px}
+@media(max-width:900px){body.md-open main{margin-right:0!important}#markdown-pane{box-shadow:-12px 0 30px #0002}}
