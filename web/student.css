@@ -62,3 +62,20 @@ body>aside .aside-bottom{flex-shrink:0;padding-top:12px;margin-top:0;border-top:
 .subject-grid .subject-tile{position:relative}.subject-grid .subject-tile.dragging{opacity:.45}.subject-grid .subject-tile.drop-before{box-shadow:-3px 0 0 var(--accent,var(--green))}.subject-grid .subject-tile.drop-after{box-shadow:3px 0 0 var(--accent,var(--green))}
 
 #projects .project-row.subproject{margin-left:18px}#projects .project-row.subproject .project-count{opacity:.8}
+
+.student-dialog.subject-edit{width:min(600px,92vw);padding:16px 20px 14px}
+.subject-edit h2{margin:0 0 8px;font-size:18px}
+.subject-edit form{gap:8px}
+.subject-edit form>label,.subject-edit .subject-edit-top label{gap:4px;font-size:11px}
+.subject-edit-top{display:grid;grid-template-columns:1.3fr 1fr;gap:10px}
+.subject-edit-top label{display:grid;gap:4px;color:var(--muted);font-size:11px}
+.subject-edit-top select{font:inherit;font-size:14px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);width:100%}
+.subject-edit input:not([type=checkbox]),.subject-edit textarea{padding:8px 10px}
+.subject-edit textarea{min-height:48px;height:48px}
+.subject-edit .subject-identity-fields{gap:10px}.subject-edit .subject-identity-fields label{gap:4px}.subject-edit .subject-identity-fields input[type=color]{height:36px}
+.subject-edit .language-field{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:4px 10px;margin:0}
+.subject-edit .language-field .language-hint{grid-column:1/-1;min-height:0;margin:0}.subject-edit .language-hint:empty{display:none}
+.subject-edit h3{margin:4px 0 0;font-size:12px;color:var(--muted);font-weight:600}
+.subject-edit-checks{display:grid;grid-template-columns:1fr 1fr;gap:4px 14px}
+.subject-edit .student-actions{margin-top:4px}
+.subject-edit-icons>summary{cursor:pointer;color:var(--muted);font-size:12px;padding:2px 0}.subject-edit-icons[open]>summary{margin-bottom:4px}.subject-edit-icons .project-icon-picker{margin:4px 0 2px}

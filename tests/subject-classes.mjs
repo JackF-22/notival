@@ -29,5 +29,13 @@ try{
   assert.equal(await evaluate(`document.querySelector('#project-dialog select').value`),'s0','New class starts inside the parent');
   await evaluate(`document.querySelector('#project-dialog input').value='NS.42';document.querySelector('#project-dialog .primary').click()`);await wait(300);
   assert.equal(await evaluate(`state.projects.find(p=>p.name==='NS.42').parentId`),'s0');
+  await evaluate(`window.marginEditProject(state.projects[0])`);await wait(300);
+  const h=await evaluate(`document.querySelector('.student-dialog').getBoundingClientRect().height`);console.log('edit dialog height',h,await evaluate('document.querySelector(".student-dialog").open'));
+  console.log(await evaluate(`[...document.querySelectorAll('.student-dialog form>*, .student-dialog>h2')].map(e=>e.className+':'+Math.round(e.getBoundingClientRect().height)).join(' | ')`));
+  assert.equal(await evaluate(`document.querySelector('.student-dialog select[aria-label="Part of a larger subject"]').value`),'','edit page has the parent dropdown');
+  assert.ok(h>100&&h<560,'edit dialog is compact');
+  assert.equal(await evaluate(`(d=>d.scrollHeight<=d.clientHeight)(document.querySelector('.student-dialog'))`),true,'edit dialog needs no scrolling');
+  await evaluate(`document.querySelector('.student-dialog').close();openProjectComposer()`);await wait(300);
+  console.log('create dialog height',await evaluate(`document.querySelector('#project-dialog').getBoundingClientRect().height`));
   console.log('PASS: subjects can contain classes, which stay off the home page.');
 }finally{browser.kill();for(const pending of waiting.values())clearTimeout(pending.timer);await rm(profile,{recursive:true,force:true,maxRetries:10,retryDelay:100})}
