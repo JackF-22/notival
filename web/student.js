@@ -108,7 +108,36 @@ window.marginNoteMaterialPicker=(note,onPick)=>{
   });
  }
  window.marginShowPack=(s,p)=>showPack(s,p);
- function sidebar(){if(!state)return;for(const s of state.projects){StudentModel.initialize(s)}renderProjects();for(const [index,row] of [...$('#projects').children].entries()){const s=state.projects[index];if(!s)continue;const toggle=btn('▸',()=>{s.sidebarExpanded=!s.sidebarExpanded;save();sidebar()},'subject-expand');toggle.setAttribute('aria-label','Expand '+s.name);toggle.setAttribute('aria-expanded',String(!!s.sidebarExpanded));row.prepend(toggle);window.marginMakeDropTarget?.(row.querySelector('.project-card'),{projectId:s.id,unitId:null});if(s.sidebarExpanded){const children=el('div',undefined,'subject-children');for(const u of s.units){const item=btn(u.name,()=>route(s.id,u.id,'notes'));item.classList.toggle('selected-unit',s.id===subjectID&&u.id===selectedUnit);window.marginMakeDropTarget?.(item,{projectId:s.id,unitId:u.id});children.append(item)}children.append(btn('＋ Add unit',()=>unitEditor(s)));row.append(children)}}}
+ // Subjects can be put in any order: drag a row to where it belongs, or press Option + ↑ / ↓ on a subject.
+ function reorder(id,to){
+  if(!StudentModel.moveSubject(state.projects,id,to))return;
+  save();sidebar();if(document.body.dataset.view==='home')window.marginHome?.();
+  requestAnimationFrame(()=>document.querySelector('#projects .project-row:nth-child('+(to+1)+') .project-card')?.focus());
+ }
+ function orderable(row,s){
+  const card=row.querySelector('.project-card');if(!card)return;
+  row.draggable=true;row.dataset.subject=s.id;
+  row.addEventListener('dragstart',e=>{if(e.target.closest?.('input,select')){e.preventDefault();return}e.dataTransfer.setData('text/notival-subject',s.id);e.dataTransfer.effectAllowed='move';row.classList.add('dragging')});
+  row.addEventListener('dragend',()=>{row.classList.remove('dragging');for(const r of document.querySelectorAll('#projects .drop-before,#projects .drop-after'))r.classList.remove('drop-before','drop-after')});
+  const half=e=>{const r=row.getBoundingClientRect();return e.clientY<r.top+r.height/2?'before':'after'};
+  row.addEventListener('dragover',e=>{
+   if(![...e.dataTransfer.types].includes('text/notival-subject'))return;
+   e.preventDefault();e.dataTransfer.dropEffect='move';
+   const side=half(e);row.classList.toggle('drop-before',side==='before');row.classList.toggle('drop-after',side==='after');
+  });
+  row.addEventListener('dragleave',e=>{if(!row.contains(e.relatedTarget))row.classList.remove('drop-before','drop-after')});
+  row.addEventListener('drop',e=>{
+   const id=e.dataTransfer.getData('text/notival-subject');if(!id)return;
+   e.preventDefault();const side=half(e);row.classList.remove('drop-before','drop-after');
+   const from=state.projects.findIndex(p=>p.id===id),at=state.projects.findIndex(p=>p.id===s.id);if(from<0||at<0)return;
+   let to=side==='before'?at:at+1;if(from<to)to--;reorder(id,to);
+  });
+  card.addEventListener('keydown',e=>{
+   if(!e.altKey||e.metaKey||e.ctrlKey||!['ArrowUp','ArrowDown'].includes(e.key))return;
+   e.preventDefault();reorder(s.id,state.projects.findIndex(p=>p.id===s.id)+(e.key==='ArrowUp'?-1:1));
+  });
+ }
+ function sidebar(){if(!state)return;for(const s of state.projects){StudentModel.initialize(s)}renderProjects();for(const [index,row] of [...$('#projects').children].entries()){const s=state.projects[index];if(!s)continue;const toggle=btn('▸',()=>{s.sidebarExpanded=!s.sidebarExpanded;save();sidebar()},'subject-expand');toggle.setAttribute('aria-label','Expand '+s.name);toggle.setAttribute('aria-expanded',String(!!s.sidebarExpanded));row.prepend(toggle);window.marginMakeDropTarget?.(row.querySelector('.project-card'),{projectId:s.id,unitId:null});orderable(row,s);if(s.sidebarExpanded){const children=el('div',undefined,'subject-children');for(const u of s.units){const item=btn(u.name,()=>route(s.id,u.id,'notes'));item.classList.toggle('selected-unit',s.id===subjectID&&u.id===selectedUnit);window.marginMakeDropTarget?.(item,{projectId:s.id,unitId:u.id});children.append(item)}children.append(btn('＋ Add unit',()=>unitEditor(s)));row.append(children)}}}
  function crumbs(s,n=null){subjectHome.hidden=!s||(!n&&tab==='overview'&&!selectedUnit);subjectHome.title=s?'Return to '+s.name:'Subject overview';subjectHome.style.setProperty('--subject-color',s?.color||'var(--green)');const crumb=$('.breadcrumb');crumb.replaceChildren();if(s)crumb.append(btn(s.name,()=>route(s.id)));const unitID=n?.unitId||selectedUnit;if(unitID&&s){const u=s.units?.find(u=>u.id===unitID);if(u)crumb.append(el('span','/'),btn(u.name,()=>route(s.id,u.id,'notes')))}const marker=el('span',n?.title||'');marker.id='crumb';marker.hidden=!n;if(n)crumb.append(el('span','/'));crumb.append(marker)}
  function customizeSubject(s){StudentModel.initialize(s);form('Make this subject yours',f=>{const name=field(f,'Subject name',s.name);name.required=true;const identity=el('div',undefined,'subject-identity-fields'),iconLabel=el('label','Icon'),icon=el('input');icon.value=s.icon||'📚';icon.setAttribute('aria-label','Subject icon');iconLabel.append(icon);const colorLabel=el('label','Accent color'),color=el('input');color.type='color';color.value=s.color||'#635ad6';color.setAttribute('aria-label','Subject accent color');colorLabel.append(color);identity.append(iconLabel,colorLabel);f.append(identity,ProjectIcons.create(icon.value,value=>icon.value=value,icon));const description=field(f,'About this subject',s.description||'',true);const language=NotivalLanguages.field(s.language);f.append(language.element);f.append(el('h3','On the subject overview'));const visible={...s.overview};for(const [key,label] of [['checklist','Small checklist'],['dates','Test and assignment dates'],['recent','Latest notes']])checkbox(f,label,visible[key]!==false,v=>visible[key]=v);let inStudy=!s.excludeFromStudy;f.append(el('h3','In the Study tab'));checkbox(f,'Show this subject in Study (today’s sessions, tests, recall, weak spots)',inStudy,v=>inStudy=v);actions(f,()=>{if(!name.value.trim())return;Object.assign(s,{name:name.value.trim(),icon:icon.value.trim().slice(0,12)||'📚',color:color.value,description:description.value.trim(),overview:visible,excludeFromStudy:!inStudy,language:language.value()});save();modal.close();route(s.id)})})}
  // Move existing rows after the completion animation, retaining handlers and focus.

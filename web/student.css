@@ -53,3 +53,8 @@ body>aside .aside-bottom{flex-shrink:0;padding-top:12px;margin-top:0;border-top:
 @media(max-width:1100px){.feature-launchers{grid-template-columns:repeat(2,minmax(0,1fr))}.student-nav .subject-overview-button{padding:7px 8px}.subject-overview-button .feature-icon{display:none}}
 @media(max-width:780px){.subject-widgets{grid-template-columns:1fr}.student-tabs{gap:2px}.student-tabs button{padding:6px}.student-tabs button>.feature-icon{display:none}.student-nav{gap:3px}.student-nav>button{padding:8px}.feature-heading p{font-size:11px}}
 @media(prefers-reduced-motion:reduce){.feature-launcher{transition:none}}
+
+/* Putting subjects in order */
+#sidebar-library #projects .project-row.dragging{opacity:.45}
+#sidebar-library #projects .project-row.drop-before{box-shadow:0 -2px 0 var(--accent,var(--green))}
+#sidebar-library #projects .project-row.drop-after{box-shadow:0 2px 0 var(--accent,var(--green))}
