@@ -895,6 +895,47 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
       DispatchQueue.main.async { self.js("window.marginGitResult", ["noteId": noteID, "kind": kind, "ok": result.ok, result.ok ? "message" : "error": result.output, "info": info]) }
      }
     }
+   case "githubStatus":
+    DispatchQueue.global(qos: .userInitiated).async { let info = GitHubAccount.status(); DispatchQueue.main.async { self.js("window.marginGithub", ["kind": "status", "info": info]) } }
+   case "githubRepos":
+    DispatchQueue.global(qos: .userInitiated).async { let list = GitHubAccount.repos(); DispatchQueue.main.async { self.js("window.marginGithub", ["kind": "repos", "repos": list]) } }
+   case "githubLogin":
+    GitHubAccount.signIn(code: { code in DispatchQueue.main.async { self.js("window.marginGithub", ["kind": "code", "code": code]) } }, done: {
+     DispatchQueue.global(qos: .userInitiated).async { let info = GitHubAccount.status(); DispatchQueue.main.async { self.js("window.marginGithub", ["kind": "status", "info": info, "afterLogin": true]) } }
+    })
+   case "githubSaveToRepo":
+    // Save this note into a repository: clone it once (asking where to keep it), then pick the file's name inside it.
+    guard let repo = body["repo"] as? String, GitHubAccount.validRepo(repo) else { return }
+    let markdown = body["text"] as? String ?? "", pictures = body["images"] as? [[String: Any]] ?? [], pictureFolder = body["imagesDir"] as? String ?? "images", noteID = body["noteId"] as? String ?? ""
+    let title = body["title"] as? String ?? "Notes"
+    let choose: (URL) -> Void = { folder in
+     DispatchQueue.main.async {
+      let panel = NSSavePanel(); panel.directoryURL = folder; panel.canCreateDirectories = true
+      panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
+      panel.nameFieldStringValue = FileManager.default.fileExists(atPath: folder.appendingPathComponent("README.md").path) ? NoteExporter.suggestedName(title) + ".md" : "README.md"
+      panel.message = "Save into \(repo). Pick README.md or any name, inside this folder or one of its subfolders."
+      panel.beginSheetModal(for: self.window) { response in
+       guard response == .OK, let url = panel.url else { return }
+       do {
+        let saved = try MarkdownFiles.write(text: markdown, images: pictures, to: url, imagesDir: pictureFolder)
+        MarkdownFiles.grant(url)
+        self.js("window.marginMarkdownSaved", ["noteId": noteID, "path": url.path, "name": url.lastPathComponent, "images": saved])
+       } catch { self.js("window.marginError", error.localizedDescription) }
+      }
+     }
+    }
+    if let known = GitHubAccount.knownClone(of: repo) { choose(known); return }
+    let open = NSOpenPanel(); open.canChooseDirectories = true; open.canChooseFiles = false; open.canCreateDirectories = true; open.prompt = "Keep it here"
+    open.directoryURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Documents", isDirectory: true)
+    open.message = "Choose a folder to keep your copy of \(repo) in. It is downloaded there once."
+    open.beginSheetModal(for: window) { response in
+     guard response == .OK, let parent = open.url else { return }
+     self.js("toast", "Downloading \(repo)…")
+     DispatchQueue.global(qos: .userInitiated).async {
+      let result = GitHubAccount.clone(repo, into: parent)
+      if let folder = result.0 { choose(folder) } else { DispatchQueue.main.async { self.js("window.marginError", "Couldn’t download \(repo). \(result.1)") } }
+     }
+    }
    case "exportGuide":
     let panel = NSSavePanel(); panel.canCreateDirectories = true
     panel.allowedContentTypes = [.pdf]

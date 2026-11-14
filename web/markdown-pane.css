@@ -28,3 +28,7 @@ body.md-open main{margin-right:min(420px,45vw)!important}
 .md-github-line{margin:0;font-size:13px;color:var(--muted);overflow-wrap:anywhere}
 .md-commit{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit;font-size:13.5px}
 .md-push{justify-self:start}
+
+.md-code{display:block;padding:7px 10px;border-radius:8px;background:var(--soft);font:12.5px ui-monospace,Menlo,monospace}
+.md-device-code{font:600 26px ui-monospace,Menlo,monospace;letter-spacing:.08em;padding:6px 0}
+.md-repo{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit;font-size:13.5px}
