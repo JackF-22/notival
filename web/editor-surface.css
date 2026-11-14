@@ -215,7 +215,9 @@ body.pdf-workspace header .breadcrumb{display:none}
 #pdf-selection>.pdf-comment-editor{display:block;justify-content:normal;margin-top:0}
 #pdf-selection .pdf-comment-editor .rich-text{width:100%;min-width:0}
 .block-tools .cell-copy{display:inline-flex;align-items:center;justify-content:center;padding:5px 7px;color:var(--muted)}
-body #editor>.block:first-child:not(.code) .block-tools{top:4px}
+/* The first block has nothing above it to hold the Move, Copy and Delete buttons, so it keeps a strip of its own for them rather than putting them over its first line */
+body #editor>.block:first-child:not(.code){padding-top:32px}
+body #editor>.block:first-child:not(.code) .block-tools{top:2px}
 .block-tools .cell-copy:hover{color:var(--ink)}
 
 #share-note{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 12px}
