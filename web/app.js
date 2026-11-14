@@ -239,12 +239,31 @@ window.marginImportBackup=backup=>{
 };
 $('#run-all').onclick=()=>runLab(current());
 window.marginLoad=data=>{state=data?.notes?data:seed();state.projects??=[];state.importedOrigins??=state.notes.map(note=>note.origin).filter(Boolean);active=state.notes[0]?.id;render();focusFirstTextBlock();window.dispatchEvent(new Event('notival-ready'))};
-window.marginCapture=data=>{
- const files=Array.isArray(data.paths)?data.paths.filter(path=>typeof path==='string'&&path.startsWith('/')).slice(0,100):[];
+function captureFiles(data){return Array.isArray(data.paths)?data.paths.filter(path=>typeof path==='string'&&path.startsWith('/')).slice(0,100):[]}
+function newCaptureNote(data){
+ const files=captureFiles(data);
  const blocks=files.length?[{id:uid(),type:'text',text:(data.text||'')+(data.text?'\n\n':'')+files.map(path=>'file://'+encodeURI(path)).join('\n')}]:
    [{id:uid(),type:'code',text:data.text||'',language:data.language||'text',source:data.source},{id:uid(),type:'text',text:''}];
  const n={id:uid(),title:data.title||'Captured selection',updated:Date.now(),pinned:false,nodes:[],blocks,contextFolder:data.context||null,linkedFiles:files,...(window.marginCaptureDestination?.()||{})};
  state.notes.unshift(n);active=n.id;mode='write';persist();render();toast(files.length?'Files linked in Notival':'Selection captured');
+}
+function appendCapture(note,data){
+ const last=note.blocks[note.blocks.length-1],blocks=[{id:uid(),type:'code',text:data.text||'',language:data.language||'text',source:data.source},{id:uid(),type:'text',text:''}];
+ if(last&&last.type==='text'&&!(last.text||'').trim()&&!(last.html||'').replace(/<[^>]*>/g,'').trim())note.blocks.splice(note.blocks.length-1,1,...blocks);else note.blocks.push(...blocks);
+ note.updated=Date.now();active=note.id;mode='write';persist();render();toast('Added to “'+(note.title||'Untitled')+'”');
+}
+window.marginCapture=data=>{
+ const keep=state.captureNote,live=id=>state.notes.find(n=>n.id===id);
+ if(captureFiles(data).length||!data.text)return newCaptureNote(data);
+ const kept=keep&&Date.now()-keep.at<1800000&&live(keep.id);
+ if(kept){state.captureNote.at=Date.now();return appendCapture(kept,data)}
+ if(!window.marginAskCapture||!state.notes.length)return newCaptureNote(data);
+ window.marginAskCapture(data,(id,remember)=>{
+  const note=id&&live(id);
+  if(!note)return newCaptureNote(data);
+  if(remember)state.captureNote={id:note.id,at:Date.now()};
+  appendCapture(note,data);
+ });
 };
 window.marginImportFoliose=imported=>{
  if(!Array.isArray(imported)||!imported.length)return;

@@ -1,0 +1,15 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const source=fs.readFileSync('web/app.js','utf8');let id=0;
+const a=source.indexOf('function captureFiles'),b=source.indexOf('window.marginImportFoliose=');
+const state={projects:[],notes:[{id:'n1',title:'Algorithms',blocks:[{id:'b',type:'text',text:'intro'},{id:'e',type:'text',text:''}]}]};
+let asked=0,answer;const ctx={window:{marginAskCapture:(d,cb)=>{asked++;cb(...answer)}},state,active:null,mode:'',uid:()=>'x'+(++id),persist(){},render(){},toast(){}};
+vm.createContext(ctx);vm.runInContext(source.slice(a,b),ctx);
+const cap={text:'let x=1',language:'js',source:{name:'a.js',start:0,end:0}};
+answer=['n1',true];ctx.window.marginCapture(cap);
+assert.equal(asked,1);assert.equal(state.notes.length,1);
+assert.deepEqual(state.notes[0].blocks.map(x=>x.type),['text','code','text']);
+ctx.window.marginCapture(cap);assert.equal(asked,1,'remembered target skips the chooser');
+assert.equal(state.notes[0].blocks.filter(x=>x.type==='code').length,2);
+state.captureNote=null;answer=[null];ctx.window.marginCapture(cap);
+assert.equal(state.notes.length,2,'choosing new note creates one');
+console.log('PASS: captures append to a chosen note, remember it, or make a new note.');
