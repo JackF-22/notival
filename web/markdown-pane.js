@@ -12,6 +12,7 @@
  const remember=(key,value)=>{try{localStorage.setItem('notival.markdown.'+key,JSON.stringify(value))}catch{}};
  const IMAGES='images',written=new Map();
  let last=null,timer=0,syncTimer=0,status='';
+ const git=new Map(),gitAsked=new Map();   // by note: what git said about the folder, and the path it was asked about
 
  // ── The pane ───────────────────────────────────────────────────────────────
  const toggle=button('',()=>setOpen(!pane.classList.contains('is-open')),'','Markdown for GitHub: see and save this note as Markdown');
@@ -58,16 +59,22 @@
  function paintLink(n){
   link.replaceChildren();
   save.textContent=n.mdPath?'Save as a new file…':'Save as .md…';
-  if(!n.mdPath){note.textContent=status;return}
+  if(!n.mdPath){
+   // the GitHub push needs a file in a git folder, so say how to get one
+   const hint=el('div','md-github');hint.append(el('strong','md-github-title','GitHub'),el('p','md-github-line','To push this note, save it as a .md file inside your project\'s folder (a clone of your repository). A Commit & push button appears here once it is saved.'),button('Save into my project…',()=>saveFile(),'primary md-push'));
+   link.append(hint);note.textContent=status;return;
+  }
   const name=n.mdPath.split('/').pop(),row=el('div','md-linked');
   row.append(el('span','md-file','Linked to '+name),button('Show',()=>post({type:'revealFile',path:n.mdPath}),'md-small','Show the file in Finder'),button('Unlink',()=>{delete n.mdPath;delete n.mdSync;written.delete(n.id);status='';persist();refresh()},'md-small','Stop updating this file'));
   const sync=el('label','md-sync'),box=el('input');box.type='checkbox';box.checked=!!n.mdSync;
   box.onchange=()=>{n.mdSync=box.checked;persist();if(n.mdSync){written.delete(n.id);writeLinked(n)}else status='';paintLink(n)};
   sync.append(box,' Keep '+name+' updated as I write');
-  link.append(row,sync,button('Update '+name+' now',()=>writeLinked(n,true),'md-small md-now'));
+  link.append(row,sync,button('Update '+name+' now',()=>writeLinked(n,true),'md-small md-now'),githubBox(n,name));
   note.textContent=status;
+  if(gitAsked.get(n.id)!==n.mdPath){gitAsked.set(n.id,n.mdPath);post({type:'gitStatus',noteId:n.id,path:n.mdPath,imagesDir:IMAGES,images:imageNames()})}
  }
 
+ const imageNames=()=>(last?.images||[]).map(i=>i.name);
  // ── Copying and saving ─────────────────────────────────────────────────────
  function copyMarkdown(){
   if(!last)return;
@@ -95,6 +102,39 @@
   written.set(n.id,last?.markdown);
   status='Saved '+data.name+' · '+new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})+(data.images?' · '+data.images+' picture'+(data.images===1?'':'s'):'');
   if(!data.quiet)window.toast?.('Saved “'+data.name+'”');
+  if(noteNow()?.id===n.id)paintLink(n);
+ };
+
+ // ── GitHub: commit and push the linked file with the Mac's own git ─────────
+ function githubBox(n,name){
+  const box=el('div','md-github'),g=git.get(n.id)||{};
+  box.append(el('strong','md-github-title','GitHub'));
+  if(g.busy){box.append(el('p','md-github-line','Working…'));return box}
+  if(g.repo===false){box.append(el('p','md-github-line','This file isn\'t in a git folder yet. Put it in a cloned repository (or run git init there) to push it from here.'),button('Check again',()=>askGit(n),'md-small'));return box}
+  if(!g.repo){box.append(el('p','md-github-line','Checking the folder…'));return box}
+  const where=(g.remote?g.remote.replace(/^.*github\.com[:\/]/,'').replace(/\.git$/,''):'no remote yet')+(g.branch?' · '+g.branch:'');
+  box.append(el('p','md-github-line',where));
+  const message=el('input');message.type='text';message.className='md-commit';message.value=g.message??('Update '+name);message.setAttribute('aria-label','Commit message');message.placeholder='Commit message';
+  message.oninput=()=>{g.message=message.value};
+  const go=()=>{
+   if(!g.remote){status='Add a GitHub remote to this folder first (git remote add origin <url>).';paintLink(n);return}
+   g.busy=true;git.set(n.id,g);written.delete(n.id);writeLinked(n,true);   // the file is brought up to date, then committed
+   post({type:'gitPublish',noteId:n.id,path:n.mdPath,imagesDir:IMAGES,images:imageNames(),message:message.value});paintLink(n);
+  };
+  message.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();go()}};
+  box.append(message,button(g.changed===false?'Push to GitHub':'Commit & push to GitHub',go,'primary md-push','Commit '+name+' and push it to '+(g.remote||'GitHub')));
+  return box;
+ }
+ function askGit(n){git.set(n.id,{});gitAsked.set(n.id,n.mdPath);post({type:'gitStatus',noteId:n.id,path:n.mdPath,imagesDir:IMAGES,images:imageNames()});paintLink(n)}
+ window.marginGitResult=data=>{
+  const n=(state.notes||[]).find(item=>item.id===data?.noteId);if(!n)return;
+  const g=git.get(n.id)||{};
+  if(data.kind==='gitStatus'){if(!data.ok){status=data.error||'';git.set(n.id,{repo:false})}else git.set(n.id,{...data.info,message:g.message})}
+  else{
+   g.busy=false;
+   if(data.ok){git.set(n.id,{...data.info,message:undefined});status=(data.message||'Pushed')+' · '+new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});window.toast?.(data.message?data.message[0].toUpperCase()+data.message.slice(1):'Pushed to GitHub')}
+   else{git.set(n.id,g);status=data.error||'The push didn\'t go through.';window.toast?.(status)}
+  }
   if(noteNow()?.id===n.id)paintLink(n);
  };
 

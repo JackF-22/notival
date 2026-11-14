@@ -21,3 +21,10 @@ body.md-open main{margin-right:min(420px,45vw)!important}
 .md-sync{display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer}
 .md-note{margin:0;min-height:1.2em;color:var(--muted);font-size:12px}
 @media(max-width:900px){body.md-open main{margin-right:0!important}#markdown-pane{box-shadow:-12px 0 30px #0002}}
+
+/* GitHub: commit and push the linked file */
+.md-github{display:grid;gap:8px;margin-top:10px;padding-top:12px;border-top:1px solid var(--line)}
+.md-github-title{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.md-github-line{margin:0;font-size:13px;color:var(--muted);overflow-wrap:anywhere}
+.md-commit{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit;font-size:13.5px}
+.md-push{justify-self:start}

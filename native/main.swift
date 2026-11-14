@@ -879,6 +879,22 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
      let saved = try MarkdownFiles.write(text: body["text"] as? String ?? "", images: body["images"] as? [[String: Any]] ?? [], to: url, imagesDir: body["imagesDir"] as? String ?? "images")
      js("window.marginMarkdownSaved", ["noteId": noteID, "path": path, "name": url.lastPathComponent, "images": saved, "quiet": true])
     } catch { js("window.marginMarkdownSaved", ["noteId": noteID, "error": error.localizedDescription]) }
+   case "gitStatus", "gitPublish":
+    let noteID = body["noteId"] as? String ?? "", kind = type
+    guard let path = body["path"] as? String, path.hasPrefix("/"), path.hasSuffix(".md"), MarkdownFiles.isGranted(path) else {
+     js("window.marginGitResult", ["noteId": noteID, "kind": kind, "ok": false, "error": "Save the file again to link it first."]); return
+    }
+    let url = URL(fileURLWithPath: path), imagesDir = body["imagesDir"] as? String ?? "images", images = body["images"] as? [String] ?? [], message = body["message"] as? String ?? ""
+    DispatchQueue.global(qos: .userInitiated).async {
+     if kind == "gitStatus" {
+      let info = GitPush.status(of: url, imagesDir: imagesDir, images: images)
+      DispatchQueue.main.async { self.js("window.marginGitResult", ["noteId": noteID, "kind": kind, "ok": true, "info": info]) }
+     } else {
+      let result = GitPush.publish(url, imagesDir: imagesDir, images: images, message: message)
+      let info = result.ok ? GitPush.status(of: url, imagesDir: imagesDir, images: images) : [:]
+      DispatchQueue.main.async { self.js("window.marginGitResult", ["noteId": noteID, "kind": kind, "ok": result.ok, result.ok ? "message" : "error": result.output, "info": info]) }
+     }
+    }
    case "exportGuide":
     let panel = NSSavePanel(); panel.canCreateDirectories = true
     panel.allowedContentTypes = [.pdf]
