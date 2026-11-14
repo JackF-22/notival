@@ -67,7 +67,7 @@ body #add-bar{padding-inline:16px}
 .table-picker-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;font-size:12px}
 @keyframes table-picker-open{from{opacity:0;transform:translateY(5px) scale(.98)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.table-picker[open]{animation:none}.table-size-grid button{transition:none}}
-body #format-bar{position:sticky;top:0;z-index:120;background:var(--bg);padding-top:12px;border-bottom:1px solid var(--line);box-shadow:0 6px 12px color-mix(in srgb,var(--bg) 85%,transparent)}
+body #format-bar{position:sticky;top:0;z-index:120;background:var(--bg);padding-top:12px;border-bottom:1px solid var(--line);box-shadow:none}
 /* Sticky offsets are relative to the padded article scrollport. Cover that inset. */
 body #format-bar{top:-34px;padding-top:34px}
 @media(max-width:780px){body #format-bar{top:-24px;padding-top:24px}}
