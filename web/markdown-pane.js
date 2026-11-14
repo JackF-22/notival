@@ -12,6 +12,7 @@
  const remember=(key,value)=>{try{localStorage.setItem('notival.markdown.'+key,JSON.stringify(value))}catch{}};
  const IMAGES='images',written=new Map();
  let last=null,timer=0,syncTimer=0,status='';
+ const acct={asked:false,known:false,available:true,login:'',repos:null,loadingRepos:false,code:'',signingIn:false,pick:''};   // the GitHub account
  const git=new Map(),gitAsked=new Map();   // by note: what git said about the folder, and the path it was asked about
 
  // ── The pane ───────────────────────────────────────────────────────────────
@@ -59,11 +60,7 @@
  function paintLink(n){
   link.replaceChildren();
   save.textContent=n.mdPath?'Save as a new file…':'Save as .md…';
-  if(!n.mdPath){
-   // the GitHub push needs a file in a git folder, so say how to get one
-   const hint=el('div','md-github');hint.append(el('strong','md-github-title','GitHub'),el('p','md-github-line','To push this note, save it as a .md file inside your project\'s folder (a clone of your repository). A Commit & push button appears here once it is saved.'),button('Save into my project…',()=>saveFile(),'primary md-push'));
-   link.append(hint);note.textContent=status;return;
-  }
+  if(!n.mdPath){link.append(accountBox(n));note.textContent=status;return}
   const name=n.mdPath.split('/').pop(),row=el('div','md-linked');
   row.append(el('span','md-file','Linked to '+name),button('Show',()=>post({type:'revealFile',path:n.mdPath}),'md-small','Show the file in Finder'),button('Unlink',()=>{delete n.mdPath;delete n.mdSync;written.delete(n.id);status='';persist();refresh()},'md-small','Stop updating this file'));
   const sync=el('label','md-sync'),box=el('input');box.type='checkbox';box.checked=!!n.mdSync;
@@ -105,10 +102,52 @@
   if(noteNow()?.id===n.id)paintLink(n);
  };
 
+ // ── Your GitHub account ──────────────────────────────────────────────────
+ // Signing in goes through GitHub's own tool (gh) in the browser; the sign-in is kept by the Mac, never by Notival.
+ function askAccount(){if(acct.asked)return;acct.asked=true;post({type:'githubStatus'})}
+ function accountBox(n){
+  const box=el('div','md-github');box.append(el('strong','md-github-title','GitHub'));
+  if(!acct.known){askAccount();box.append(el('p','md-github-line','Checking your GitHub account…'));return box}
+  if(!acct.available){
+   box.append(el('p','md-github-line','To connect GitHub, install its free command-line tool, then come back:'),el('code','md-code','brew install gh'),button('Copy command',()=>{post({type:'copy',text:'brew install gh',message:'Copied. Paste it in Terminal.'})},'md-small'),button('Check again',()=>{acct.asked=false;acct.known=false;paintLink(n)},'md-small'));
+   return box;
+  }
+  if(!acct.login){
+   if(acct.signingIn){
+    box.append(el('p','md-github-line',acct.code?'Your browser opened github.com. Type this code there:':'Opening github.com in your browser…'));
+    if(acct.code)box.append(el('strong','md-device-code',acct.code));
+    box.append(el('p','md-github-line','Then approve Notival. This page updates by itself.'),button('Cancel',()=>{acct.signingIn=false;acct.code='';paintLink(n)},'md-small'));
+    return box;
+   }
+   box.append(el('p','md-github-line','Connect your GitHub account to save notes straight into your repositories and push them.'),button('Connect GitHub',()=>{acct.signingIn=true;acct.code='';post({type:'githubLogin'});paintLink(n)},'primary md-push'));
+   return box;
+  }
+  box.append(el('p','md-github-line','Signed in as @'+acct.login));
+  if(!acct.repos&&!acct.loadingRepos){acct.loadingRepos=true;post({type:'githubRepos'})}
+  if(!acct.repos){box.append(el('p','md-github-line','Loading your repositories…'));return box}
+  if(!acct.repos.length){box.append(el('p','md-github-line','No repositories found on this account yet.'));return box}
+  const pick=el('select','md-repo');pick.setAttribute('aria-label','Repository');
+  for(const r of acct.repos){const o=el('option','',r.name+(r.private?' 🔒':''));o.value=r.name;pick.append(o)}
+  pick.value=acct.repos.some(r=>r.name===acct.pick)?acct.pick:acct.repos[0].name;acct.pick=pick.value;pick.onchange=()=>{acct.pick=pick.value};
+  box.append(pick,button('Save into this repository…',()=>{if(last)post({type:'githubSaveToRepo',repo:pick.value,...payload(n)})},'primary md-push','Download the repository once, then save this note into it'),el('p','md-github-line','Then Commit & push appears here. Or use Save as .md… above for any folder.'));
+  return box;
+ }
+ window.marginGithub=data=>{
+  if(data.kind==='status'){
+   acct.asked=true;acct.known=true;acct.available=data.info?.available!==false;acct.login=data.info?.login||'';
+   if(acct.login){const was=acct.signingIn;acct.signingIn=false;acct.code='';if(was&&data.afterLogin)window.toast?.('Connected to GitHub as @'+acct.login)}
+   else{acct.repos=null;acct.loadingRepos=false;if(data.afterLogin&&acct.signingIn){acct.signingIn=false;acct.code='';window.toast?.('GitHub sign-in didn\'t finish. Try Connect GitHub again.')}}
+  }
+  else if(data.kind==='repos'){acct.loadingRepos=false;acct.repos=data.repos||[]}
+  else if(data.kind==='code'){acct.code=data.code||''}
+  const n=noteNow();if(n)paintLink(n);
+ };
+
  // ── GitHub: commit and push the linked file with the Mac's own git ─────────
  function githubBox(n,name){
   const box=el('div','md-github'),g=git.get(n.id)||{};
   box.append(el('strong','md-github-title','GitHub'));
+  if(acct.login)box.append(el('p','md-github-line','Signed in as @'+acct.login));
   if(g.busy){box.append(el('p','md-github-line','Working…'));return box}
   if(g.repo===false){box.append(el('p','md-github-line','This file isn\'t in a git folder yet. Put it in a cloned repository (or run git init there) to push it from here.'),button('Check again',()=>askGit(n),'md-small'));return box}
   if(!g.repo){box.append(el('p','md-github-line','Checking the folder…'));return box}

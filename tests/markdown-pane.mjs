@@ -69,7 +69,25 @@ try{
   m=(await sent()).filter(x=>x.type==='saveMarkdown').at(-1);
   assert.equal(m.title,'Pic');assert.equal(m.imagesDir,'images');assert.equal(m.images.length,1);assert.equal(m.images[0].data,'iVBORw0KGgo=');assert.match(m.images[0].name,/^shot-[a-z0-9]+\.png$/);assert.ok(m.noteId);
   const noteId=m.noteId;
-  assert.match(await read('.md-github'),/save it as a \.md file inside your project/,'before it is linked, the pane says how to get a push button');
+  // Your GitHub account: asked about, connected through the browser, then a repository to save into
+  assert.equal((await sent()).filter(x=>x.type==='githubStatus').length,1,'the account is checked once');
+  assert.match(await read('.md-github'),/Checking your GitHub account/);
+  await evaluate(`marginGithub({kind:'status',info:{available:false}})`);await wait(80);
+  assert.match(await read('.md-github'),/brew install gh/,'without the GitHub tool it says how to get it');
+  await evaluate(`marginGithub({kind:'status',info:{available:true}})`);await wait(80);
+  assert.equal(await many('.md-github .md-push'),1);assert.match(await read('.md-github .md-push'),/Connect GitHub/,'not signed in: a Connect GitHub button');
+  await evaluate(`document.querySelector('.md-github .md-push').click()`);await wait(80);
+  assert.equal((await sent()).filter(x=>x.type==='githubLogin').length,1);assert.match(await read('.md-github'),/Opening github\.com/);
+  await evaluate(`marginGithub({kind:'code',code:'AB12-CD34'})`);await wait(80);
+  assert.equal(await read('.md-device-code'),'AB12-CD34','the one-time code is shown to type on github.com');
+  await evaluate(`marginGithub({kind:'status',info:{available:true,login:'octo'},afterLogin:true})`);await wait(80);
+  assert.match(await read('.md-github'),/Signed in as @octo/,'signed in');
+  assert.equal((await sent()).filter(x=>x.type==='githubRepos').length,1,'its repositories are fetched');
+  await evaluate(`marginGithub({kind:'repos',repos:[{name:'octo/app',private:false},{name:'octo/secret',private:true}]})`);await wait(80);
+  assert.equal(await many('.md-repo option'),2);assert.equal(await evaluate(`[...document.querySelectorAll('.md-repo option')].map(o=>o.textContent).join('|')`),'octo/app|octo/secret 🔒','private repositories are marked');
+  await evaluate(`(()=>{const r=document.querySelector('.md-repo');r.value='octo/secret';r.dispatchEvent(new Event('change'))})()`);
+  await evaluate(`[...document.querySelectorAll('.md-github button')].find(b=>/Save into this repository/.test(b.textContent)).click()`);await wait(80);
+  const toRepo=(await sent()).filter(x=>x.type==='githubSaveToRepo');assert.equal(toRepo.length,1);assert.equal(toRepo[0].repo,'octo/secret');assert.match(toRepo[0].text,/#/,'with the note\'s Markdown');
   // The app saved it: the note is linked to the file
   await evaluate(`marginMarkdownSaved({noteId:${JSON.stringify(noteId)},path:'/Users/me/app/README.md',name:'README.md',images:1})`);await wait(100);
   assert.equal(await evaluate(`current().mdPath`),'/Users/me/app/README.md');

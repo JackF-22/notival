@@ -7,8 +7,12 @@ enum GitPush {
  struct Result { var ok: Bool; var output: String }
 
  private static func git(_ args: [String], in directory: URL, timeout: TimeInterval = 60) -> (status: Int32, output: String) {
+  exec("/usr/bin/git", args, in: directory, timeout: timeout)
+ }
+ // Runs a command-line tool with the sign-in git and gh already have, never prompting, and gives up after `timeout`.
+ static func exec(_ path: String, _ args: [String], in directory: URL, timeout: TimeInterval = 60) -> (status: Int32, output: String) {
   let process = Process(), pipe = Pipe()
-  process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+  process.executableURL = URL(fileURLWithPath: path)
   process.arguments = args
   process.currentDirectoryURL = directory
   var env = ProcessInfo.processInfo.environment
@@ -26,7 +30,7 @@ enum GitPush {
   process.waitUntilExit()
   pipe.fileHandleForReading.readabilityHandler = nil
   lock.lock(); let text = String(data: data, encoding: .utf8) ?? ""; lock.unlock()
-  return (timedOut ? -2 : process.terminationStatus, timedOut ? "git took too long. Check your connection and sign-in, then try again." : text.trimmingCharacters(in: .whitespacesAndNewlines))
+  return (timedOut ? -2 : process.terminationStatus, timedOut ? "That took too long. Check your connection and sign-in, then try again." : text.trimmingCharacters(in: .whitespacesAndNewlines))
  }
 
  // The files this note owns, relative to the Markdown file's folder: itself and each named picture that exists.
