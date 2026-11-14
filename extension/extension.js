@@ -3,6 +3,8 @@ function activate(context) {
  const decoration = vscode.window.createTextEditorDecorationType({backgroundColor:'rgba(137,173,111,0.20)',border:'1px solid rgba(137,173,111,0.6)',isWholeLine:true});
  const comments = vscode.comments.createCommentController('margin','Notival');
  const threads=[];
+ const bar=vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right,50);bar.text='$(notebook) Notival';bar.tooltip='Select code, then click to send it to your Notival notebook';bar.command='margin.capture';bar.show();context.subscriptions.push(bar);
+ context.subscriptions.push(vscode.commands.registerCommand('margin.help',()=>vscode.commands.executeCommand('workbench.action.openWalkthrough','margin.margin-companion#margin.start',false)));
  context.subscriptions.push(decoration,comments,{dispose(){threads.forEach(t=>t.dispose())}},vscode.commands.registerCommand('margin.capture',async()=>{
   const editor=vscode.window.activeTextEditor;if(!editor||editor.selection.isEmpty){vscode.window.showInformationMessage('Select a few lines to capture into Notival.');return}
   const selection=editor.selection,doc=editor.document;
@@ -10,6 +12,7 @@ function activate(context) {
   const payload=Buffer.from(JSON.stringify(capture)).toString('base64');
   if(payload.length>100000){vscode.window.showWarningMessage('Capture a shorter snippet (under about 70 KB).');return}
   await vscode.env.openExternal(vscode.Uri.parse('notival://capture?payload='+encodeURIComponent(payload)));
+  vscode.window.setStatusBarMessage('Sent '+(selection.end.line-selection.start.line+1)+' line(s) to Notival',3000);
  }),vscode.window.registerUriHandler({async handleUri(uri){
   try {
    const raw=new URLSearchParams(uri.query).get('payload');if(!raw||raw.length>200000)throw Error('Invalid payload');
