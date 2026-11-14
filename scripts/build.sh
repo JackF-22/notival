@@ -5,7 +5,7 @@ APP="$PWD/dist/Notival.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 mkdir -p "$PWD/.build/module-cache"
-swiftc -module-cache-path "$PWD/.build/module-cache" native/main.swift native/canvas.swift native/pdf_find.swift native/export.swift native/updater.swift native/listening.swift native/markdown.swift native/gitpush.swift -o "$APP/Contents/MacOS/Notival" -framework Cocoa -framework WebKit -framework PDFKit -framework AVFoundation -framework Speech
+swiftc -module-cache-path "$PWD/.build/module-cache" native/main.swift native/canvas.swift native/pdf_find.swift native/export.swift native/updater.swift native/listening.swift native/markdown.swift native/gitpush.swift native/githubaccount.swift -o "$APP/Contents/MacOS/Notival" -framework Cocoa -framework WebKit -framework PDFKit -framework AVFoundation -framework Speech
 rm -rf "$APP/Contents/Resources/web"
 cp -R web "$APP/Contents/Resources/"
 cp native/latex_ocr.py "$APP/Contents/Resources/latex_ocr.py"
