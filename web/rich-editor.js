@@ -977,6 +977,7 @@ const RichEditor = (() => {
     const close=event=>{if(event.type==='keydown'&&event.key!=='Escape')return;if(event.type==='pointerdown'&&menu.contains(event.target))return;hideTableMenu();for(const type of ['pointerdown','keydown','scroll','blur'])window.removeEventListener(type,close,true);};
     for(const type of ['pointerdown','keydown','scroll','blur'])window.addEventListener(type,close,true);
   }
+  const histories=new WeakMap();
   function mount(block, wrap, onChange) {
     const editor=document.createElement('div'); editor.className='rich-text'; editor.contentEditable='true'; editor.spellcheck=true;
     editor.setAttribute('role','textbox'); editor.setAttribute('aria-label','Rich note text'); editor.setAttribute('aria-multiline','true');
@@ -1004,6 +1005,57 @@ const RichEditor = (() => {
       }
     });
     editor.oninput=()=>{editor.querySelectorAll('.equation.selected').forEach(item=>item.classList.remove('selected'));if(focused?.editor===editor)focused.selectedEquation=null;normalizeSpaces(editor);ensureEquationAnchors(editor);hoistTables(editor);block.html=cleanHTML(editor.innerHTML);block.text=toMarkdown(editor);onChange();updateSlash(editor);};
+    // ── Undo and redo ──
+    // The note keeps its own history. The browser's undo loses track once the page rewrites the text itself (equations,
+    // lists, tables, pictures), so each stop is a saved copy of the note and ⌘Z puts one back. Typing in one go is one step.
+    const strip=html=>html.replace(/ data-passage-id="[^"]*"/g,'');
+    const caretAt=()=>{const s=window.getSelection();if(!s?.rangeCount||!editor.contains(s.anchorNode))return null;const r=document.createRange();r.selectNodeContents(editor);r.setEnd(s.anchorNode,s.anchorOffset);return r.toString().length};
+    const putCaret=offset=>{
+      if(offset==null)return;const walker=document.createTreeWalker(editor,NodeFilter.SHOW_TEXT);let left=offset,node,last=null;
+      while((node=walker.nextNode())){last=node;if(left<=node.data.length){const r=document.createRange();r.setStart(node,left);r.collapse(true);const s=window.getSelection();s.removeAllRanges();s.addRange(r);return}left-=node.data.length}
+      if(last)caretToEnd(editor);
+    };
+    const past={undo:[],redo:[],present:{html:strip(cleanHTML(editor.innerHTML)),caret:null},at:0,kind:'',restoring:false};
+    const record=event=>{
+      if(past.restoring)return;
+      const html=cleanHTML(editor.innerHTML);
+      if(strip(html)===strip(past.present.html)){past.present.caret=caretAt();return}
+      const kind=event?.inputType||'',typing=/^(insertText|deleteContent(Backward|Forward)|insertCompositionText)$/.test(kind),now=Date.now();
+      if(!(typing&&kind===past.kind&&now-past.at<1000)){past.undo.push(past.present);if(past.undo.length>300)past.undo.shift()}
+      past.present={html,caret:caretAt()};past.redo=[];past.at=now;past.kind=kind;
+    };
+    editor.addEventListener('input',record);
+    // anything changed without an input event (a heading picked, a table resized) becomes a step of its own before the next change
+    function sync(){
+      if(past.restoring)return;const now=cleanHTML(editor.innerHTML);
+      if(strip(now)!==strip(past.present.html)){past.undo.push(past.present);past.present={html:now,caret:caretAt()};past.redo=[];past.kind=''}
+    }
+    function travel(from,to){
+      sync();
+      const target=past[from].pop();if(!target)return false;
+      past[to].push(past.present);past.present=target;past.kind='';
+      // lines the margin notes are pinned to keep their ids, matched by their text
+      const ids=new Map();for(const line of editor.querySelectorAll('[data-passage-id]'))if(!ids.has(line.textContent))ids.set(line.textContent,line.dataset.passageId);
+      past.restoring=true;
+      editor.innerHTML=cleanHTML(target.html);renderMath(editor);ensureEquationAnchors(editor);hoistTables(editor);
+      for(const line of editor.querySelectorAll('p,li,h1,h2,h3,blockquote,div'))if(!line.dataset.passageId&&line.textContent.trim()&&ids.has(line.textContent)){line.dataset.passageId=ids.get(line.textContent);ids.delete(line.textContent)}
+      block.html=cleanHTML(editor.innerHTML);block.text=toMarkdown(editor);onChange();
+      editor.focus({preventScroll:true});putCaret(target.caret);
+      past.restoring=false;hideSlash();return true;
+    }
+    histories.set(editor,{sync,undo:()=>travel('undo','redo'),redo:()=>travel('redo','undo')});
+    editor.addEventListener('keydown',event=>{
+      const mod=event.metaKey||event.ctrlKey;if(!mod||event.altKey)return;
+      if(event.target!==editor&&event.target.closest?.('input,textarea,.equation.editing,.procedure'))return;   // a field inside the note has its own undo
+      const key=event.key.toLowerCase();
+      if(key==='z'||(key==='y'&&!event.metaKey)){event.preventDefault();event.stopPropagation();(key==='y'||event.shiftKey)?travel('redo','undo'):travel('undo','redo')}
+    },true);
+    editor.addEventListener('beforeinput',event=>{
+      sync();
+      if(event.target!==editor&&event.target.closest?.('input,textarea,.equation.editing,.procedure'))return;
+      if(event.inputType==='historyUndo'){event.preventDefault();travel('undo','redo')}
+      else if(event.inputType==='historyRedo'){event.preventDefault();travel('redo','undo')}
+    },true);
     // Backspace or Delete beside an equation. Within a line it goes at once. Reached from the edge of another line it
     // is selected first, and a second press removes it, so a whole equation never vanishes from one keystroke
     // meant for the line below. An empty line in between simply goes.
@@ -1183,6 +1235,8 @@ const RichEditor = (() => {
     wrap.append(editor); return editor;
   }
   function command(name,value) {
+    if(name!=='undo'&&name!=='redo'&&focused?.editor.isConnected)histories.get(focused.editor)?.sync();
+    if(name==='undo'||name==='redo'){const target=focused?.editor.isConnected?focused.editor:lastCaret?.editor;if(target?.isConnected){target.focus({preventScroll:true});histories.get(target)?.[name]()}return;}
     if(!focused?.editor.isConnected){focused=null;document.querySelector('.rich-text')?.focus();if(!focused)return;}
     const {editor,block,onChange}=focused,saved=focused.range,force=focused.forceRange;
     editor.focus({preventScroll:true});
