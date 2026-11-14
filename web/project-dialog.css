@@ -1,0 +1,15 @@
+#project-dialog{width:min(500px,calc(100vw - 40px));padding:18px 22px 16px;max-height:calc(100vh - 40px);overflow:auto}
+#project-dialog h2{margin:0 0 5px;font-size:19px}
+#project-dialog>p{margin:0 0 10px;font-size:13px}
+#project-dialog>input,#project-dialog>textarea,#project-dialog>select{display:block;width:100%;padding:8px 10px;margin-bottom:7px;font:inherit;font-size:14px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink)}
+#project-dialog>textarea{min-height:50px;height:50px}
+#project-dialog>small{margin:9px 0 5px}
+#project-dialog .language-field{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:4px 10px;margin:4px 0 0}
+#project-dialog .language-field select{padding:7px 10px}
+#project-dialog .language-field .language-hint{grid-column:1/-1;min-height:0;margin:0}
+#project-dialog .language-hint:empty{display:none}
+#project-dialog .project-choices button{width:30px;height:30px}
+#project-dialog .project-dialog-actions{margin-top:12px}
+#project-dialog .connect-project-folder{margin:2px 0 4px}
+#project-dialog .subject-edit-icons>summary{cursor:pointer;color:var(--muted);font-size:12px}
+#project-dialog .project-choices input[type=color]{appearance:none;-webkit-appearance:none;width:30px;height:30px;padding:0;border:0;border-radius:50%;background:conic-gradient(#e86a6a,#e8c46a,#7ee86a,#6ae8d8,#6a7ee8,#d86ae8,#e86a6a);cursor:pointer;overflow:hidden}#project-dialog .project-choices input[type=color]::-webkit-color-swatch-wrapper{padding:0;opacity:0}
