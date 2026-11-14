@@ -1,1 +1,90 @@
-{"name":"margin-companion","displayName":"Notival Companion","publisher":"margin","version":"0.1.1","description":"Capture selections into Notival and return to source highlights and comments.","engines":{"vscode":"^1.85.0"},"categories":["Other"],"main":"./extension.js","activationEvents":["onUri"],"contributes":{"commands":[{"command":"margin.capture","title":"Notival: Capture selection"}],"menus":{"editor/context":[{"command":"margin.capture","when":"editorHasSelection","group":"navigation"}]}},"scripts":{"package":"node package.mjs"}}
+{
+ "name": "margin-companion",
+ "displayName": "Notival",
+ "publisher": "margin",
+ "version": "0.2.0",
+ "description": "Send code from VS Code into your Notival notebook, and jump back to the exact lines from your notes.",
+ "engines": {
+  "vscode": "^1.85.0"
+ },
+ "categories": [
+  "Notebooks",
+  "Education",
+  "Other"
+ ],
+ "main": "./extension.js",
+ "activationEvents": [
+  "onUri",
+  "onStartupFinished"
+ ],
+ "contributes": {
+  "commands": [
+   {
+    "command": "margin.capture",
+    "title": "Notival: Capture selection",
+    "shortTitle": "Send to Notival"
+   },
+   {
+    "command": "margin.help",
+    "title": "Notival: How it works"
+   }
+  ],
+  "menus": {
+   "editor/context": [
+    {
+     "command": "margin.capture",
+     "when": "editorHasSelection",
+     "group": "navigation"
+    }
+   ]
+  },
+  "walkthroughs": [
+   {
+    "id": "margin.start",
+    "title": "Get started with Notival",
+    "description": "Send code to your notebook and come back to it from your notes.",
+    "steps": [
+     {
+      "id": "what",
+      "title": "What this does",
+      "description": "Notival is a notebook app for the Mac. This extension is the bridge between it and VS Code: you select code here, it lands in a note there, and the note remembers exactly where it came from.",
+      "media": {
+       "markdown": "walkthrough/what.md"
+      }
+     },
+     {
+      "id": "capture",
+      "title": "Send a selection to Notival",
+      "description": "Select a few lines of code in any file, then run the command (or right-click and choose it).\n[Send selection to Notival](command:margin.capture)",
+      "media": {
+       "markdown": "walkthrough/capture.md"
+      },
+      "completionEvents": [
+       "onCommand:margin.capture"
+      ]
+     },
+     {
+      "id": "return",
+      "title": "Come back to the lines",
+      "description": "In Notival, a captured block has a link back to the source. Clicking it opens this file here with the lines highlighted. A note you write in Notival can also appear here as a comment on those lines, without touching your file.",
+      "media": {
+       "markdown": "walkthrough/return.md"
+      }
+     }
+    ]
+   }
+  ]
+ },
+ "scripts": {
+  "package": "node package.mjs"
+ },
+ "icon": "icon.png",
+ "keywords": [
+  "notes",
+  "notebook",
+  "study",
+  "learning",
+  "notival",
+  "code review"
+ ]
+}
