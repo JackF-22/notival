@@ -416,6 +416,20 @@ const RichEditor = (() => {
     const adjacent=editor.childNodes[backward?offset-1:offset];
     return adjacent?.nodeType===Node.ELEMENT_NODE && adjacent.classList.contains('equation')?adjacent:null;
   }
+  // The line's first inline equation has an invisible space in front of it, so the caret has somewhere to sit before it.
+  // Deleting that space would make the browser pad the line with a <br>: the equation drops to a second line and the caret
+  // lands on the blank one above it. So Backspace only steps the caret back across it (the next one joins the line above,
+  // as usual), and Delete takes the equation, which is what lies ahead.
+  function leadingSpacer(editor, key) {
+    const selection=window.getSelection();
+    if(!selection?.rangeCount||!selection.isCollapsed)return null;
+    const node=selection.anchorNode,offset=selection.anchorOffset;
+    if(node?.nodeType!==Node.TEXT_NODE||!editor.contains(node)||node.previousSibling||!/^[\u00a0\u200b]+$/.test(node.data))return null;
+    const equation=node.nextSibling;
+    if(!equation?.classList?.contains('inline-equation')||equation.classList.contains('editing'))return null;
+    if(key==='Backspace')return offset>0?{stay:true,node}:null;
+    return {equation};
+  }
   // A display equation alone on its own bullet, right under another bullet, is part of that bullet: move it there so
   // the list numbering carries on past it (1, equation, 2) instead of counting the equation as a step.
   function tuckIntoItemAbove(equation) {
@@ -528,11 +542,14 @@ const RichEditor = (() => {
     const selection=window.getSelection();
     if(!selection?.isCollapsed||!selection.rangeCount)return false;
     const range=selection.getRangeAt(0),node=range.startContainer;
-    if(node.nodeType!==Node.TEXT_NODE||!editor.contains(node)||range.startOffset!==node.textContent.length)return false;
+    // The invisible space an inline equation leaves behind travels with Enter to the next line and can sit around what
+    // is typed there ("-" followed by that space), so it is ignored: only the marker itself counts.
+    const spacer=/[\u00a0\u200b]/g,typed=node.nodeType===Node.TEXT_NODE?node.textContent.slice(0,range.startOffset):'';
+    if(node.nodeType!==Node.TEXT_NODE||!editor.contains(node)||node.textContent.slice(range.startOffset).replace(spacer,''))return false;
     let block=node.parentElement;
     while(block&&block.parentElement!==editor)block=block.parentElement;
-    if(!block||!/^(P|DIV)$/.test(block.tagName)||block.textContent!==node.textContent)return false;
-    const marker=node.textContent,tag=/^[-*+]$/.test(marker)?'UL':/^\d+[.)]$/.test(marker)?'OL':null;
+    if(!block||!/^(P|DIV)$/.test(block.tagName)||block.textContent.replace(spacer,'')!==typed.replace(spacer,''))return false;
+    const marker=typed.replace(spacer,''),tag=/^[-*+]$/.test(marker)?'UL':/^\d+[.)]$/.test(marker)?'OL':null;
     if(!tag)return false;
     const item=document.createElement('li');item.append(document.createElement('br'));
     const number=tag==='OL'?parseInt(marker,10):1;
@@ -1105,6 +1122,9 @@ const RichEditor = (() => {
     // meant for the line below. An empty line in between simply goes.
     const equationKey=(key,event)=>{
       const picked=focused?.editor===editor&&focused.selectedEquation?.isConnected?focused.selectedEquation:null,info={};
+      const leading=picked?null:leadingSpacer(editor,key);
+      if(leading?.stay){event.preventDefault();hideSlash();selectionAt(leading.node,0);if(focused?.editor===editor)focused.range=window.getSelection().getRangeAt(0).cloneRange();return true;}
+      if(leading?.equation){event.preventDefault();hideSlash();deleteEquation(editor,leading.equation);return true;}
       const equation=picked||equationAtCaret(editor,key,info);
       if(!equation)return false;
       event.preventDefault();hideSlash();
