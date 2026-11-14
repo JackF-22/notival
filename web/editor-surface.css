@@ -240,3 +240,7 @@ body #editor .rich-text :is(h1,h2,h3)+:is(h1,h2,h3){margin-top:12px}
 #selection-tools .hl-dot[data-hl=blue]{background:#6cb6ff}
 #selection-tools .hl-dot[data-hl=pink]{background:#ff8fb8}
 #selection-tools .hl-dot:first-of-type{margin-left:4px}
+
+/* A table narrower than the note, or sized to its content. */
+body #editor .rich-text table.fit{width:auto;max-width:100%;table-layout:auto}
+body #editor .rich-text table.fit:not(.sized) td,body #editor .rich-text table.fit:not(.sized) th{overflow-wrap:normal;min-width:4em}

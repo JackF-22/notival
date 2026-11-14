@@ -151,6 +151,7 @@ const RichEditor = (() => {
         const alignment=/^(P|DIV|H[1-6]|LI|TD|TH|BLOCKQUOTE|PRE)$/.test(child.tagName)?(child.style.textAlign||child.getAttribute('align')||''):'';
         const checked=child.tagName==='INPUT' && child.hasAttribute('checked');
         const widths=child.tagName==='TABLE'?child.getAttribute('data-widths')||'':'';
+        const tableSpan=child.tagName==='TABLE'?child.getAttribute('data-span')||'':'',tableFit=child.tagName==='TABLE'?child.getAttribute('data-fit')||'':'';
         const indent=/^(P|DIV|H[1-6]|BLOCKQUOTE)$/.test(child.tagName)?child.getAttribute('data-indent')||'':'';
         const listStart=child.tagName==='OL'?child.getAttribute('start')||'':'';
         const highlight=child.tagName==='MARK'?child.getAttribute('data-hl')||'':'';
@@ -159,6 +160,8 @@ const RichEditor = (() => {
         for (const attribute of [...child.attributes]) child.removeAttribute(attribute.name);
         if(child.tagName==='MARK')child.dataset.hl=highlightColors.includes(highlight)?highlight:'yellow';
         if(/^\d+(\.\d+)?(,\d+(\.\d+)?)*$/.test(widths))child.dataset.widths=widths;
+        if(/^\d{1,2}(\.\d+)?$/.test(tableSpan)&&+tableSpan>=10&&+tableSpan<100)child.dataset.span=tableSpan;
+        if(tableFit==='content')child.dataset.fit='content';
         if(/^[1-6]$/.test(indent))child.dataset.indent=indent;
         if(/^\d{1,4}$/.test(listStart)&&+listStart>1)child.setAttribute('start',String(+listStart));
         if(['left','center','right','justify'].includes(alignment))child.style.textAlign=alignment;
@@ -612,7 +615,12 @@ const RichEditor = (() => {
 
   // ---- Tables ----
   const tableCellAt = editor => { const node=window.getSelection()?.anchorNode; const cell=(node?.nodeType===Node.ELEMENT_NODE?node:node?.parentElement)?.closest('td,th'); return cell&&editor.contains(cell)?cell:null; };
+  // A table fills the note unless it has been narrowed (data-span, a share of the note) or set to fit its content (data-fit).
   function applyTableWidths(table) {
+    const fit=table.dataset.fit==='content',span=parseFloat(table.dataset.span);
+    table.classList.toggle('fit',fit);
+    if(!fit&&span>=10&&span<100)table.style.width=span+'%';else{table.style.removeProperty('width');if(!table.getAttribute('style'))table.removeAttribute('style');}
+    if(fit){table.querySelector(':scope > colgroup')?.remove();table.classList.remove('sized');return;}
     const widths=(table.dataset.widths||'').split(',').map(Number), count=table.rows[0]?.cells.length||0;
     table.querySelector(':scope > colgroup')?.remove();
     if(widths.length!==count||widths.some(value=>!(value>0))){table.classList.remove('sized');return;}
@@ -727,11 +735,33 @@ const RichEditor = (() => {
     const cell=event.target.closest?.('td,th');
     if(!cell||!editor.contains(cell))return null;
     const box=cell.getBoundingClientRect(), table=cell.closest('table');
+    if(!cell.nextElementSibling&&Math.abs(event.clientX-box.right)<=5)return {table,index:cell.cellIndex,right:true};
     if(cell.nextElementSibling&&Math.abs(event.clientX-box.right)<=5)return {table,index:cell.cellIndex};
     if(cell.previousElementSibling&&Math.abs(event.clientX-box.left)<=5)return {table,index:cell.cellIndex-1};
     return null;
   }
+  // The table's right edge: drag to make the table narrower (or wider again, up to the full note). Only the last column
+  // gives way; the columns before it keep their width and are squeezed only once the ones after them cannot shrink more.
+  function startTableDrag(editor, table, event) {
+    const style=getComputedStyle(editor), room=(editor.clientWidth-parseFloat(style.paddingLeft)-parseFloat(style.paddingRight))||1;
+    const cells=[...table.rows[0].cells], start=cells.map(cell=>cell.getBoundingClientRect().width), origin=event.clientX;
+    const floor=start.map(width=>Math.min(48,width)), startTotal=start.reduce((a,b)=>a+b,0);
+    const move=moved=>{
+      const widths=start.slice(), shift=Math.min(moved.clientX-origin,room-startTotal);
+      if(shift>=0)widths[widths.length-1]+=shift;
+      else{let need=-shift;for(let i=widths.length-1;i>=0&&need>0;i--){const take=Math.min(need,widths[i]-floor[i]);widths[i]-=take;need-=take;}}
+      const total=widths.reduce((a,b)=>a+b,0);
+      delete table.dataset.fit;
+      table.dataset.widths=widths.map(width=>(width/total*100).toFixed(2)).join(',');
+      if(total/room>=0.97)delete table.dataset.span;else table.dataset.span=(total/room*100).toFixed(1);
+      applyTableWidths(table);
+    };
+    const finish=()=>{document.removeEventListener('pointermove',move);document.removeEventListener('pointerup',finish);document.removeEventListener('pointercancel',finish);document.body.classList.remove('resizing-table');editor.dispatchEvent(new Event('input',{bubbles:true}));};
+    document.body.classList.add('resizing-table');
+    document.addEventListener('pointermove',move);document.addEventListener('pointerup',finish);document.addEventListener('pointercancel',finish);
+  }
   function startColumnDrag(editor, edge, event) {
+    if(edge.right){startTableDrag(editor,edge.table,event);return;}
     const {table,index}=edge, cells=[...table.rows[0].cells], total=table.getBoundingClientRect().width||1;
     const start=cells.map(cell=>cell.getBoundingClientRect().width/total*100), origin=event.clientX, minimum=6;
     const apply=widths=>{table.dataset.widths=widths.map(width=>width.toFixed(2)).join(',');applyTableWidths(table);};
@@ -958,6 +988,9 @@ const RichEditor = (() => {
     ['Insert column left',cell=>{const index=cell.cellIndex,table=cell.closest('table');for(const row of table.rows)row.cells[Math.min(index,row.cells.length-1)].before(newCell(row.cells[Math.min(index,row.cells.length-1)]));delete table.dataset.widths;applyTableWidths(table);return cell.parentElement.cells[index];}],
     ['Insert column right',cell=>{const index=cell.cellIndex,table=cell.closest('table');for(const row of table.rows)row.cells[Math.min(index,row.cells.length-1)].after(newCell(row.cells[Math.min(index,row.cells.length-1)]));delete table.dataset.widths;applyTableWidths(table);return cell.parentElement.cells[index+1];}],
     null,
+    ['Fit table to content',cell=>{const table=cell.closest('table');delete table.dataset.span;delete table.dataset.widths;table.dataset.fit='content';applyTableWidths(table);return cell;}],
+    ['Full width table',cell=>{const table=cell.closest('table');delete table.dataset.span;delete table.dataset.fit;applyTableWidths(table);return cell;}],
+    null,
     ['Delete row',(cell,editor)=>{const row=cell.parentElement,table=row.closest('table');if(table.rows.length===1){removeTable(editor,table);return false;}const next=row.nextElementSibling||row.previousElementSibling;row.remove();return next.cells[Math.min(cell.cellIndex,next.cells.length-1)];}],
     ['Delete column',(cell,editor)=>{const index=cell.cellIndex,table=cell.closest('table');if(cell.parentElement.cells.length===1){removeTable(editor,table);return false;}for(const row of table.rows)row.cells[Math.min(index,row.cells.length-1)].remove();delete table.dataset.widths;applyTableWidths(table);const row=table.rows[Math.min(cell.parentElement.rowIndex,table.rows.length-1)];return row.cells[Math.min(index,row.cells.length-1)];}],
     ['Delete table',(cell,editor)=>{removeTable(editor,cell.closest('table'));return false;},true]
@@ -1070,7 +1103,7 @@ const RichEditor = (() => {
     };
     editor.ondblclick=event=>{
       const edge=columnEdge(editor,event);
-      if(edge){event.preventDefault();delete edge.table.dataset.widths;applyTableWidths(edge.table);editor.dispatchEvent(new Event('input',{bubbles:true}));return;}
+      if(edge){event.preventDefault();if(edge.right){delete edge.table.dataset.span;delete edge.table.dataset.fit;}else delete edge.table.dataset.widths;applyTableWidths(edge.table);editor.dispatchEvent(new Event('input',{bubbles:true}));return;}
       const equation=event.target.closest('.equation:not(.editing)');if(!equation||!editor.contains(equation))return;
       event.preventDefault();editEquation(editor,{equation});
     };
