@@ -25,5 +25,12 @@ const StudentModel=(()=>{
   const has=n=>(n.blocks||[]).some(b=>b.type==='code'||(b.text||'').trim()||(b.html||'').replace(/<[^>]*>/g,'').trim());
   return {notes:notes.filter(n=>n.projectId===subject.id&&n.unitId===unitId&&!n.synthesis&&has(n)).sort((a,b)=>(a.created||a.updated||0)-(b.created||b.updated||0)),pdfs:(subject.materials||[]).filter(m=>m.unitId===unitId&&/\.pdf$/i.test(m.path||m.name||''))};
  }
- return {initialize,contents,summary,removeUnit,dates,addNotePDF,guideContents};
+ // Subjects are shown in the order of the list, so putting one somewhere else is moving it within the list.
+ // `to` is the place it should end up in (0 is the top). Returns true if the order changed.
+ function moveSubject(list,id,to){
+  const from=list.findIndex(s=>s.id===id);if(from<0)return false;
+  const target=Math.max(0,Math.min(list.length-1,to));if(target===from)return false;
+  const [item]=list.splice(from,1);list.splice(target,0,item);return true;
+ }
+ return {initialize,contents,summary,removeUnit,dates,addNotePDF,guideContents,moveSubject};
 })();
