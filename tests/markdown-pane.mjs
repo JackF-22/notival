@@ -69,6 +69,7 @@ try{
   m=(await sent()).filter(x=>x.type==='saveMarkdown').at(-1);
   assert.equal(m.title,'Pic');assert.equal(m.imagesDir,'images');assert.equal(m.images.length,1);assert.equal(m.images[0].data,'iVBORw0KGgo=');assert.match(m.images[0].name,/^shot-[a-z0-9]+\.png$/);assert.ok(m.noteId);
   const noteId=m.noteId;
+  assert.match(await read('.md-github'),/save it as a \.md file inside your project/,'before it is linked, the pane says how to get a push button');
   // The app saved it: the note is linked to the file
   await evaluate(`marginMarkdownSaved({noteId:${JSON.stringify(noteId)},path:'/Users/me/app/README.md',name:'README.md',images:1})`);await wait(100);
   assert.equal(await evaluate(`current().mdPath`),'/Users/me/app/README.md');
@@ -84,6 +85,25 @@ try{
   // A file the app will not write: syncing switches itself off and says why
   await evaluate(`marginMarkdownSaved({noteId:${JSON.stringify(noteId)},error:'Save the file again to keep it updated.'})`);await wait(100);
   assert.equal(await evaluate(`current().mdSync`),false);assert.match(await read('.md-note'),/Save the file again/);
+  // GitHub: the folder is asked about, then the file is committed and pushed with the Mac's git
+  let asked=(await sent()).filter(x=>x.type==='gitStatus');assert.equal(asked.length,1,'the folder is checked once');assert.equal(asked[0].path,'/Users/me/app/README.md');
+  assert.match(await read('.md-github'),/Checking the folder/);
+  await evaluate(`marginGitResult({noteId:${JSON.stringify(noteId)},kind:'gitStatus',ok:true,info:{repo:false}})`);await wait(100);
+  assert.match(await read('.md-github'),/isn't in a git folder/,'not in a repository: it says how to fix that');
+  await evaluate(`marginGitResult({noteId:${JSON.stringify(noteId)},kind:'gitStatus',ok:true,info:{repo:true,branch:'main',remote:'git@github.com:me/app.git',changed:true}})`);await wait(100);
+  assert.match(await read('.md-github'),/me\/app · main/,'repository and branch are shown');
+  assert.equal(await evaluate(`document.querySelector('.md-commit').value`),'Update README.md','a commit message is ready');
+  await evaluate(`(()=>{const c=document.querySelector('.md-commit');c.value='Document the API';c.dispatchEvent(new Event('input'))})()`);
+  const before=(await sent()).length;
+  await evaluate(`document.querySelector('.md-push').click()`);await wait(150);
+  const after=(await sent()).slice(before);
+  assert.deepEqual(after.map(x=>x.type),['writeMarkdown','gitPublish'],'the file is brought up to date, then pushed');
+  assert.equal(after[1].message,'Document the API');assert.equal(after[1].path,'/Users/me/app/README.md');assert.equal(after[1].images.length,1,'with the names of its pictures');
+  assert.match(await read('.md-github'),/Working/);
+  await evaluate(`marginGitResult({noteId:${JSON.stringify(noteId)},kind:'gitPublish',ok:false,error:'GitHub has newer work on this branch.'})`);await wait(100);
+  assert.match(await read('.md-note'),/newer work/,'a failed push says why');assert.equal(await many('.md-push'),1,'and can be tried again');
+  await evaluate(`marginGitResult({noteId:${JSON.stringify(noteId)},kind:'gitPublish',ok:true,message:'committed and pushed to main',info:{repo:true,branch:'main',remote:'git@github.com:me/app.git',changed:false}})`);await wait(100);
+  assert.match(await read('.md-note'),/committed and pushed to main/);
   // Unlink
   await evaluate(`[...document.querySelectorAll('#markdown-pane button')].find(b=>b.textContent==='Unlink').click()`);await wait(150);
   assert.equal(await evaluate(`current().mdPath`),undefined);assert.equal(await many('.md-linked'),0);
