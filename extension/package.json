@@ -2,8 +2,8 @@
  "name": "margin-companion",
  "displayName": "Notival",
  "publisher": "margin",
- "version": "0.2.0",
- "description": "Send code from VS Code into your Notival notebook, and jump back to the exact lines from your notes.",
+ "version": "0.3.0",
+ "description": "A Notival sidebar for VS Code: see the structure of your file, copy any function or section in one click, and send code to your Notival notebook.",
  "engines": {
   "vscode": "^1.85.0"
  },
@@ -27,6 +27,55 @@
    {
     "command": "margin.help",
     "title": "Notival: How it works"
+   },
+   {
+    "command": "margin.refresh",
+    "title": "Notival: Refresh the outline",
+    "icon": "$(refresh)"
+   },
+   {
+    "command": "margin.reveal",
+    "title": "Go to"
+   },
+   {
+    "command": "margin.copy",
+    "title": "Copy code",
+    "icon": "$(copy)"
+   },
+   {
+    "command": "margin.copyMarkdown",
+    "title": "Copy as Markdown"
+   },
+   {
+    "command": "margin.copySignature",
+    "title": "Copy the signature"
+   },
+   {
+    "command": "margin.send",
+    "title": "Send to Notival",
+    "icon": "$(arrow-right)"
+   },
+   {
+    "command": "margin.copyHere",
+    "title": "Notival: Copy the function around the cursor"
+   },
+   {
+    "command": "margin.sendHere",
+    "title": "Notival: Send the function around the cursor"
+   },
+   {
+    "command": "margin.revealCapture",
+    "title": "Go to the lines"
+   },
+   {
+    "command": "margin.removeCapture",
+    "title": "Remove from this list",
+    "icon": "$(close)"
+   },
+   {
+    "command": "margin.clearCaptures",
+    "title": "Notival: Clear the list of sent code",
+    "icon": "$(clear-all)"
    }
   ],
   "menus": {
@@ -35,6 +84,95 @@
      "command": "margin.capture",
      "when": "editorHasSelection",
      "group": "navigation"
+    },
+    {
+     "command": "margin.copyHere",
+     "when": "editorTextFocus && !editorHasSelection",
+     "group": "9_notival@1"
+    },
+    {
+     "command": "margin.sendHere",
+     "when": "editorTextFocus && !editorHasSelection",
+     "group": "9_notival@2"
+    }
+   ],
+   "view/title": [
+    {
+     "command": "margin.refresh",
+     "when": "view == margin.outline",
+     "group": "navigation"
+    },
+    {
+     "command": "margin.clearCaptures",
+     "when": "view == margin.captures",
+     "group": "navigation"
+    }
+   ],
+   "view/item/context": [
+    {
+     "command": "margin.copy",
+     "when": "view == margin.outline && viewItem == margin.symbol",
+     "group": "inline@1"
+    },
+    {
+     "command": "margin.send",
+     "when": "view == margin.outline && viewItem == margin.symbol",
+     "group": "inline@2"
+    },
+    {
+     "command": "margin.copy",
+     "when": "view == margin.outline && viewItem == margin.symbol",
+     "group": "1_copy@1"
+    },
+    {
+     "command": "margin.copyMarkdown",
+     "when": "view == margin.outline && viewItem == margin.symbol",
+     "group": "1_copy@2"
+    },
+    {
+     "command": "margin.copySignature",
+     "when": "view == margin.outline && viewItem == margin.symbol",
+     "group": "1_copy@3"
+    },
+    {
+     "command": "margin.send",
+     "when": "view == margin.outline && viewItem == margin.symbol",
+     "group": "2_notival@1"
+    },
+    {
+     "command": "margin.removeCapture",
+     "when": "view == margin.captures && viewItem == margin.capture",
+     "group": "inline@1"
+    }
+   ],
+   "commandPalette": [
+    {
+     "command": "margin.reveal",
+     "when": "false"
+    },
+    {
+     "command": "margin.copy",
+     "when": "false"
+    },
+    {
+     "command": "margin.copyMarkdown",
+     "when": "false"
+    },
+    {
+     "command": "margin.copySignature",
+     "when": "false"
+    },
+    {
+     "command": "margin.send",
+     "when": "false"
+    },
+    {
+     "command": "margin.revealCapture",
+     "when": "false"
+    },
+    {
+     "command": "margin.removeCapture",
+     "when": "false"
     }
    ]
   },
@@ -72,6 +210,38 @@
       }
      }
     ]
+   }
+  ],
+  "viewsContainers": {
+   "activitybar": [
+    {
+     "id": "notival",
+     "title": "Notival",
+     "icon": "media/notival.svg"
+    }
+   ]
+  },
+  "views": {
+   "notival": [
+    {
+     "id": "margin.outline",
+     "name": "This file"
+    },
+    {
+     "id": "margin.captures",
+     "name": "Sent to Notival"
+    }
+   ]
+  },
+  "viewsWelcome": [
+   {
+    "view": "margin.outline",
+    "contents": "Open a file to see its functions, classes and sections here. Click one to jump to it, copy it, or send it to Notival.\n[How it works](command:margin.help)",
+    "when": "!editorIsOpen"
+   },
+   {
+    "view": "margin.captures",
+    "contents": "Nothing sent yet. Select code and run [Capture selection](command:margin.capture), or use the arrow beside any function in This file."
    }
   ]
  },
