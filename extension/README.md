@@ -4,6 +4,12 @@
 
 Bridge between VS Code and the **Notival** notebook app for macOS.
 
+## Install
+
+1. Install the **Notival** app and open it once.
+2. Download `Notival-Companion.vsix` from the [latest release](https://github.com/JackF-22/notival/releases/latest).
+3. In VS Code: Extensions (⇧⌘X) → **⋯** → **Install from VSIX…**, or run `code --install-extension Notival-Companion.vsix`.
+
 ## What it does
 
 | In VS Code | In Notival |
@@ -25,10 +31,9 @@ Click the Notival icon in the activity bar.
 
 ## Using it
 
-1. Install the Notival app and open it once.
-2. In VS Code, select a few lines.
-3. Right-click → **Notival: Capture selection** (or ⇧⌘P and type *Notival*).
-4. A **Notival** button in the status bar does the same thing.
+1. In VS Code, select a few lines.
+2. Right-click → **Notival: Capture selection** (or ⇧⌘P and type *Notival*), or click the **Notival** button in the status bar.
+3. Notival asks which note to add it to, or makes a new one.
 
 Run **Notival: How it works** or open *Get Started* from the Command Palette for a short walkthrough.
 

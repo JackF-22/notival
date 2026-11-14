@@ -3,7 +3,7 @@
 #   1. Put the new number in VERSION (1.0.0 → 1.0.1 for fixes, 1.1.0 for new features).
 #   2. Write what changed in release-notes/<version>.md.
 #   3. Commit both, then run:  zsh scripts/release.sh
-# It builds the app, zips it as Notival.zip, tags the commit v<version>, and creates the release.
+# It builds the app, zips it as Notival.zip, packs the VS Code companion, tags the commit v<version>, and creates the release.
 set -eu
 cd "${0:A:h}/.."
 VERSION=$(tr -d '[:space:]' < VERSION)
@@ -25,11 +25,12 @@ BUILT=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" dist/Noti
 [[ "$BUILT" == "$VERSION" ]] || fail "the app says $BUILT, expected $VERSION."
 rm -f dist/Notival.zip
 ditto -c -k --keepParent dist/Notival.app dist/Notival.zip
+zsh scripts/package-extension.sh >/dev/null
 
 print "Publishing $TAG…"
 git push origin HEAD
 git tag -a "$TAG" -m "Notival $VERSION"
 git push origin "$TAG"
-gh release create "$TAG" dist/Notival.zip --title "Notival $VERSION" --notes-file "$NOTES" --latest
+gh release create "$TAG" dist/Notival.zip dist/Notival-Companion.vsix --title "Notival $VERSION" --notes-file "$NOTES" --latest
 print "Done: $(gh release view "$TAG" --json url --jq .url)"
 print "Installed copies will offer the update the next time they open."
