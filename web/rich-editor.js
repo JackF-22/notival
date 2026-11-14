@@ -474,6 +474,17 @@ const RichEditor = (() => {
       const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);if(focused?.editor===editor)focused.range=range.cloneRange();
     }else if(equation.classList.contains('display-equation')&&!item&&!(next&&next.isContentEditable&&!next.classList.contains('equation'))&&before&&before.isContentEditable&&!before.classList.contains('equation')){
       placeCaretByEquation(editor,equation,false);
+    }else if(!equation.classList.contains('display-equation')){
+      // An inline equation just goes: the caret stays where it stood in the line, at the end of the text before it (or the
+      // start of the text after it), and is put back once the editor has tidied up, so it never falls to the start of the line.
+      const prev=equation.previousSibling,next=equation.nextSibling;
+      let node=prev?.nodeType===Node.TEXT_NODE?prev:next?.nodeType===Node.TEXT_NODE?next:null,offset=node===prev&&node?node.data.length:0;
+      if(!node){node=document.createTextNode('\u00a0');equation.after(node);offset=0}
+      equation.remove();
+      if(focused?.selectedEquation===equation)focused.selectedEquation=null;
+      const place=()=>{if(!node.isConnected)return;const range=document.createRange();range.setStart(node,Math.min(offset,node.data.length));range.collapse(true);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);if(focused?.editor===editor)focused.range=range.cloneRange()};
+      place();editor.dispatchEvent(new Event('input',{bubbles:true}));place();requestAnimationFrame(()=>{const selection=window.getSelection();if(!selection.rangeCount||selection.anchorNode!==node||selection.anchorOffset!==Math.min(offset,node.data.length))place()});
+      return;
     }else placeCaretByEquation(editor,equation,true);
     equation.remove();
     if(focused?.selectedEquation===equation)focused.selectedEquation=null;
