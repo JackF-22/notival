@@ -69,6 +69,7 @@ try{
   m=(await sent()).filter(x=>x.type==='saveMarkdown').at(-1);
   assert.equal(m.title,'Pic');assert.equal(m.imagesDir,'images');assert.equal(m.images.length,1);assert.equal(m.images[0].data,'iVBORw0KGgo=');assert.match(m.images[0].name,/^shot-[a-z0-9]+\.png$/);assert.ok(m.noteId);
   const noteId=m.noteId;
+  assert.match(await read('.md-github'),/save it as a \.md file inside your project/,'before it is linked, the pane says how to get a push button');
   // The app saved it: the note is linked to the file
   await evaluate(`marginMarkdownSaved({noteId:${JSON.stringify(noteId)},path:'/Users/me/app/README.md',name:'README.md',images:1})`);await wait(100);
   assert.equal(await evaluate(`current().mdPath`),'/Users/me/app/README.md');

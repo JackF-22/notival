@@ -59,7 +59,11 @@
  function paintLink(n){
   link.replaceChildren();
   save.textContent=n.mdPath?'Save as a new file…':'Save as .md…';
-  if(!n.mdPath){note.textContent=status;return}
+  if(!n.mdPath){
+   // the GitHub push needs a file in a git folder, so say how to get one
+   const hint=el('div','md-github');hint.append(el('strong','md-github-title','GitHub'),el('p','md-github-line','To push this note, save it as a .md file inside your project\'s folder (a clone of your repository). A Commit & push button appears here once it is saved.'),button('Save into my project…',()=>saveFile(),'primary md-push'));
+   link.append(hint);note.textContent=status;return;
+  }
   const name=n.mdPath.split('/').pop(),row=el('div','md-linked');
   row.append(el('span','md-file','Linked to '+name),button('Show',()=>post({type:'revealFile',path:n.mdPath}),'md-small','Show the file in Finder'),button('Unlink',()=>{delete n.mdPath;delete n.mdSync;written.delete(n.id);status='';persist();refresh()},'md-small','Stop updating this file'));
   const sync=el('label','md-sync'),box=el('input');box.type='checkbox';box.checked=!!n.mdSync;
