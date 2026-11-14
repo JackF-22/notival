@@ -162,5 +162,16 @@ try{
   f=await fit(2,4);
   assert.ok(near(f.topGap,1)&&near(f.bottomGap,1),'the brace still starts at "Parse the request body": '+JSON.stringify(f));
   assert.equal(await evaluate(`state.notes[0].nodes.length`),0,'nothing goes to the mind map');
+  // The × stays put as the pointer travels to it
+  await mouse('mouseMoved',5,5);await wait(200);
+  const braceNow=await evaluate(`(()=>{const r=document.querySelector('.anno-ink').getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2]})()`);
+  await mouse('mouseMoved',...braceNow);await wait(60);
+  assert.equal(await evaluate(`getComputedStyle(document.querySelector('.anno-remove')).visibility`),'visible','hovering the brace shows the ×');
+  // walk the pointer from the brace out to the ×, and pause in the gap on the way: it stays visible and a real click removes it
+  const xAt=await evaluate(`(()=>{const r=document.querySelector('.anno-remove').getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2]})()`);
+  for(let i=1;i<=6;i++){await mouse('mouseMoved',braceNow[0]+(xAt[0]-braceNow[0])*i/6,braceNow[1]+(xAt[1]-braceNow[1])*i/6);await wait(70);assert.equal(await evaluate(`getComputedStyle(document.querySelector('.anno-remove')).visibility`),'visible','the × stays while the pointer travels to it (step '+i+')')}
+  assert.equal(await evaluate(`getComputedStyle(document.querySelector('.anno-remove')).visibility`),'visible','and under the pointer');
+  await mouse('mousePressed',...xAt);await mouse('mouseReleased',...xAt);await wait(120);
+  assert.equal((await annotations()).length,0,'clicking the × removes the brace');
   console.log('Annotation tests passed');
 }finally{browser.kill();await rm(profile,{recursive:true,force:true,maxRetries:5,retryDelay:100})}
