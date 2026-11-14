@@ -37,5 +37,10 @@ try{
   assert.equal(await evaluate(`(d=>d.scrollHeight<=d.clientHeight)(document.querySelector('.student-dialog'))`),true,'edit dialog needs no scrolling');
   await evaluate(`document.querySelector('.student-dialog').close();openProjectComposer()`);await wait(300);
   console.log('create dialog height',await evaluate(`document.querySelector('#project-dialog').getBoundingClientRect().height`));
+  await evaluate(`document.querySelector('.student-dialog .subject-swatches button:nth-child(3)').click()`);
+  assert.equal(await evaluate(`document.querySelector('.student-dialog .subject-swatches button.selected').dataset.color`),'#dd7088','swatches pick the accent');
+  assert.equal(await evaluate(`getComputedStyle(document.querySelector('.student-dialog .student-check input')).appearance`),'none','checkboxes are custom switches');
+  await evaluate(`document.querySelector('.student-dialog form').requestSubmit()`);await wait(300);
+  assert.equal(await evaluate(`state.projects[0].color`),'#dd7088','chosen accent is saved');
   console.log('PASS: subjects can contain classes, which stay off the home page.');
 }finally{browser.kill();for(const pending of waiting.values())clearTimeout(pending.timer);await rm(profile,{recursive:true,force:true,maxRetries:10,retryDelay:100})}

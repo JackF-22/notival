@@ -12,3 +12,4 @@
 #project-dialog .project-dialog-actions{margin-top:12px}
 #project-dialog .connect-project-folder{margin:2px 0 4px}
 #project-dialog .subject-edit-icons>summary{cursor:pointer;color:var(--muted);font-size:12px}
+#project-dialog .project-choices input[type=color]{appearance:none;-webkit-appearance:none;width:30px;height:30px;padding:0;border:0;border-radius:50%;background:conic-gradient(#e86a6a,#e8c46a,#7ee86a,#6ae8d8,#6a7ee8,#d86ae8,#e86a6a);cursor:pointer;overflow:hidden}#project-dialog .project-choices input[type=color]::-webkit-color-swatch-wrapper{padding:0;opacity:0}

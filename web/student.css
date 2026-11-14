@@ -79,3 +79,25 @@ body>aside .aside-bottom{flex-shrink:0;padding-top:12px;margin-top:0;border-top:
 .subject-edit-checks{display:grid;grid-template-columns:1fr 1fr;gap:4px 14px}
 .subject-edit .student-actions{margin-top:4px}
 .subject-edit-icons>summary{cursor:pointer;color:var(--muted);font-size:12px;padding:2px 0}.subject-edit-icons[open]>summary{margin-bottom:4px}.subject-edit-icons .project-icon-picker{margin:4px 0 2px}
+
+.subject-color-field{display:grid;gap:4px;font-size:11px;color:var(--muted)}
+.subject-swatches{display:flex;align-items:center;gap:7px;min-height:36px}
+.subject-swatches button{width:22px;height:22px;padding:0;border:0;border-radius:50%;cursor:pointer;box-shadow:0 0 0 2px var(--bg),0 0 0 3px transparent;transition:box-shadow .15s,transform .15s}
+.subject-swatches button:hover{transform:scale(1.12)}
+.subject-swatches button.selected{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--ink)}
+.subject-swatches .swatch-custom{appearance:none;-webkit-appearance:none;width:22px!important;height:22px;padding:0!important;border:0!important;border-radius:50%;background:conic-gradient(#e86a6a,#e8c46a,#7ee86a,#6ae8d8,#6a7ee8,#d86ae8,#e86a6a);cursor:pointer;overflow:hidden;box-shadow:0 0 0 2px var(--bg),0 0 0 3px transparent}
+
+.subject-swatches .swatch-custom.selected{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--ink)}
+.subject-edit .subject-identity-fields{align-items:start}
+/* sleek switches for settings checkboxes */
+.student-dialog .student-check:not(.task-check),.subject-edit-checks .student-check{justify-content:space-between;flex-direction:row-reverse;gap:12px;padding:6px 2px;cursor:pointer}
+.student-dialog .student-check:not(.task-check)>input[type=checkbox]{appearance:none;-webkit-appearance:none;flex:0 0 30px;width:30px;height:18px;margin:0;border-radius:999px;background:color-mix(in srgb,var(--muted) 35%,var(--bg));position:relative;cursor:pointer;transition:background .18s}
+.student-dialog .student-check:not(.task-check)>input[type=checkbox]::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .18s cubic-bezier(.3,.9,.4,1)}
+.student-dialog .student-check:not(.task-check)>input[type=checkbox]:checked{background:var(--green)}
+.student-dialog .student-check:not(.task-check)>input[type=checkbox]:checked::after{transform:translateX(12px)}
+.student-dialog .student-check:not(.task-check)>input[type=checkbox]:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+@media(prefers-reduced-motion:reduce){.student-dialog .student-check>input[type=checkbox],.student-dialog .student-check>input[type=checkbox]::after{transition:none}}
+
+.student-dialog .subject-swatches input.swatch-custom{flex:0 0 22px;width:22px;height:22px;min-height:0;padding:0;border:0;border-radius:50%;background:conic-gradient(#e86a6a,#e8c46a,#7ee86a,#6ae8d8,#6a7ee8,#d86ae8,#e86a6a)}
+.student-dialog .subject-swatches input.swatch-custom::-webkit-color-swatch-wrapper{padding:0}.student-dialog .subject-swatches input.swatch-custom::-webkit-color-swatch{border:0;border-radius:50%;opacity:0}
+.student-dialog .subject-swatches input.swatch-custom.selected::-webkit-color-swatch{opacity:1}
