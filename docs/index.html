@@ -228,26 +228,45 @@ footer .sheet{display:flex;flex-wrap:wrap;gap:.5rem 2rem;justify-content:space-b
         <p>You need macOS 13 or later.</p>
       </div>
       <div class="text">
-        <h2 id="install-title">Build it yourself</h2>
-        <p>Notival is built from source, so there is nothing to download or approve. It takes about a minute.</p>
+        <h2 id="install-title">Install it</h2>
         <ol class="steps">
           <li>
-            <strong>Install the command line tools</strong>
-            <p>If you have never built an app on this Mac, run this once and follow the prompt.</p>
-            <pre><code>xcode-select --install</code></pre>
+            <strong>Download</strong>
+            <p>Get <code>Notival.zip</code> from the <a href="https://github.com/JackF-22/notival/releases/latest">latest release</a> and open it.</p>
           </li>
           <li>
-            <strong>Get the code</strong>
-            <pre><code>git clone https://github.com/JackF-22/notival.git
-cd notival</code></pre>
+            <strong>Drag it into Applications</strong>
           </li>
           <li>
-            <strong>Build and open it</strong>
-            <pre><code>zsh scripts/build.sh
-open dist/Notival.app</code></pre>
-            <p>Drag <code>dist/Notival.app</code> into Applications if you want to keep it. Quit Notival before replacing an older copy.</p>
+            <strong>Open it</strong>
+            <p>The first time, macOS says it can't check the developer. Open System Settings, then Privacy &amp; Security, and click Open Anyway next to Notival. You only do this once. After that Notival updates itself.</p>
           </li>
         </ol>
+        <h2 id="vscode-title" style="margin-top:2.5rem">Use it with VS Code</h2>
+        <ol class="steps">
+          <li>
+            <strong>Download the extension</strong>
+            <p>Get <code>Notival-Companion.vsix</code> from the same release page.</p>
+          </li>
+          <li>
+            <strong>Install it</strong>
+            <p>In VS Code, open Extensions (⇧⌘X), click the <strong>⋯</strong> menu, choose Install from VSIX, and pick the file. Or run <code>code --install-extension Notival-Companion.vsix</code>.</p>
+          </li>
+          <li>
+            <strong>Send code</strong>
+            <p>Select lines, right-click, and choose Notival: Capture selection. The Notival icon in the sidebar shows your file's functions, each with a copy button.</p>
+          </li>
+        </ol>
+        <details>
+          <summary>Build it from source instead</summary>
+          <ol class="steps">
+            <li><strong>Install the command line tools</strong><pre><code>xcode-select --install</code></pre></li>
+            <li><strong>Get the code</strong><pre><code>git clone https://github.com/JackF-22/notival.git
+cd notival</code></pre></li>
+            <li><strong>Build and open it</strong><pre><code>zsh scripts/build.sh
+open dist/Notival.app</code></pre></li>
+          </ol>
+        </details>
         <details>
           <summary>Turn on equation recognition</summary>
           <p>Choose File, then Set Up Equation Recognition, or trace an equation and accept the offer. Notival downloads about 500 MB once and then works offline.</p>
