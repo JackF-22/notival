@@ -41,5 +41,16 @@ try{
   assert.equal(await evaluate(`document.activeElement.textContent.includes('Physics')`),true,'and focus stays with it');
   // the order is saved with the notebook, and shown on the Subjects page
   assert.equal(await evaluate(`JSON.stringify(JSON.parse(JSON.stringify(state)).projects.map(p=>p.name))`),JSON.stringify(['Biology','Chemistry','Physics','History']));
+  // the Subjects page on Home: drag the tiles too
+  await evaluate(`window.marginHome(null)`);await wait(300);
+  const tiles=()=>evaluate(`[...document.querySelectorAll('.subject-grid .subject-tile')].map(t=>t.querySelector('h2').textContent).join()`);
+  assert.equal(await tiles(),'Biology,Chemistry,Physics,History');
+  assert.equal(await evaluate(`[...document.querySelectorAll('.subject-grid .subject-tile')].every(t=>t.draggable)`),true,'home tiles can be picked up');
+  await evaluate(`(()=>{const t=[...document.querySelectorAll('.subject-grid .subject-tile')],dt=new DataTransfer(),r=t[0].getBoundingClientRect();
+   t[3].dispatchEvent(new DragEvent('dragstart',{bubbles:true,dataTransfer:dt}));
+   t[0].dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,dataTransfer:dt,clientX:r.left+r.width*.2}));
+   t[0].dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:dt,clientX:r.left+r.width*.2}))})()`);await wait(300);
+  assert.equal(await tiles(),'History,Biology,Chemistry,Physics','dragging a tile on Home reorders subjects');
+  assert.equal(await order(),'History,Biology,Chemistry,Physics','and the sidebar follows');
   console.log('PASS: subjects can be put in any order by dragging or Option+arrows, and the order is kept.');
 }finally{browser.kill();for(const pending of waiting.values())clearTimeout(pending.timer);await rm(profile,{recursive:true,force:true,maxRetries:10,retryDelay:100})}
