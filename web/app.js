@@ -79,7 +79,7 @@ function render(){RichEditor.reset();list();const n=current();$('article').hidde
  wrap.append(tools);RichEditor.mount(block,wrap,()=>{words();persist();});
 }
 if(block.source){const source=document.createElement('div');source.className='source';const reveal=document.createElement('button');reveal.textContent=block.source.name+':'+(block.source.start+1)+' ↗';reveal.onclick=()=>native({type:'reveal',source:block.source});const comment=document.createElement('button');comment.textContent='Comment in VS Code';comment.onclick=()=>{const text=prompt('Comment on these lines:');if(text)native({type:'comment',source:block.source,text})};source.append(reveal,comment);if(block.type==='code')tools.insertBefore(source,tools.children[1]||null);else wrap.append(source)}
-if(block.pdfRef){const source=document.createElement('div');source.className='pdf-reference';if(block.pdfRef.quote&&!block.text.trim().startsWith('>')){const excerpt=document.createElement('q');excerpt.textContent=block.pdfRef.quote;excerpt.title=block.pdfRef.quote;source.append(excerpt)}const jump=document.createElement('button');jump.textContent=`▧ ${block.pdfRef.name} · page ${block.pdfRef.page} ↗`;jump.title='Jump to this passage in the PDF';jump.onclick=()=>{openPDFPath=block.pdfRef.path;native({type:'jumpPDF',path:block.pdfRef.path,page:block.pdfRef.page,bounds:block.pdfRef.bounds});renderPDFStatus(n)};source.append(jump);wrap.append(source)}
+if(block.pdfRef){const source=document.createElement('div');source.className='pdf-reference';if(block.pdfRef.quote&&!block.text.trim().startsWith('>')){const excerpt=document.createElement('q');excerpt.textContent=block.pdfRef.quote;excerpt.title=block.pdfRef.quote;source.append(excerpt)}const jump=document.createElement('button');jump.textContent=`▧ ${block.pdfRef.name} · page ${block.pdfRef.page} ↗`;jump.title='Jump to this passage in the PDF';jump.onclick=()=>{if(PDFSet.has(n,block.pdfRef.path)&&n.pdfPath!==block.pdfRef.path){PDFSet.activate(n,block.pdfRef.path);persist()}openPDFPath=block.pdfRef.path;native({type:'jumpPDF',path:block.pdfRef.path,page:block.pdfRef.page,bounds:block.pdfRef.bounds});renderPDFStatus(n)};source.append(jump);wrap.append(source)}
 if(block.row&&rowSize.get(block.row)>1){if(block.row!==rowKey){rowBox=document.createElement('div');rowBox.className='block-row';rowBox.style.setProperty('--cols',String(Math.min(3,rowSize.get(block.row))));rowKey=block.row;$('#editor').append(rowBox)}rowBox.append(wrap)}else{rowBox=null;rowKey=null;$('#editor').append(wrap)}});setMode(mode)}
 // Cells can sit side by side (see layout-model.js). This is the click alternative to dragging a cell by its grip.
 function sideControl(n,block){
@@ -111,18 +111,28 @@ function renderLinks(){
 function renderPDFStatus(note){
  requestAnimationFrame(renderNoteRail);
  const bar=$('#pdf-status');bar.replaceChildren();bar.hidden=!note.pdfPath;
- const attachMaterial=m=>{if(/\.pdf$/i.test(m.name)){note.pdfPath=m.path;note.pdfName=m.name;if(bridge){native({type:'showPDF',path:m.path});openPDFPath=m.path;collapseSidebarForPDF()}}else{note.linkedFiles=[...(note.linkedFiles||[]),m.path];note.linkedFileNames={...(note.linkedFileNames||{}),[m.path]:m.name}}persist();render()};
+ const attachMaterial=m=>{if(/\.pdf$/i.test(m.name)){PDFSet.activate(note,m.path,m.name);if(bridge){native({type:'showPDF',path:m.path});openPDFPath=m.path;collapseSidebarForPDF()}}else{note.linkedFiles=[...(note.linkedFiles||[]),m.path];note.linkedFileNames={...(note.linkedFileNames||{}),[m.path]:m.name}}persist();render()};
  const picker=window.marginNoteMaterialPicker?.(note,attachMaterial);
  if(picker){bar.hidden=false;0}else bar.classList.remove('picker-only');
  if(!note.pdfPath){if(picker)bar.append(picker);if(openPDFPath){native({type:'closePDF'});openPDFPath=null}return}
  if(openPDFPath&&openPDFPath!==note.pdfPath){native({type:'showPDF',path:note.pdfPath});openPDFPath=note.pdfPath;collapseSidebarForPDF()}
- const label=document.createElement('span');label.textContent=`▧ ${note.pdfName||note.pdfPath.split('/').pop()}`;
  const open=document.createElement('button');open.textContent=openPDFPath===note.pdfPath?'PDF open':'Open beside note';open.onclick=()=>{native({type:'showPDF',path:note.pdfPath});openPDFPath=note.pdfPath;collapseSidebarForPDF();renderPDFStatus(note)};
- const detach=document.createElement('button');detach.textContent='Detach';detach.onclick=()=>{note.pdfPath=null;note.pdfName=null;if(openPDFPath){native({type:'closePDF'});openPDFPath=null}persist();render()};
- bar.append(label,open);const unitPDF=window.marginNotePDFControl?.(note,()=>renderPDFStatus(note));if(unitPDF)bar.append(unitPDF);bar.append(detach);if(picker)bar.append(picker);
+ const detach=document.createElement('button');detach.textContent=PDFSet.list(note).length>1?'Detach this PDF':'Detach';detach.onclick=()=>{PDFSet.remove(note,note.pdfPath);if(note.pdfPath&&openPDFPath)switchPDF(note,note.pdfPath);else if(openPDFPath){native({type:'closePDF'});openPDFPath=null}persist();render()};
+ // Every PDF on the note is a chip; the one beside the note is highlighted and the rest switch to it.
+ for(const item of PDFSet.list(note)){
+  if(item.path===note.pdfPath){const label=document.createElement('span');label.textContent=`▧ ${item.name}`;label.title=item.path;bar.append(label);continue}
+  const chip=document.createElement('button');chip.className='pdf-chip';chip.textContent=`▧ ${item.name}`;chip.title='Show '+item.name+' beside this note';chip.onclick=()=>switchPDF(note,item.path);bar.append(chip);
+ }
+ bar.append(open);const unitPDF=window.marginNotePDFControl?.(note,()=>renderPDFStatus(note));if(unitPDF)bar.append(unitPDF);bar.append(detach);if(picker)bar.append(picker);
  renderPDFSelection();
- if(bridge&&openPDFPath===note.pdfPath)syncPDFHighlights(note);
+ if(bridge&&openPDFPath===note.pdfPath){syncPDFHighlights(note);native({type:'pdfSet',...PDFSet.position(note)})}
 }
+// Shows another of the note's PDFs; the PDF pane on the left follows, and the pane's own buttons cycle through the same set.
+function switchPDF(note,path){
+ if(!PDFSet.has(note,path))return;PDFSet.activate(note,path);pendingPDFSelection=null;pendingPDFCommentDraft=null;
+ native({type:'showPDF',path});openPDFPath=path;collapseSidebarForPDF();persist();renderPDFStatus(note);
+}
+window.marginPDFCycle=data=>{const note=current(),next=note&&PDFSet.step(note,data?.step<0?-1:1);if(next)switchPDF(note,next.path)};
 function syncPDFHighlights(note){native({type:'showPDFHighlights',highlights:(note?.blocks||[]).filter(block=>block.pdfRef?.kind==='highlight'&&block.pdfRef.bounds).map(block=>({page:block.pdfRef.page,bounds:block.pdfRef.bounds}))})}
 function savePDFAnnotation(kind,comment='',html=''){
  const note=current(),data=pendingPDFSelection;if(!note||!data)return;
@@ -149,9 +159,9 @@ $('#import').onclick=()=>native({type:'import'});
 $('#open-pdf').onclick=()=>{if(!current())return;native({type:'openPDF'})};window.marginNotice=message=>toast(String(message||''));$('#open-pdf').title='Open a PDF from Foliose, beside this note';
 window.marginPDFOpened=data=>{
  if(typeof data?.path!=='string')return;
- let note=state.notes.find(item=>item.pdfPath===data.path);
- if(note){active=note.id;toast('Resumed this PDF workspace')}
- else{note={id:uid(),title:(data.name||'PDF notes').replace(/\.pdf$/i,''),updated:Date.now(),pinned:false,blocks:[{id:uid(),type:'text',text:''}],nodes:[],pdfPath:data.path,pdfName:data.name,...(window.marginCaptureDestination?.()||{})};state.notes.unshift(note);active=note.id;toast('Created a note for this PDF')}
+ let note=state.notes.find(item=>item.id===active&&PDFSet.has(item,data.path))||state.notes.find(item=>PDFSet.has(item,data.path));
+ if(note){PDFSet.activate(note,data.path,data.name);active=note.id;toast('Resumed this PDF workspace')}
+ else{note={id:uid(),title:(data.name||'PDF notes').replace(/\.pdf$/i,''),updated:Date.now(),pinned:false,blocks:[{id:uid(),type:'text',text:''}],nodes:[],pdfPath:data.path,pdfName:data.name,pdfs:[{path:data.path,name:data.name}],...(window.marginCaptureDestination?.()||{})};state.notes.unshift(note);active=note.id;toast('Created a note for this PDF')}
  openPDFPath=data.path;pendingPDFSelection=null;persist();render();syncPDFHighlights(note);if(typeof collapseSidebarForPDF==='function')collapseSidebarForPDF();
 };
 window.marginPDFClosed=()=>{openPDFPath=null;requestAnimationFrame(renderNoteRail);if(typeof sidebarAutoCollapsed!=='undefined'&&sidebarAutoCollapsed){sidebarAutoCollapsed=false;setSidebarCollapsed(false)}const note=current();if(note)renderPDFStatus(note)};
@@ -225,7 +235,7 @@ window.marginPDFSelection=data=>{if(!data||data.path!==current()?.pdfPath)return
 window.marginPDFCapture=data=>{
  const note=current(),block=PDFNotes.blockFromCapture(data,uid());if(!note||!block)return;
  const quote=data.kind==='quote',comment=data.kind==='comment';
- note.pdfPath=data.path;note.pdfName=data.name||note.pdfName;note.blocks.push(block);persist();render();
+ PDFSet.activate(note,data.path,data.name);note.blocks.push(block);persist();render();
  const cell=[...$('#editor .block')].find((item,index)=>note.blocks[index]?.id===block.id);
  cell?.querySelector('.rich-text')?.focus();cell?.scrollIntoView({behavior:'smooth',block:'center'});
  toast(comment?`Comment added to page ${data.page}`:quote?`Quote captured from page ${data.page}`:`Thought linked to page ${data.page}`);

@@ -186,6 +186,8 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
  var pdfBarHairline: NSView!
  var pdfIcon: NSImageView!
  var pdfButtons: [PDFBarButton] = []
+ var pdfSwitchers: [PDFBarButton] = []
+ var pdfSetIndex = 0, pdfSetCount = 1
  var pdfDividers: [NSView] = []
  var theme = NotivalTheme()
  func applyPDFTheme() {
@@ -232,6 +234,8 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
   let quoteItem=fileMenu.addItem(withTitle:"Capture PDF Quote",action:#selector(capturePDFQuote),keyEquivalent:"q");quoteItem.keyEquivalentModifierMask=[.command,.shift];quoteItem.target=self
   let traceItem=fileMenu.addItem(withTitle:"Trace Figure from PDF",action:#selector(startTrace),keyEquivalent:"r");traceItem.keyEquivalentModifierMask=[.command,.shift];traceItem.target=self
   let findItem=fileMenu.addItem(withTitle:"Find in PDF…",action:#selector(showPDFFind),keyEquivalent:"f");findItem.target=self
+  let nextNotePDFItem=fileMenu.addItem(withTitle:"Next PDF in Note",action:#selector(nextNotePDF),keyEquivalent:"]");nextNotePDFItem.keyEquivalentModifierMask=[.command,.option];nextNotePDFItem.target=self
+  let previousNotePDFItem=fileMenu.addItem(withTitle:"Previous PDF in Note",action:#selector(previousNotePDF),keyEquivalent:"[");previousNotePDFItem.keyEquivalentModifierMask=[.command,.option];previousNotePDFItem.target=self
   let findNextItem=fileMenu.addItem(withTitle:"Find Next in PDF",action:#selector(findNextInPDF),keyEquivalent:"g");findNextItem.target=self
   let findPreviousItem=fileMenu.addItem(withTitle:"Find Previous in PDF",action:#selector(findPreviousInPDF),keyEquivalent:"g");findPreviousItem.keyEquivalentModifierMask=[.command,.shift];findPreviousItem.target=self
   let equationItem=fileMenu.addItem(withTitle:"Trace Equation from PDF as LaTeX",action:#selector(startEquationTrace),keyEquivalent:"r");equationItem.keyEquivalentModifierMask=[.command,.option];equationItem.target=self
@@ -273,6 +277,9 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
   pdfPage.widthAnchor.constraint(greaterThanOrEqualToConstant: 46).isActive = true
   func tool(_ symbol: String, _ tip: String, _ action: Selector) -> PDFBarButton { let button = PDFBarButton(symbol: symbol, tip: tip, target: self, action: action); pdfButtons.append(button); return button }
   func divider() -> NSView { let line = NSView(frame: .zero); line.wantsLayer = true; line.translatesAutoresizingMaskIntoConstraints = false; line.widthAnchor.constraint(equalToConstant: 1).isActive = true; line.heightAnchor.constraint(equalToConstant: 16).isActive = true; pdfDividers.append(line); return line }
+  let earlier = tool("chevron.left.2", "Previous PDF in this note · ⌥⌘[", #selector(previousNotePDF))
+  let later = tool("chevron.right.2", "Next PDF in this note · ⌥⌘]", #selector(nextNotePDF))
+  pdfSwitchers = [earlier, later]; pdfSwitchers.forEach { $0.isHidden = true }
   let previous = tool("chevron.left", "Previous page", #selector(previousPDFPage))
   let next = tool("chevron.right", "Next page", #selector(nextPDFPage))
   let quote = tool("text.quote", "Add the selected text to this note · ⌘⇧Q", #selector(capturePDFQuote))
@@ -281,9 +288,9 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
   let trace = tool("viewfinder", "Box a figure to add it to this note (⇧ for freehand) · ⌘⇧R", #selector(startTrace))
   let formula = tool("x.squareroot", "Turn an equation into LaTeX · ⌥⌘R", #selector(showEquationMenu(_:)))
   let close = tool("xmark", "Close the PDF", #selector(closePDF))
-  let controls = NSStackView(views: [previous, pdfPage, next, divider(), quote, comment, thought, divider(), trace, formula, divider(), close])
+  let controls = NSStackView(views: [earlier, later, previous, pdfPage, next, divider(), quote, comment, thought, divider(), trace, formula, divider(), close])
   controls.orientation = .horizontal; controls.alignment = .centerY; controls.spacing = 3; controls.translatesAutoresizingMaskIntoConstraints = false
-  controls.setCustomSpacing(8, after: next); controls.setCustomSpacing(10, after: thought); controls.setCustomSpacing(10, after: formula)
+  controls.setCustomSpacing(8, after: later); controls.setCustomSpacing(8, after: next); controls.setCustomSpacing(10, after: thought); controls.setCustomSpacing(10, after: formula)
   controls.setContentHuggingPriority(.required, for: .horizontal); controls.setContentCompressionResistancePriority(.required, for: .horizontal)
   bar.addSubview(background); bar.addSubview(hairline); bar.addSubview(icon); bar.addSubview(pdfTitle); bar.addSubview(controls)
   // The find bar sits under the header and takes no room until ⌘F opens it.
@@ -409,6 +416,13 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
         let page=selected.pages.first,let text=selected.string?.trimmingCharacters(in:.whitespacesAndNewlines),!text.isEmpty else{return}
   let box=selected.bounds(for:page)
   js("window.marginPDFSelection",["text":text,"page":document.index(for:page)+1,"path":url.path,"name":url.lastPathComponent,"bounds":["x":box.origin.x,"y":box.origin.y,"width":box.width,"height":box.height]])
+ }
+ @objc func previousNotePDF(){js("window.marginPDFCycle",["step":-1])}
+ @objc func nextNotePDF(){js("window.marginPDFCycle",["step":1])}
+ /// The note's PDFs are cycled from the web side; this only shows the buttons and which of the set is open.
+ func showPDFSet(index:Int,count:Int){
+  pdfSetIndex=index;pdfSetCount=max(1,count);pdfSwitchers.forEach{$0.isHidden=pdfSetCount<2}
+  if let url=currentPDF{pdfTitle.stringValue=pdfSetCount>1 ? "\(url.lastPathComponent) · \(index+1) of \(pdfSetCount)" : url.lastPathComponent}
  }
  @objc func previousPDFPage(){pdfView.goToPreviousPage(nil)}
  @objc func nextPDFPage(){pdfView.goToNextPage(nil)}
@@ -1040,6 +1054,7 @@ final class App: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavi
     guard let path=body["path"] as? String,path.hasPrefix("/") else{return}
     openPDF(URL(fileURLWithPath:path),page:body["page"] as? Int,bounds:body["bounds"] as? [String:Any])
    case "closePDF": closePDF()
+   case "pdfSet": showPDFSet(index:body["index"] as? Int ?? 0,count:body["count"] as? Int ?? 1)
    case "capturePDF": capturePDF(kind:body["kind"] as? String ?? "quote")
    case "showPDFHighlights":
     guard let document=pdfView.document,let items=body["highlights"] as? [[String:Any]] else{return}
