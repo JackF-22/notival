@@ -115,7 +115,7 @@ try{
   await evaluate(`clockAt(15,10)`);await wait(60);
   assert.match(await text('#class-due strong'),/Biology is on now/);
   await openFocusMenu();
-  assert.match((await menuItems())[2],/^Start Biology now \| 3pm–3:30pm/);
+  assert.match((await menuItems())[3],/^Start Biology now \| 3pm–3:30pm/);
   const notesBefore=await evaluate(`state.notes.length`);
   await evaluate(`[...document.querySelectorAll('.focus-item')].find(b=>/Start Biology now/.test(b.textContent)).click()`);await wait(250);
   assert.equal(await evaluate(`state.notes.length`),notesBefore,'no second note for the same subject and day');

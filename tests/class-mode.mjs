@@ -40,7 +40,7 @@ try{
   await shot('header');
   // the Focus menu offers the quiet page or a class
   await evaluate(`document.querySelector('#focus-menu').click()`);await wait(80);
-  assert.deepEqual(await evaluate(`[...document.querySelectorAll('.focus-popover .focus-item b')].map(b=>b.textContent)`),['Quiet page','Start a class…','Class schedule…']);
+  assert.deepEqual(await evaluate(`[...document.querySelectorAll('.focus-popover .focus-item b')].map(b=>b.textContent)`),['Quiet page','Start a class…','Your garden','Class schedule…']);
   assert.equal(await evaluate(`document.querySelector('#focus-menu').getAttribute('aria-expanded')`),'true');
   await evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}))`);await wait(60);
   assert.equal(await count('.focus-popover'),0,'Escape closes it');
@@ -64,8 +64,16 @@ try{
   assert.equal(await evaluate(`document.querySelector('.length-chip.on')`),null,'a custom length replaces the chips');
   assert.equal(await evaluate(`document.querySelector('.length-custom').classList.contains('on')`),true);
   assert.equal(await evaluate(`document.querySelector('.class-start-fs input').checked`),true,'full screen is on by default');
+  // what to grow: a surprise by default, or any of the six plants
+  assert.deepEqual(await evaluate(`[...document.querySelectorAll('.plant-pick small')].map(c=>c.textContent)`),['Surprise me','Oak tree','Sunflower','Tomato','Carrot','Strawberry','Lettuce']);
+  assert.equal(await evaluate(`document.querySelector('.plant-pick.on small').textContent`),'Surprise me');
+  assert.equal(await count('.plant-pick svg'),6,'each plant is drawn on its button');
+  await evaluate(`document.querySelector('.plant-pick[data-plant=tree]').click()`);
+  assert.equal(await evaluate(`document.querySelector('.plant-pick.on small').textContent`),'Oak tree');
   await shot('start');
   await evaluate(`[...document.querySelectorAll('.class-start button')].find(b=>b.textContent==='Start class').click()`);await wait(250);
+  assert.equal(await evaluate(`marginClass.session().plant`),'tree','it grows what you chose');
+  assert.equal(await evaluate(`JSON.parse(localStorage.getItem('notival.class.plant'))`),'tree','and remembers it');
 
   // ── The class: full screen, a quiet page, a countdown ──
   assert.equal(await evaluate(`document.body.classList.contains('class-mode')`),true);
@@ -90,12 +98,21 @@ try{
   // ── The plant: grows with focus, droops when you leave, perks up when you are back ──
   assert.equal(await count('#class-hud .hud-garden .hud-plant svg'),1,'a plant under the timer');
   const plantKey=()=>evaluate(`document.querySelector('.hud-plant').innerHTML.length+':'+document.querySelector('.hud-garden').dataset.mood`);
-  assert.equal(await evaluate(`document.querySelector('.hud-garden').dataset.mood`),'thriving');assert.equal(await text('.hud-plant-stage'),'Sprout');assert.match(await text('.hud-plant-note'),/^Sapling in \d+ min$/);
+  assert.equal(await evaluate(`document.querySelector('.hud-garden').dataset.mood`),'thriving');assert.equal(await text('.hud-plant-stage'),'Oak tree · Sprout');assert.match(await text('.hud-plant-note'),/^Sapling in \d+ min$/);
   const smallPlant=await evaluate(`document.querySelector('.hud-plant').innerHTML.length`);
   await evaluate(`(()=>{const s=marginClass.session();window.focusedBefore=s.focusedMs;s.focusedMs=12*60000;marginClass.tick(s.last+1)})()`);
   assert((await evaluate(`document.querySelector('.hud-plant').innerHTML.length`))>smallPlant,'the plant gets bigger as you stay');
-  assert.equal(await text('.hud-plant-stage'),'Sapling');
+  assert.equal(await text('.hud-plant-stage'),'Oak tree · Sapling');
   await shot('plant-grown');
+  // it can be put away, and it comes back
+  assert.equal(await evaluate(`getComputedStyle(document.querySelector('.hud-plant')).display`),'block');
+  await evaluate(`document.querySelector('.hud-plant-toggle').click()`);
+  assert.equal(await evaluate(`getComputedStyle(document.querySelector('.hud-plant')).display`),'none','hidden');
+  assert.equal(await text('.hud-plant-toggle'),'Show plant');assert.equal(await evaluate(`JSON.parse(localStorage.getItem('notival.class.hidePlant'))`),true,'remembered');
+  assert.equal(await evaluate(`getComputedStyle(document.querySelector('.hud-plant-toggle')).display`),'block','the way back stays');
+  await shot('plant-hidden');
+  await evaluate(`document.querySelector('.hud-plant-toggle').click()`);
+  assert.equal(await evaluate(`getComputedStyle(document.querySelector('.hud-plant')).display`),'block');assert.equal(await count('.hud-plant svg'),1,'redrawn when it returns');
   await evaluate(`(()=>{const s=marginClass.session();s.focusedMs=window.focusedBefore;s.last-=1})()`);
 
   // words written show up as you write
@@ -225,11 +242,36 @@ try{
   await evaluate(`(()=>{const s=FocusModel.start({id:'old',subjectId:'bio',noteId:'n',now:Date.now()-3600000});FocusModel.advance(s,s.startedAt+5000,true);s.focusedMs=7*60000;state.focusSessions=[];state.focusLive=s;marginClass.tick()})()`);
   assert.equal(await evaluate(`state.focusSessions.length`),1,'recovered into the garden');assert.equal(await evaluate(`'focusLive' in state`),false);
 
-  // ── Garden ──
-  await evaluate(`marginClass.openGarden()`);await wait(150);   // no button for now; the sessions are still kept
-  assert.equal(await evaluate(`document.querySelector('.garden-dialog').open`),true);
-  assert.equal(await count('.garden-tile svg'),1);
+  // ── Garden: a page of everything you have grown ──
+  await evaluate(`state.focusSessions=[
+   {id:'a',subjectId:'bio',noteId:'n',startedAt:Date.now()-5400000,endedAt:Date.now()-3600000,seed:3,plant:'tomato',plannedMs:0,wordsAdded:12,focusedMs:45*60000,awayMs:5*60000,lookupMs:0,awayCount:2,lookups:0,ratio:.9,parked:[]},
+   {id:'b',subjectId:'bio',noteId:'n',startedAt:Date.now()-9000000,endedAt:Date.now()-7200000,seed:4,plant:'carrot',plannedMs:0,wordsAdded:0,focusedMs:40*60000,awayMs:0,lookupMs:0,awayCount:0,lookups:0,ratio:1,parked:[]},
+   {id:'c',subjectId:'bio',noteId:'n',startedAt:Date.now()-900000,endedAt:Date.now()-600000,seed:5,plant:'sunflower',plannedMs:0,wordsAdded:0,focusedMs:3*60000,awayMs:0,lookupMs:0,awayCount:0,lookups:0,ratio:1,parked:[]},
+   {id:'d',subjectId:null,noteId:'n',startedAt:Date.now()-20000000,endedAt:Date.now()-19000000,seed:6,focusedMs:20*60000,awayMs:5*60000,lookupMs:0,awayCount:1,lookups:0,ratio:.8,parked:[]}]`);
+  assert.equal(await evaluate(`document.querySelector('#garden-nav')?.textContent.includes('Garden')`),true,'a Garden entry in the sidebar');
+  assert.equal(await evaluate(`document.querySelector('#garden-page')?.hidden??true`),true);
+  await evaluate(`document.querySelector('#garden-nav').click()`);await wait(450);
+  assert.equal(await evaluate(`marginGarden.isOpen()`),true);
+  assert.equal(await count('.gp-tile'),4,'one tile for each class');
+  assert.equal(await count('.gp-tile svg'),4);
+  assert.equal(await count('.gp-bed'),2,'a bed for each subject');
+  assert.match(await text('.gp-bed-head h2'),/Biology/);
+  assert.equal(await text('.gp-stats .gp-stat b'),'4');
+  assert.deepEqual(await evaluate(`[...document.querySelectorAll('.gp-harvest-item')].map(i=>i.textContent.replace(/\\s+/g,''))`),['4tomatoes','1carrot'],'crops that grew ripe are harvested; young ones and trees are not');
+  assert.match(await text('.gp-tile'),/Sunflower/,'the newest plant first');
+  assert.equal(await evaluate(`state.focusSessions.find(r=>r.id==='d').plant`),undefined);assert.match(await evaluate(`[...document.querySelectorAll('.gp-tile b')].map(b=>b.textContent).join()`),/Oak tree/,'older classes without a plant are oaks');
   await shot('garden');
+  await evaluate(`document.querySelector('.gp-tile').click()`);await wait(150);
+  assert.equal(await evaluate(`document.querySelector('.garden-detail').open`),true);assert.equal(await text('.garden-detail h2'),'Sunflower');
+  await shot('garden-detail');
+  await evaluate(`document.querySelector('.garden-detail').close()`);
+  await evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);await wait(50);
+  assert.equal(await evaluate(`marginGarden.isOpen()`),false,'Escape closes it');
+  await evaluate(`marginGarden.open()`);await wait(100);await evaluate(`document.querySelector('.gp-back').click()`);
+  assert.equal(await evaluate(`marginGarden.isOpen()`),false,'Back closes it');
+  await evaluate(`state.focusSessions=[];marginGarden.open()`);await wait(100);
+  assert.equal(await count('.gp-empty'),1,'an empty garden invites you to plant something');
+  await evaluate(`marginGarden.close()`);
 
   console.log('PASS: class mode — start dialog with chosen length, full screen, countdown with live stats, time-up, welcome-back, lookups, parked thoughts, summary, garden.');
 }finally{browser.kill();for(const pending of waiting.values())clearTimeout(pending.timer);await rm(profile,{recursive:true,force:true,maxRetries:10,retryDelay:100})}

@@ -12,8 +12,8 @@ const FocusModel=(()=>{
 
  // plannedMs is how long the class is meant to run (0 = open-ended). The clock for it is the wall clock:
  // a class doesn't pause while you are looking something up.
- function start({id,subjectId=null,noteId=null,now=Date.now(),seed=Math.floor(Math.random()*2**31),plannedMs=0,wordsAtStart=0}){
-  return {id:id||'class-'+now.toString(36),subjectId,noteId,startedAt:now,last:now,seed,plannedMs,wordsAtStart,wordsAdded:0,
+ function start({id,subjectId=null,noteId=null,now=Date.now(),seed=Math.floor(Math.random()*2**31),plannedMs=0,wordsAtStart=0,plant}){
+  return {id:id||'class-'+now.toString(36),subjectId,noteId,startedAt:now,last:now,seed,plant:plantOf(plant||pick(seed)).id,plannedMs,wordsAtStart,wordsAdded:0,
    focusedMs:0,awayMs:0,lookupMs:0,unobservedMs:0,awayCount:0,lookups:0,
    away:null,lastEpisode:null,lookupUntil:0,parked:[]};
  }
@@ -66,20 +66,42 @@ const FocusModel=(()=>{
 
  // How big the tree is, 0..1. Quick early growth so the first minutes show something.
  const growth=focusedMs=>Math.min(1,Math.max(0,focusedMs/FULL_GROWTH))**.6;
- const STAGES=[[1,'Seed'],[5,'Sprout'],[15,'Sapling'],[30,'Young tree'],[50,'Tree']];
- function stage(focusedMs){
+ // What you can grow. `stages` name the six steps from seed to full size; `yield` is what a well-grown one gives
+ // at harvest (trees and flowers give nothing to eat, they are just lovely).
+ const STAGE_LIMITS=[1,5,15,30,50];
+ const PLANTS=[
+  {id:'tree',name:'Oak tree',stages:['Seed','Sprout','Sapling','Young tree','Tree','Grand tree'],yield:null},
+  {id:'sunflower',name:'Sunflower',stages:['Seed','Sprout','Seedling','Budding','Blooming','Full bloom'],yield:{noun:'sunflower',nouns:'sunflowers',per:1}},
+  {id:'tomato',name:'Tomato',stages:['Seed','Sprout','Seedling','Flowering','Fruiting','Ripe'],yield:{noun:'tomato',nouns:'tomatoes',per:4}},
+  {id:'carrot',name:'Carrot',stages:['Seed','Sprout','Seedling','Leafy','Swelling','Ready to pull'],yield:{noun:'carrot',nouns:'carrots',per:1}},
+  {id:'strawberry',name:'Strawberry',stages:['Seed','Sprout','Seedling','Flowering','Berries forming','Ripe'],yield:{noun:'strawberry',nouns:'strawberries',per:6}},
+  {id:'lettuce',name:'Lettuce',stages:['Seed','Sprout','Seedling','Leafy','Heading','Full head'],yield:{noun:'lettuce',nouns:'lettuces',per:1}},
+ ];
+ const plantOf=id=>PLANTS.find(p=>p.id===id)||PLANTS[0];
+ const pick=seed=>PLANTS[Math.abs(seed|0)%PLANTS.length].id;
+ // Leaving stunts a plant: each minute away costs half a minute of progress, though never more than half of
+ // what has grown. Time you said was a lookup is not time away, so it costs nothing.
+ const STUNT=.5;
+ const grownMs=({focusedMs,awayMs=0})=>focusedMs-Math.min(focusedMs*STUNT,awayMs*STUNT);
+ const RIPE=.7;                  // how grown a plant must be before there is anything to harvest
+ function stageIndex(focusedMs){
   const minutes=focusedMs/MINUTE;
-  for(const [limit,name] of STAGES)if(minutes<limit)return name;
-  return 'Grand tree';
+  const i=STAGE_LIMITS.findIndex(limit=>minutes<limit);
+  return i<0?STAGE_LIMITS.length:i;
  }
- // The next stage and how much more focus it takes, or null once the tree is grand.
- function nextStage(focusedMs){
-  const minutes=focusedMs/MINUTE;
-  for(const [limit] of STAGES)if(minutes<limit){
-   const index=STAGES.findIndex(([l])=>l===limit),name=STAGES[index+1]?.[1]||'Grand tree';
-   return {name,inMs:Math.ceil(limit*MINUTE-focusedMs)};
-  }
-  return null;
+ const stage=(focusedMs,plant='tree')=>plantOf(plant).stages[stageIndex(focusedMs)];
+ // What a finished plant gives: {plant, noun, count}, or null when it is too young or is not a crop.
+ function harvest(record){
+  const kind=plantOf(record.plant);
+  if(!kind.yield||growth(grownMs(record))<RIPE)return null;
+  const count=Math.max(1,Math.round(kind.yield.per*(.5+.5*(record.ratio??1))));
+  return {plant:kind.id,count,noun:count===1?kind.yield.noun:kind.yield.nouns};
+ }
+ // The next stage and how much more focus it takes, or null once the plant is fully grown.
+ function nextStage(focusedMs,plant='tree'){
+  const index=stageIndex(focusedMs);
+  if(index>=STAGE_LIMITS.length)return null;
+  return {name:plantOf(plant).stages[index+1],inMs:Math.ceil(STAGE_LIMITS[index]*MINUTE-focusedMs)};
  }
  // How the plant is doing right now: thriving while you are here, resting while you look something up,
  // thirsty once you have been away long enough to count. It perks up the moment you are back.
@@ -94,7 +116,7 @@ const FocusModel=(()=>{
  function finish(s,now){
   advance(s,now,true);                // ending a class means you are here, so the last stretch is focus
   endAway(s);
-  return {id:s.id,subjectId:s.subjectId,noteId:s.noteId,startedAt:s.startedAt,endedAt:now,seed:s.seed,plannedMs:s.plannedMs||0,wordsAdded:s.wordsAdded||0,
+  return {id:s.id,subjectId:s.subjectId,noteId:s.noteId,startedAt:s.startedAt,endedAt:now,seed:s.seed,plant:s.plant||'tree',plannedMs:s.plannedMs||0,wordsAdded:s.wordsAdded||0,
    focusedMs:s.focusedMs,awayMs:s.awayMs,lookupMs:s.lookupMs,awayCount:s.awayCount,lookups:s.lookups,
    ratio:+ratio(s).toFixed(3),parked:s.parked.slice()};
  }
@@ -136,9 +158,12 @@ const FocusModel=(()=>{
    e.count++;e.focusedMs+=r.focusedMs;e.awayMs+=r.awayMs;bySubject.set(key,e);
   }
   const subjects=[...bySubject.values()].map(e=>({...e,ratio:e.focusedMs+e.awayMs?e.focusedMs/(e.focusedMs+e.awayMs):1})).sort((a,b)=>b.focusedMs-a.focusedMs);
-  return {weekFocusedMs:week,weekCount,subjects,total:sessions.length};
+  const yields=new Map();
+  for(const r of sessions){const h=harvest(r);if(h)yields.set(h.plant,(yields.get(h.plant)||0)+h.count)}
+  const harvested=PLANTS.filter(p=>yields.has(p.id)).map(p=>({plant:p.id,count:yields.get(p.id),noun:yields.get(p.id)===1?p.yield.noun:p.yield.nouns}));
+  return {weekFocusedMs:week,weekCount,subjects,total:sessions.length,harvested};
  }
 
- return {SECOND,MINUTE,GAP,AWAY_MIN,LOOKUP_WINDOW,elapsed,remaining,extend,progress,start,advance,beginLookup,reclassify,ratio,growth,stage,nextStage,mood,density,finish,duration,minutesLabel,verdict,wrapUp,gardenStats};
+ return {SECOND,MINUTE,GAP,AWAY_MIN,LOOKUP_WINDOW,elapsed,remaining,extend,progress,start,advance,beginLookup,reclassify,ratio,PLANTS,plantOf,pick,RIPE,STUNT,grownMs,harvest,growth,stage,nextStage,mood,density,finish,duration,minutesLabel,verdict,wrapUp,gardenStats};
 })();
 if(typeof module!=='undefined')module.exports=FocusModel;

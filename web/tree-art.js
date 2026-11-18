@@ -48,18 +48,24 @@ const TreeArt=(()=>{
   return {shape:'tree',branches,leaves,fallen};
  }
 
- function svg(options,{size=120,label=''}={}){
+ // The tree's shapes as markup, without the frame around them, so other drawings can place it on their own ground.
+ function body(options,{shadow=true}={}){
   const shape=build(options),{h,s,l}=hsl(options.color),fmt=n=>Math.round(n*10)/10;
   const fill=lightness=>`hsl(${Math.round(h)} ${Math.round(s*100)}% ${Math.round(Math.max(.18,Math.min(.7,l+lightness))*100)}%)`;
-  const parts=[`<ellipse cx="50" cy="${GROUND+2}" rx="30" ry="3.2" fill="#8a7a5c" opacity=".22"/>`];
+  const parts=shadow?[`<ellipse cx="50" cy="${GROUND+2}" rx="30" ry="3.2" fill="#8a7a5c" opacity=".22"/>`]:[];
   if(shape.shape==='seed')parts.push(`<ellipse cx="50" cy="${GROUND-1}" rx="6" ry="3" fill="#7a5a3c"/><ellipse cx="50" cy="${GROUND-2.5}" rx="2.2" ry="1.4" fill="#a9824f"/>`);
   for(const b of shape.branches)parts.push(`<line x1="${fmt(b.x1)}" y1="${fmt(b.y1)}" x2="${fmt(b.x2)}" y2="${fmt(b.y2)}" stroke="#7a5a3c" stroke-width="${fmt(b.w)}" stroke-linecap="round"/>`);
   for(const f of shape.fallen)parts.push(`<circle cx="${fmt(f.x)}" cy="${fmt(f.y)}" r="${fmt(f.r)}" fill="${fill(f.l-.08)}" opacity=".8"/>`);
   for(const leaf of shape.leaves)parts.push(`<circle cx="${fmt(leaf.x)}" cy="${fmt(leaf.y)}" r="${fmt(leaf.r)}" fill="${fill(leaf.l)}" opacity=".92"/>`);
+  return parts.join('');
+ }
+
+ function svg(options,{size=120,label=''}={}){
   // Young trees are small; zoom the frame so a sprout is still something to look at.
+  const parts=[body(options)];
   const g=Math.max(0,Math.min(1,options.growth??1)),frame=g<.07?'28 56 44 44':g<.3?'15 32 70 70':'0 0 100 100';
   return `<svg viewBox="${frame}" width="${size}" height="${size}" role="img" aria-label="${label||'A tree'}" xmlns="http://www.w3.org/2000/svg">${parts.join('')}</svg>`;
  }
- return {build,svg};
+ return {build,body,svg,GROUND};
 })();
 if(typeof module!=='undefined')module.exports=TreeArt;
