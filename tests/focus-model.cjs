@@ -71,6 +71,17 @@ assert.deepEqual(F.nextStage(2*MIN),{name:'Sapling',inMs:3*MIN},'what the next s
  run(s,20,21,true);assert.equal(F.mood(s,21000),'thriving','back, and it perks up');
  const l=F.start({now:0});run(l,0,1,true);F.beginLookup(l,1000);run(l,1,30,false);assert.equal(F.mood(l,30000),'resting','a lookup never wilts it');
 }
+{ // leaving stunts growth: half a minute lost per minute away, never more than half of what has grown; lookups are free
+ assert.equal(F.grownMs({focusedMs:20*MIN,awayMs:0}),20*MIN);
+ assert.equal(F.grownMs({focusedMs:20*MIN,awayMs:6*MIN}),17*MIN,'six minutes away costs three');
+ assert.equal(F.grownMs({focusedMs:10*MIN,awayMs:60*MIN}),5*MIN,'but never more than half');
+ assert.equal(F.grownMs({focusedMs:10*MIN}),10*MIN);
+ assert(F.growth(F.grownMs({focusedMs:30*MIN,awayMs:20*MIN}))<F.growth(30*MIN),'a plant you left is smaller');
+ const l=F.start({now:0});for(let t=1;t<=60;t++)F.advance(l,t*1000,true);F.beginLookup(l,60000);for(let t=61;t<=120;t++)F.advance(l,t*1000,false);
+ assert.equal(F.grownMs(l),60000,'a lookup costs nothing');
+ assert.equal(F.harvest({plant:'tomato',focusedMs:50*MIN,awayMs:0,ratio:1}).count,4);
+ assert.equal(F.harvest({plant:'tomato',focusedMs:30*MIN,awayMs:0,ratio:1})!==null,true);assert.equal(F.harvest({plant:'tomato',focusedMs:30*MIN,awayMs:20*MIN,ratio:.6}),null,'too much time away and it never ripens');
+}
 assert(F.density(1)>F.density(.5)&&F.density(.5)>F.density(0));assert(F.density(0)>0);
 
 // Words stay kind

@@ -79,6 +79,10 @@ const FocusModel=(()=>{
  ];
  const plantOf=id=>PLANTS.find(p=>p.id===id)||PLANTS[0];
  const pick=seed=>PLANTS[Math.abs(seed|0)%PLANTS.length].id;
+ // Leaving stunts a plant: each minute away costs half a minute of progress, though never more than half of
+ // what has grown. Time you said was a lookup is not time away, so it costs nothing.
+ const STUNT=.5;
+ const grownMs=({focusedMs,awayMs=0})=>focusedMs-Math.min(focusedMs*STUNT,awayMs*STUNT);
  const RIPE=.7;                  // how grown a plant must be before there is anything to harvest
  function stageIndex(focusedMs){
   const minutes=focusedMs/MINUTE;
@@ -89,7 +93,7 @@ const FocusModel=(()=>{
  // What a finished plant gives: {plant, noun, count}, or null when it is too young or is not a crop.
  function harvest(record){
   const kind=plantOf(record.plant);
-  if(!kind.yield||growth(record.focusedMs)<RIPE)return null;
+  if(!kind.yield||growth(grownMs(record))<RIPE)return null;
   const count=Math.max(1,Math.round(kind.yield.per*(.5+.5*(record.ratio??1))));
   return {plant:kind.id,count,noun:count===1?kind.yield.noun:kind.yield.nouns};
  }
@@ -160,6 +164,6 @@ const FocusModel=(()=>{
   return {weekFocusedMs:week,weekCount,subjects,total:sessions.length,harvested};
  }
 
- return {SECOND,MINUTE,GAP,AWAY_MIN,LOOKUP_WINDOW,elapsed,remaining,extend,progress,start,advance,beginLookup,reclassify,ratio,PLANTS,plantOf,pick,RIPE,harvest,growth,stage,nextStage,mood,density,finish,duration,minutesLabel,verdict,wrapUp,gardenStats};
+ return {SECOND,MINUTE,GAP,AWAY_MIN,LOOKUP_WINDOW,elapsed,remaining,extend,progress,start,advance,beginLookup,reclassify,ratio,PLANTS,plantOf,pick,RIPE,STUNT,grownMs,harvest,growth,stage,nextStage,mood,density,finish,duration,minutesLabel,verdict,wrapUp,gardenStats};
 })();
 if(typeof module!=='undefined')module.exports=FocusModel;
