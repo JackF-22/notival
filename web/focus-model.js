@@ -72,6 +72,22 @@ const FocusModel=(()=>{
   for(const [limit,name] of STAGES)if(minutes<limit)return name;
   return 'Grand tree';
  }
+ // The next stage and how much more focus it takes, or null once the tree is grand.
+ function nextStage(focusedMs){
+  const minutes=focusedMs/MINUTE;
+  for(const [limit] of STAGES)if(minutes<limit){
+   const index=STAGES.findIndex(([l])=>l===limit),name=STAGES[index+1]?.[1]||'Grand tree';
+   return {name,inMs:Math.ceil(limit*MINUTE-focusedMs)};
+  }
+  return null;
+ }
+ // How the plant is doing right now: thriving while you are here, resting while you look something up,
+ // thirsty once you have been away long enough to count. It perks up the moment you are back.
+ function mood(s,now){
+  if(!s.away)return 'thriving';
+  if(now<=s.lookupUntil||s.away.lookupMs>0&&!s.away.awayMs)return 'resting';
+  return s.away.awayMs>=AWAY_MIN?'thirsty':'thriving';
+ }
  // How full the foliage is: a class you stayed with is lush, one you drifted from is sparse.
  const density=r=>.25+.75*Math.max(0,Math.min(1,r));
 
@@ -123,6 +139,6 @@ const FocusModel=(()=>{
   return {weekFocusedMs:week,weekCount,subjects,total:sessions.length};
  }
 
- return {SECOND,MINUTE,GAP,AWAY_MIN,LOOKUP_WINDOW,elapsed,remaining,extend,progress,start,advance,beginLookup,reclassify,ratio,growth,stage,density,finish,duration,minutesLabel,verdict,wrapUp,gardenStats};
+ return {SECOND,MINUTE,GAP,AWAY_MIN,LOOKUP_WINDOW,elapsed,remaining,extend,progress,start,advance,beginLookup,reclassify,ratio,growth,stage,nextStage,mood,density,finish,duration,minutesLabel,verdict,wrapUp,gardenStats};
 })();
 if(typeof module!=='undefined')module.exports=FocusModel;

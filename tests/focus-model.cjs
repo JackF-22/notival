@@ -61,6 +61,16 @@ assert.equal(F.growth(0),0);assert.equal(F.growth(60*MIN),1);
 assert(F.growth(5*MIN)>0.2,'early minutes show visible growth');
 assert(F.growth(10*MIN)>F.growth(5*MIN)&&F.growth(30*MIN)>F.growth(10*MIN));
 assert.deepEqual([0,2,10,20,40,55].map(m=>F.stage(m*MIN)),['Seed','Sprout','Sapling','Young tree','Tree','Grand tree']);
+assert.deepEqual(F.nextStage(2*MIN),{name:'Sapling',inMs:3*MIN},'what the next stage is and how long it takes');assert.equal(F.nextStage(55*MIN),null);
+{ // the plant's mood follows your attention: thirsty only after a real stretch away, resting during a lookup
+ const run=(s,from,to,focused)=>{for(let t=from+1;t<=to;t++)F.advance(s,t*1000,focused)};
+ const s=F.start({now:0});run(s,0,1,true);
+ assert.equal(F.mood(s,1000),'thriving');
+ run(s,1,6,false);assert.equal(F.mood(s,6000),'thriving','a short glance away is nothing');
+ run(s,6,20,false);assert.equal(F.mood(s,20000),'thirsty');
+ run(s,20,21,true);assert.equal(F.mood(s,21000),'thriving','back, and it perks up');
+ const l=F.start({now:0});run(l,0,1,true);F.beginLookup(l,1000);run(l,1,30,false);assert.equal(F.mood(l,30000),'resting','a lookup never wilts it');
+}
 assert(F.density(1)>F.density(.5)&&F.density(.5)>F.density(0));assert(F.density(0)>0);
 
 // Words stay kind

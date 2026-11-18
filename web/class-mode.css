@@ -170,6 +170,30 @@ body.class-mode #update-card{display:none}
 .subject-schedule .schedule-remove:hover,.subject-schedule .schedule-remove:focus-visible{background:#d4584a1f;color:#d4584a}
 .subject-schedule .schedule-next,.subject-schedule .schedule-empty{margin:8px 0 0;font-size:12px}
 
+/* The plant you are growing during the class. It needs the side panel's room, so the narrow strip leaves it out. */
+#class-hud .hud-garden{display:none;margin:0;flex-direction:column;align-items:center;gap:6px}
+#class-hud .hud-plant{position:relative;width:200px;height:200px;border-radius:50%;background:radial-gradient(closest-side,color-mix(in srgb,var(--green,#4a6452) 6%,transparent),transparent);transition:filter 1.4s ease,transform 1.4s cubic-bezier(.4,0,.2,1);transform-origin:50% 90%;will-change:transform}
+#class-hud .hud-plant svg{display:block;width:100%;height:100%;overflow:visible}
+@media (max-height:780px){#class-hud .hud-plant{width:130px;height:130px}}
+#class-hud .hud-plant.is-grown svg{animation:plant-grow .8s cubic-bezier(.2,.7,.2,1)}
+#class-hud .hud-plant-caption{display:grid;gap:1px;text-align:center;max-width:100%}
+#class-hud .hud-plant-stage{font-size:12.5px;font-weight:600;letter-spacing:.01em}
+#class-hud .hud-plant-note{color:var(--muted,#888);font-size:11px;line-height:1.35;min-height:1.35em}
+#class-hud .hud-plant-note.is-new{animation:plant-note .5s ease-out}
+/* Away: it droops and fades. Resting during a lookup: it just stills. */
+#class-hud .hud-garden[data-mood=thirsty] .hud-plant{filter:saturate(.35) brightness(.97);transform:rotate(4deg) scaleY(.94)}
+#class-hud .hud-garden[data-mood=resting] .hud-plant{filter:saturate(.8)}
+/* Back: it springs upright and two drops of rain fall on it. */
+#class-hud .hud-garden.is-reviving .hud-plant{animation:plant-perk 1.4s cubic-bezier(.3,1.4,.5,1)}
+#class-hud .hud-garden.is-reviving .hud-plant::before,#class-hud .hud-garden.is-reviving .hud-plant::after{content:'';position:absolute;top:8%;width:4px;height:8px;border-radius:50% 50% 55% 55%;background:color-mix(in srgb,#5aa9e6 80%,transparent);opacity:0;animation:plant-drop 1.1s cubic-bezier(.5,0,1,.6)}
+#class-hud .hud-garden.is-reviving .hud-plant::before{left:42%}
+#class-hud .hud-garden.is-reviving .hud-plant::after{left:56%;animation-delay:.3s}
+@keyframes plant-grow{from{opacity:.6;transform:scale(.96)}to{opacity:1;transform:none}}
+@keyframes plant-note{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}
+@keyframes plant-perk{from{filter:saturate(.35) brightness(.97);transform:rotate(4deg) scaleY(.94)}55%{transform:rotate(-1deg) scaleY(1.02)}to{filter:none;transform:none}}
+@keyframes plant-drop{0%{opacity:0;transform:translateY(0)}15%{opacity:.85}85%{opacity:.6}100%{opacity:0;transform:translateY(120px)}}
+@media (prefers-reduced-motion:reduce){#class-hud .hud-plant,#class-hud .hud-plant svg,#class-hud .hud-plant-note,#class-hud .hud-garden.is-reviving .hud-plant{animation:none!important;transition:none}#class-hud .hud-garden.is-reviving .hud-plant::before,#class-hud .hud-garden.is-reviving .hud-plant::after{display:none}}
+
 /* The timer can be hidden; everything else stays. */
 #class-hud .hud-toggle{align-self:flex-start;border:0;background:transparent;color:var(--muted,#888);padding:2px 0;font-size:11px;border-radius:6px}
 #class-hud .hud-toggle:hover{background:transparent;color:var(--ink,#333);text-decoration:underline}
@@ -180,6 +204,7 @@ body.class-mode #update-card{display:none}
  body.class-mode article{padding-top:40px}
  #class-hud{top:40px;left:auto;right:clamp(24px,3vw,56px);transform:none;width:252px;max-width:none;flex-direction:column;align-items:stretch;gap:14px;padding:16px 18px}
  #class-hud .hud-clock{min-width:0}
+ #class-hud .hud-garden{display:flex}
  #class-hud .hud-stats{display:grid;grid-template-columns:1fr 1fr;gap:12px 8px;padding:14px 2px;border:0;border-top:1px solid var(--line,#ddd);border-bottom:1px solid var(--line,#ddd)}
  #class-hud .hud-actions{flex-direction:column;align-items:stretch;gap:6px}
  #class-hud .hud-actions button{border-radius:10px;text-align:left;padding:8px 12px}

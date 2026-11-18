@@ -87,6 +87,17 @@ try{
   assert.deepEqual(await evaluate(`[...document.querySelectorAll('#class-hud .hud-stat small')].map(s=>s.textContent)`),['here','away','looked up','written']);
   await shot('hud');
 
+  // ── The plant: grows with focus, droops when you leave, perks up when you are back ──
+  assert.equal(await count('#class-hud .hud-garden .hud-plant svg'),1,'a plant under the timer');
+  const plantKey=()=>evaluate(`document.querySelector('.hud-plant').innerHTML.length+':'+document.querySelector('.hud-garden').dataset.mood`);
+  assert.equal(await evaluate(`document.querySelector('.hud-garden').dataset.mood`),'thriving');assert.equal(await text('.hud-plant-stage'),'Sprout');assert.match(await text('.hud-plant-note'),/^Sapling in \d+ min$/);
+  const smallPlant=await evaluate(`document.querySelector('.hud-plant').innerHTML.length`);
+  await evaluate(`(()=>{const s=marginClass.session();window.focusedBefore=s.focusedMs;s.focusedMs=12*60000;marginClass.tick(s.last+1)})()`);
+  assert((await evaluate(`document.querySelector('.hud-plant').innerHTML.length`))>smallPlant,'the plant gets bigger as you stay');
+  assert.equal(await text('.hud-plant-stage'),'Sapling');
+  await shot('plant-grown');
+  await evaluate(`(()=>{const s=marginClass.session();s.focusedMs=window.focusedBefore;s.last-=1})()`);
+
   // words written show up as you write
   await evaluate(`(()=>{const b=current().blocks[0];b.text+=' and its inner membrane';b.html='<p>'+b.text+'</p>'})()`);
   await evaluate(`run(120,121,true)`);
@@ -95,9 +106,13 @@ try{
   // ── Leave and come back ──
   await evaluate(`run(121,161,false)`);
   assert.equal(await count('#class-cue'),0,'no cue while away');
+  assert.equal(await evaluate(`document.querySelector('.hud-garden').dataset.mood`),'thirsty','away long enough, it droops');assert.match(await text('.hud-plant-note'),/Thirsty/);
+  await shot('plant-thirsty');
   await evaluate(`run(161,163,true)`);await wait(100);
   assert.equal(await count('#class-cue'),1);
   assert.match(await text('#class-cue'),/Welcome back/);assert.match(await text('#class-cue'),/Away 0:40/);
+  assert.equal(await evaluate(`document.querySelector('.hud-garden').dataset.mood`),'thriving');assert.equal(await count('.hud-garden.is-reviving'),1,'back, it is watered');
+  await shot('plant-revived');
   assert.match(await text('#class-cue q'),/mitochondria produce most of the cell’s ATP\./,'it quotes the last words');
   assert.equal(await evaluate(`document.querySelector('#editor .block').classList.contains('resume-flash')`),true,'the cell you were in pulses');
   await shot('welcome-back');

@@ -131,7 +131,7 @@
   const note=state.notes.find(n=>n.id===live.noteId);
   live.wordsAdded=Math.max(0,wordsIn(note)-live.wordsAtStart);
   const record=M.finish(live,Date.now());
-  clearInterval(timer);live=null;hideCue();closePark();closeTimeUp();hud?.remove();hud=null;
+  clearInterval(timer);clearTimeout(reviveTimer);live=null;hideCue();closePark();closeTimeUp();hud?.remove();hud=null;
   document.body.classList.remove('class-mode');if(sidebarWasOpen)setSidebarCollapsed(false);
   if(weEnteredFullscreen)setFullscreen(false);weEnteredFullscreen=false;
   (state.focusSessions??=[]).push(record);delete state.focusLive;persist();
@@ -145,6 +145,7 @@
   const wasAway=!!live.away;
   M.advance(live,now,present());
   if(wasAway&&!live.away&&live.lastEpisode.ms>=RETURN_CUE_AFTER)showCue(live.lastEpisode);
+  if(wasAway&&!live.away&&live.lastEpisode.awayMs>=M.AWAY_MIN)revivePlant();
   live.wordsAdded=Math.max(0,wordsIn(state.notes.find(n=>n.id===live.noteId))-live.wordsAtStart);
   if(live.plannedMs&&M.remaining(live,now)<=0&&!live.timeUpShown){live.timeUpShown=true;showTimeUp()}
   paintHud(now);
@@ -184,7 +185,32 @@
    button('Full screen',()=>setFullscreen(!fullscreenOn),'hud-fullscreen','Enter or leave full screen'),
    button('End class',()=>end(),'hud-end')
   );
-  hud.append(clock,stats,el('div','hud-parked'),actions);document.body.append(hud);paintTimerToggle();
+  // The plant you are growing: it gets bigger the longer you stay, droops when you leave, and perks up when you are back.
+  const garden=el('figure','hud-garden');const caption=el('figcaption','hud-plant-caption');caption.append(el('b','hud-plant-stage'),el('small','hud-plant-note'));garden.append(el('div','hud-plant'),caption);
+  hud.append(clock,garden,stats,el('div','hud-parked'),actions);document.body.append(hud);paintTimerToggle();plantKey='';
+ }
+ // Redrawing the tree every second would be wasteful and would make it flicker, so it is redrawn when it has grown a little.
+ let plantKey='',reviveTimer=0;
+ function paintPlant(now){
+  const garden=hud.querySelector('.hud-garden'),plant=garden.querySelector('.hud-plant'),note=garden.querySelector('.hud-plant-note'),stage=garden.querySelector('.hud-plant-stage');
+  const key=Math.floor(live.focusedMs/5000)+'|'+Math.round(M.density(M.ratio(live))*50);
+  if(key!==plantKey){
+   const first=!plantKey;plantKey=key;
+   plant.innerHTML=treeFor(live,200,M.stage(live.focusedMs));
+   if(!first){plant.classList.remove('is-grown');void plant.offsetWidth;plant.classList.add('is-grown')}
+  }
+  const mood=M.mood(live,now),reviving=garden.classList.contains('is-reviving');
+  garden.dataset.mood=mood;
+  const next=M.nextStage(live.focusedMs);
+  stage.textContent=M.stage(live.focusedMs);
+  const hint=reviving?'Welcome back. It’s perking up.':mood==='thirsty'?'Thirsty. Come back and it will perk up.':mood==='resting'?'Resting while you look something up.':next?next.name+' in '+Math.max(1,Math.ceil(next.inMs/M.MINUTE))+' min':'Fully grown';
+  if(note.textContent!==hint){note.textContent=hint;note.classList.remove('is-new');void note.offsetWidth;note.classList.add('is-new')}
+ }
+ // Coming back after a real stretch away is the moment the plant gets watered.
+ function revivePlant(){
+  const garden=hud?.querySelector('.hud-garden');if(!garden)return;
+  clearTimeout(reviveTimer);garden.classList.remove('is-reviving');void garden.offsetWidth;garden.classList.add('is-reviving');
+  reviveTimer=setTimeout(()=>{garden.classList.remove('is-reviving');if(live)paintPlant(live.last)},3600);
  }
  function paintTimerToggle(){
   if(!hud)return;
@@ -211,6 +237,7 @@
   lookup.textContent=looking?'Lookup window · '+M.duration(live.lookupUntil-now):'Looking something up';lookup.classList.toggle('is-open',looking);
   const list=hud.querySelector('.hud-parked');list.replaceChildren();
   if(live.parked.length){list.append(el('small','','Parked for after class'));for(const item of live.parked.slice(-4))list.append(el('p','',item.text))}
+  paintPlant(now);
   hud.querySelector('.hud-park').textContent=live.parked.length?'Park a thought ('+live.parked.length+')':'Park a thought';
   hud.querySelector('.hud-fullscreen').textContent=fullscreenOn?'Exit full screen':'Full screen';
  }
