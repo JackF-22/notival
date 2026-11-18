@@ -291,6 +291,7 @@ const RichEditor = (() => {
       const tag=option[4].toUpperCase();
       const heading=document.createElement(tag);
       if(block && block!==editor && /^(P|DIV|H[1-6])$/.test(block.tagName)){
+        block=isolateLine(editor,block);
         while(block.firstChild)heading.append(block.firstChild);
         block.replaceWith(heading);
       }else{
@@ -529,6 +530,24 @@ const RichEditor = (() => {
     if(neighbor?.classList.contains('display-equation')){selectEquation(editor,neighbor);return;}
     clearEquationSelection(editor);placeCaretByEquation(editor,equation,after);
   }
+  // Enter on a line that holds an inline equation. The browser splits such a line badly when the caret sits beside the
+  // equation (it nests a paragraph inside the paragraph), and the line below then can't become a bullet or heading, so
+  // the line is cut here instead: what follows the caret moves to a new paragraph.
+  function splitLineWithEquation(editor){
+    const selection=window.getSelection();if(!selection.rangeCount||!editor.contains(selection.anchorNode))return false;
+    const range=selection.getRangeAt(0);let block=range.startContainer.nodeType===Node.ELEMENT_NODE?range.startContainer:range.startContainer.parentElement;
+    while(block&&block.parentElement!==editor)block=block.parentElement;
+    if(!block||!/^(P|DIV)$/.test(block.tagName)||!block.querySelector('.inline-equation')||block.querySelector('.equation.editing'))return false;
+    if(!range.collapsed)range.deleteContents();
+    const tail=document.createRange();tail.setStart(range.startContainer,range.startOffset);tail.setEnd(block,block.childNodes.length);
+    const next=block.cloneNode(false);next.removeAttribute('id');next.append(tail.extractContents());
+    for(const line of [block,next]){[...line.childNodes].forEach(node=>{if(node.nodeType===Node.TEXT_NODE&&!node.length)node.remove()});if(!line.firstChild)line.append(document.createElement('br'))}
+    block.after(next);
+    const caret=document.createRange();caret.setStart(next,0);caret.collapse(true);selection.removeAllRanges();selection.addRange(caret);
+    if(focused?.editor===editor)focused.range=caret.cloneRange();
+    editor.dispatchEvent(new Event('input',{bubbles:true}));
+    return true;
+  }
   function lineAfterEquation(editor, equation) {
     const item=equation.parentElement?.tagName==='LI'?equation.parentElement:null,line=document.createElement(item?'li':'p');
     line.append(document.createElement('br'));(item||equation).after(line);
@@ -539,6 +558,7 @@ const RichEditor = (() => {
     editor.dispatchEvent(new Event('input',{bubbles:true}));
   }
   function convertListMarker(editor) {
+    wrapLooseLines(editor);
     const selection=window.getSelection();
     if(!selection?.isCollapsed||!selection.rangeCount)return false;
     const range=selection.getRangeAt(0),node=range.startContainer;
@@ -928,12 +948,88 @@ const RichEditor = (() => {
     return true;
   }
   // Swap a plain-text block for another tag without letting the browser rewrap neighbouring tables.
+  // ---- Every line lives in a block of its own. ----
+  // A fresh note starts empty, so its first line is bare text straight under the editor and later lines become <div>s;
+  // lines can also be joined by <br> (Shift-Enter, pasted text). Block commands (heading, list) act on the whole block,
+  // so loose or <br>-joined lines would all be swept into a heading, or never turn into a bullet. Wrapping loose lines
+  // into paragraphs, and splitting a block at its line breaks around the caret, keeps every command on one line.
+  const looseTags=new Set(['SPAN','A','B','I','U','S','STRONG','EM','CODE','SUB','SUP','MARK','FONT','BR']);
+  const isLoose=node=>node.nodeType===Node.TEXT_NODE?!(/^\s*$/.test(node.textContent)&&node.textContent.includes('\n'))&&node.textContent!=='':node.nodeType===Node.ELEMENT_NODE&&looseTags.has(node.tagName)&&!node.classList.contains('display-equation')&&!node.classList.contains('procedure');
+  // Lines of a run of inline nodes, split at <br>: a <br> after text only ends the line; a <br> on its own is an empty line.
+  function splitLines(nodes){
+    const lines=[[]];
+    for(const node of nodes){
+      if(node.nodeName!=='BR'){lines.at(-1).push(node);continue}
+      if(lines.at(-1).length){lines.push([]);node.remove()}else{lines.at(-1).push(node);lines.push([])}
+    }
+    if(lines.length>1&&!lines.at(-1).length)lines.pop();
+    return lines;
+  }
+  // Remembers where the selection is, and puts it back after nodes were moved (moving a node resets ranges inside it).
+  function holdSelection(editor,change){
+    const selection=window.getSelection(),range=selection.rangeCount?selection.getRangeAt(0):null;
+    const note=(node,offset)=>node===editor?{ref:editor.childNodes[offset]||null,last:editor.lastChild}:{node,offset};
+    const saved=range&&editor.contains(range.startContainer)&&editor.contains(range.endContainer)?{start:note(range.startContainer,range.startOffset),end:note(range.endContainer,range.endOffset)}:null;
+    change();
+    if(!saved)return;
+    const place=(where,setter)=>{
+      if(where.node){if(where.node.isConnected)setter(where.node,Math.min(where.offset,where.node.nodeType===Node.TEXT_NODE?where.node.length:where.node.childNodes.length));return}
+      if(where.ref?.isConnected)setter(where.ref.parentNode,[...where.ref.parentNode.childNodes].indexOf(where.ref));
+      else setter(editor,editor.childNodes.length);
+    };
+    const next=document.createRange();place(saved.start,(n,o)=>next.setStart(n,o));place(saved.end,(n,o)=>next.setEnd(n,o));
+    selection.removeAllRanges();selection.addRange(next);
+  }
+  function wrapLooseLines(editor){
+    if(![...editor.childNodes].some(isLoose))return false;
+    holdSelection(editor,()=>{
+      let node=editor.firstChild;
+      while(node){
+        if(!isLoose(node)){node=node.nextSibling;continue}
+        const run=[];for(let n=node;n&&(isLoose(n)||(n.nodeType===Node.TEXT_NODE&&/^\s*$/.test(n.textContent)));n=n.nextSibling)run.push(n);
+        while(run.length&&!isLoose(run.at(-1)))run.pop();
+        const after=run.at(-1).nextSibling,anchor=run[0],lines=splitLines(run);
+        for(const line of lines){
+          const p=document.createElement('p');anchor.before(p);
+          line.forEach(n=>p.append(n));if(!p.firstChild)p.append(document.createElement('br'));
+        }
+        node=after;
+      }
+    });
+    return true;
+  }
+  // The block holding the caret, cut at its <br> line breaks so the line with the caret stands alone. A selection that
+  // spans several lines keeps the block whole.
+  function isolateLine(editor,block){
+    const lines=[[]];for(const child of [...block.childNodes]){if(child.nodeName==='BR'&&child!==block.lastChild)lines.push([]);else lines.at(-1).push(child)}
+    if(lines.length<2)return block;
+    const selection=window.getSelection(),range=selection.rangeCount?selection.getRangeAt(0):null;if(!range)return block;
+    const lineOf=(container,offset)=>{
+      let child=container===block?block.childNodes[Math.min(offset,block.childNodes.length-1)]:container;
+      while(child&&child.parentNode!==block)child=child.parentNode;
+      return lines.findIndex(line=>line.includes(child));
+    };
+    const first=lineOf(range.startContainer,range.startOffset),last=lineOf(range.endContainer,range.endOffset);
+    if(first<0||first!==last)return block;
+    let mine=block;
+    holdSelection(editor,()=>{
+      lines.forEach((line,index)=>{
+        const copy=block.cloneNode(false);copy.removeAttribute('id');
+        line.forEach(n=>copy.append(n));if(!copy.firstChild)copy.append(document.createElement('br'));
+        block.before(copy);if(index===first)mine=copy;
+      });
+      block.querySelectorAll('br').forEach(br=>br.remove());block.remove();
+    });
+    return mine;
+  }
   function setBlockTag(editor, tag) {
+    wrapLooseLines(editor);
     const selection=window.getSelection();if(!selection.rangeCount)return false;
     const range=selection.getRangeAt(0);let block=range.startContainer.nodeType===Node.ELEMENT_NODE?range.startContainer:range.startContainer.parentElement;
     while(block&&block.parentElement!==editor)block=block.parentElement;
     if(!block||block===editor)return false;
     if(block.tagName==='TABLE')return true;
+    if(/^(P|DIV|H[1-6])$/.test(block.tagName)&&!block.classList.contains('equation'))block=isolateLine(editor,block);
     if(!/^(P|DIV|H[1-6])$/.test(block.tagName)||block.classList.contains('equation')||block.classList.contains('task-row'))return false;
     if(block.tagName===tag.toUpperCase())return true;
     const next=document.createElement(tag);
@@ -1065,7 +1161,7 @@ const RichEditor = (() => {
         event.preventDefault();placeCaretByEquation(editor,equation,true);return;
       }
     });
-    editor.oninput=()=>{editor.querySelectorAll('.equation.selected').forEach(item=>item.classList.remove('selected'));if(focused?.editor===editor)focused.selectedEquation=null;normalizeSpaces(editor);ensureEquationAnchors(editor);hoistTables(editor);block.html=cleanHTML(editor.innerHTML);block.text=toMarkdown(editor);onChange();updateSlash(editor);};
+    editor.oninput=()=>{editor.querySelectorAll('.equation.selected').forEach(item=>item.classList.remove('selected'));if(focused?.editor===editor)focused.selectedEquation=null;wrapLooseLines(editor);normalizeSpaces(editor);ensureEquationAnchors(editor);hoistTables(editor);block.html=cleanHTML(editor.innerHTML);block.text=toMarkdown(editor);onChange();updateSlash(editor);};
     // ── Undo and redo ──
     // The note keeps its own history. The browser's undo loses track once the page rewrites the text itself (equations,
     // lists, tables, pictures), so each stop is a saved copy of the note and ⌘Z puts one back. Typing in one go is one step.
@@ -1227,6 +1323,7 @@ const RichEditor = (() => {
         }
         if(item&&selection.isCollapsed&&item.parentElement.parentElement?.tagName!=='LI'&&blankItem(item)){event.preventDefault();hideSlash();leaveList(item);editor.dispatchEvent(new Event('input',{bubbles:true}));return;}
       }
+      if(event.key==='Enter'&&!event.shiftKey&&!event.metaKey&&!event.ctrlKey&&!event.altKey&&!slash&&!pickedDisplayEquation(editor)&&!listItemAt(editor)&&!tableCellAt(editor)&&splitLineWithEquation(editor)){event.preventDefault();return;}
       if(event.key==='Enter'&&!event.shiftKey&&!event.metaKey&&!event.ctrlKey){
         const item=listItemAt(editor);
         if(item&&item.parentElement.parentElement?.tagName==='LI'&&blankItem(item)&&outdentItem(item)){event.preventDefault();editor.dispatchEvent(new Event('input',{bubbles:true}));return;}
