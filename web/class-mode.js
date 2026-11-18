@@ -21,7 +21,7 @@
 
  const subjectOf=id=>(state.projects||[]).find(p=>p.id===id)||null;
  const colourOf=id=>subjectOf(id)?.color||'#4a9d6f';
- const plantFor=(record,size,{still=true}={})=>GardenArt.svg({plant:record.plant||'tree',seed:record.seed,growth:M.growth(record.focusedMs),density:M.density(record.ratio??M.ratio(record)),color:colourOf(record.subjectId)},{size,label:M.plantOf(record.plant).name+', '+M.stage(record.focusedMs,record.plant).toLowerCase(),still});
+ const plantFor=(record,size,{still=true}={})=>GardenArt.svg({plant:record.plant||'tree',seed:record.seed,growth:M.growth(M.grownMs(record)),density:M.density(record.ratio??M.ratio(record)),color:colourOf(record.subjectId)},{size,label:M.plantOf(record.plant).name+', '+M.stage(M.grownMs(record),record.plant).toLowerCase(),still});
  const wordsIn=note=>(note?.blocks||[]).reduce((n,b)=>n+(b.type==='text'?(String(b.text||'').match(/\S+/g)||[]).length:0),0);
 
  // ── Full screen: the whole display, so nothing else is in view ─────────────
@@ -210,9 +210,9 @@
  function paintPlant(now){
   if(hud.classList.contains('plant-hidden'))return;          // out of sight, still growing: it is drawn from the clock when it comes back
   const garden=hud.querySelector('.hud-garden'),plant=garden.querySelector('.hud-plant'),note=garden.querySelector('.hud-plant-note'),stage=garden.querySelector('.hud-plant-stage');
-  const key=Math.floor(live.focusedMs/2000)+'|'+Math.round(M.density(M.ratio(live))*50);
+  const key=Math.floor(M.grownMs(live)/2000)+'|'+Math.round(M.density(M.ratio(live))*50);
   if(key!==plantKey){
-   const first=!plantKey,step=M.stage(live.focusedMs,live.plant);plantKey=key;
+   const first=!plantKey,step=M.stage(M.grownMs(live),live.plant);plantKey=key;
    plant.innerHTML=plantFor(live,200,{still:false});
    // A little flourish when it reaches a new stage, not on every redraw.
    if(!first&&step!==plant.dataset.step){plant.classList.remove('is-grown');void plant.offsetWidth;plant.classList.add('is-grown')}
@@ -220,9 +220,10 @@
   }
   const mood=M.mood(live,now),reviving=garden.classList.contains('is-reviving');
   garden.dataset.mood=mood;
-  const next=M.nextStage(live.focusedMs,live.plant);
-  stage.textContent=M.plantOf(live.plant).name+' · '+M.stage(live.focusedMs,live.plant);
-  const hint=reviving?'Welcome back. It’s perking up.':mood==='thirsty'?'Thirsty. Come back and it will perk up.':mood==='resting'?'Resting while you look something up.':next?next.name+' in '+Math.max(1,Math.ceil(next.inMs/M.MINUTE))+' min':'Fully grown';
+  const next=M.nextStage(M.grownMs(live),live.plant);
+  stage.textContent=M.plantOf(live.plant).name+' · '+M.stage(M.grownMs(live),live.plant);
+  const lost=live.focusedMs-M.grownMs(live);
+  const hint=reviving?(lost>=30*M.SECOND?'Welcome back. Time away set it back '+Math.max(1,Math.round(lost/M.MINUTE))+' min.':'Welcome back. It’s perking up.'):mood==='thirsty'?'Thirsty. Time away stunts its growth.':mood==='resting'?'Resting while you look something up.':next?next.name+' in '+Math.max(1,Math.ceil(next.inMs/M.MINUTE))+' min':'Fully grown';
   if(note.textContent!==hint){note.textContent=hint;note.classList.remove('is-new');void note.offsetWidth;note.classList.add('is-new')}
  }
  // Coming back after a real stretch away is the moment the plant gets watered.

@@ -82,8 +82,8 @@
     const tile=button('','','gp-tile'),kind=M.plantOf(record.plant),h=M.harvest(record);
     tile.onclick=()=>detail(record);
     const art=el('span','gp-tile-art');art.innerHTML=kit().plantFor(record,132);
-    tile.append(art,el('b','',kind.name),el('small','',M.stage(record.focusedMs,record.plant)+(h?' · '+h.count+' '+h.noun:'')),el('small','gp-when',day(record.endedAt)+' · '+M.minutesLabel(record.focusedMs)));
-    tile.setAttribute('aria-label',kind.name+', '+M.stage(record.focusedMs,record.plant)+', '+day(record.endedAt));
+    tile.append(art,el('b','',kind.name),el('small','',M.stage(M.grownMs(record),record.plant)+(h?' · '+h.count+' '+h.noun:'')),el('small','gp-when',day(record.endedAt)+' · '+M.minutesLabel(record.focusedMs)));
+    tile.setAttribute('aria-label',kind.name+', '+M.stage(M.grownMs(record),record.plant)+', '+day(record.endedAt));
     grid.append(tile);
    }
    bed.append(top,grid);body.append(bed);
@@ -97,7 +97,7 @@
   box.setAttribute('aria-label',kind.name);box.addEventListener('close',()=>box.remove());
   const art=el('div','gd-art');art.innerHTML=kit().plantFor(record,230,{still:false});
   const text=el('div','gd-text');
-  text.append(el('small','',(info?.name||'Class')+' · '+new Date(record.endedAt).toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'})),el('h2','',kind.name),el('p','gd-stage',M.stage(record.focusedMs,record.plant)));
+  text.append(el('small','',(info?.name||'Class')+' · '+new Date(record.endedAt).toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'})),el('h2','',kind.name),el('p','gd-stage',M.stage(M.grownMs(record),record.plant)));
   const facts=el('dl','summary-facts');
   const fact=(k,v)=>{facts.append(el('dt','',k),el('dd','',v))};
   fact('Focused',M.minutesLabel(record.focusedMs)+' of '+M.minutesLabel(record.endedAt-record.startedAt));
