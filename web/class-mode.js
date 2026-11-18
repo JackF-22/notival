@@ -21,7 +21,7 @@
 
  const subjectOf=id=>(state.projects||[]).find(p=>p.id===id)||null;
  const colourOf=id=>subjectOf(id)?.color||'#4a9d6f';
- const treeFor=(record,size,label)=>TreeArt.svg({seed:record.seed,growth:M.growth(record.focusedMs),density:M.density(record.ratio??M.ratio(record)),color:colourOf(record.subjectId)},{size,label});
+ const plantFor=(record,size,{still=true}={})=>GardenArt.svg({plant:record.plant||'tree',seed:record.seed,growth:M.growth(record.focusedMs),density:M.density(record.ratio??M.ratio(record)),color:colourOf(record.subjectId)},{size,label:M.plantOf(record.plant).name+', '+M.stage(record.focusedMs,record.plant).toLowerCase(),still});
  const wordsIn=note=>(note?.blocks||[]).reduce((n,b)=>n+(b.type==='text'?(String(b.text||'').match(/\S+/g)||[]).length:0),0);
 
  // ── Full screen: the whole display, so nothing else is in view ─────────────
@@ -79,6 +79,7 @@
   focusPopover.append(
    item('Quiet page','Hide everything but your note',()=>focusToggle?.click()),
    item('Start a class…','Full screen, a timer, and live stats',()=>classButton.click()),
+   item('Your garden','Everything you have grown in class',()=>openGarden()),
    ...(window.marginFocusMenuExtras?.()||[]).map(extra=>item(extra.name,extra.hint,extra.action))
   );
   document.body.append(focusPopover);
@@ -109,15 +110,27 @@
   if(minutes&&!LENGTHS.includes(minutes))custom.value=String(minutes);
   paint();
   const fs=el('label','class-start-fs'),fsBox=el('input');fsBox.type='checkbox';fsBox.checked=recall('fullscreen',true);fs.append(fsBox,' Go full screen');box.append(fs);
-  const go=()=>{remember('minutes',minutes);remember('fullscreen',fsBox.checked);box.close();begin(minutes,{fullscreen:fsBox.checked})};
+  // What to grow: one of the plants, or leave it to chance.
+  let plantId=recall('plant','');
+  const plantQ=el('p','class-start-q plant-q','What are you growing?');
+  const picks=el('div','plant-picks');picks.setAttribute('role','radiogroup');picks.setAttribute('aria-label','Plant');
+  const paintPicks=()=>{for(const pick of picks.children){const on=pick.dataset.plant===plantId;pick.setAttribute('aria-checked',String(on));pick.classList.toggle('on',on)}};
+  for(const [id,name,art] of [['','Surprise me',null],...M.PLANTS.map(p=>[p.id,p.name,GardenArt.svg({plant:p.id,seed:7,growth:.9,density:1,color:colourOf(note.projectId)},{size:54,label:'',still:true})])]){
+   const pick=button('',()=>{plantId=id;paintPicks()},'plant-pick');pick.dataset.plant=id;pick.setAttribute('role','radio');
+   const face=el('span','plant-pick-art');if(art)face.innerHTML=art;else face.textContent='?';
+   pick.append(face,el('small','',name));picks.append(pick);
+  }
+  paintPicks();fs.before(plantQ,picks);
+  const go=()=>{remember('minutes',minutes);remember('fullscreen',fsBox.checked);remember('plant',plantId);box.close();begin(minutes,{fullscreen:fsBox.checked,plant:plantId})};
   custom.onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();go()}};
   const actions=el('div','class-start-actions');actions.append(button('Cancel',()=>box.close()),button('Start class',go,'primary'));
   box.append(actions);box.showModal();actions.lastChild.focus();
  }
 
- function begin(minutes=0,{fullscreen=true}={}){
+ function begin(minutes=0,{fullscreen=true,plant=recall('plant','')}={}){
   const note=current();if(!note||live)return;
-  live=M.start({subjectId:note.projectId||null,noteId:note.id,plannedMs:minutes*M.MINUTE,wordsAtStart:wordsIn(note)});
+  live=M.start({subjectId:note.projectId||null,noteId:note.id,plannedMs:minutes*M.MINUTE,wordsAtStart:wordsIn(note),plant:M.PLANTS.some(p=>p.id===plant)?plant:undefined});
+  window.marginGarden?.close();
   lastCaret=null;ticks=0;
   sidebarWasOpen=!document.body.classList.contains('sidebar-collapsed');
   setSidebarCollapsed(true);document.body.classList.add('class-mode');
@@ -186,23 +199,29 @@
    button('End class',()=>end(),'hud-end')
   );
   // The plant you are growing: it gets bigger the longer you stay, droops when you leave, and perks up when you are back.
-  const garden=el('figure','hud-garden');const caption=el('figcaption','hud-plant-caption');caption.append(el('b','hud-plant-stage'),el('small','hud-plant-note'));garden.append(el('div','hud-plant'),caption);
-  hud.append(clock,garden,stats,el('div','hud-parked'),actions);document.body.append(hud);paintTimerToggle();plantKey='';
+  const garden=el('figure','hud-garden');const caption=el('figcaption','hud-plant-caption');caption.append(el('b','hud-plant-stage'),el('small','hud-plant-note'));
+  // The plant can be put away too, for a page with nothing growing beside it.
+  const plantToggle=button('',()=>{remember('hidePlant',!recall('hidePlant',false));paintPlantToggle()},'hud-plant-toggle');
+  garden.append(el('div','hud-plant'),caption,plantToggle);
+  hud.append(clock,garden,stats,el('div','hud-parked'),actions);document.body.append(hud);paintTimerToggle();paintPlantToggle();plantKey='';
  }
- // Redrawing the tree every second would be wasteful and would make it flicker, so it is redrawn when it has grown a little.
+ // Redrawing every second would be wasteful, so it is redrawn every couple of seconds, which is far finer than anyone can see it grow.
  let plantKey='',reviveTimer=0;
  function paintPlant(now){
+  if(hud.classList.contains('plant-hidden'))return;          // out of sight, still growing: it is drawn from the clock when it comes back
   const garden=hud.querySelector('.hud-garden'),plant=garden.querySelector('.hud-plant'),note=garden.querySelector('.hud-plant-note'),stage=garden.querySelector('.hud-plant-stage');
-  const key=Math.floor(live.focusedMs/5000)+'|'+Math.round(M.density(M.ratio(live))*50);
+  const key=Math.floor(live.focusedMs/2000)+'|'+Math.round(M.density(M.ratio(live))*50);
   if(key!==plantKey){
-   const first=!plantKey;plantKey=key;
-   plant.innerHTML=treeFor(live,200,M.stage(live.focusedMs));
-   if(!first){plant.classList.remove('is-grown');void plant.offsetWidth;plant.classList.add('is-grown')}
+   const first=!plantKey,step=M.stage(live.focusedMs,live.plant);plantKey=key;
+   plant.innerHTML=plantFor(live,200,{still:false});
+   // A little flourish when it reaches a new stage, not on every redraw.
+   if(!first&&step!==plant.dataset.step){plant.classList.remove('is-grown');void plant.offsetWidth;plant.classList.add('is-grown')}
+   plant.dataset.step=step;
   }
   const mood=M.mood(live,now),reviving=garden.classList.contains('is-reviving');
   garden.dataset.mood=mood;
-  const next=M.nextStage(live.focusedMs);
-  stage.textContent=M.stage(live.focusedMs);
+  const next=M.nextStage(live.focusedMs,live.plant);
+  stage.textContent=M.plantOf(live.plant).name+' · '+M.stage(live.focusedMs,live.plant);
   const hint=reviving?'Welcome back. It’s perking up.':mood==='thirsty'?'Thirsty. Come back and it will perk up.':mood==='resting'?'Resting while you look something up.':next?next.name+' in '+Math.max(1,Math.ceil(next.inMs/M.MINUTE))+' min':'Fully grown';
   if(note.textContent!==hint){note.textContent=hint;note.classList.remove('is-new');void note.offsetWidth;note.classList.add('is-new')}
  }
@@ -211,6 +230,13 @@
   const garden=hud?.querySelector('.hud-garden');if(!garden)return;
   clearTimeout(reviveTimer);garden.classList.remove('is-reviving');void garden.offsetWidth;garden.classList.add('is-reviving');
   reviveTimer=setTimeout(()=>{garden.classList.remove('is-reviving');if(live)paintPlant(live.last)},3600);
+ }
+ function paintPlantToggle(){
+  if(!hud)return;
+  const hidden=!!recall('hidePlant',false),toggle=hud.querySelector('.hud-plant-toggle');
+  hud.classList.toggle('plant-hidden',hidden);
+  toggle.textContent=hidden?'Show plant':'Hide plant';toggle.title=hidden?'Bring your plant back':'Hide the plant. It keeps growing while it is out of sight.';toggle.setAttribute('aria-pressed',String(hidden));
+  if(!hidden&&live){plantKey='';paintPlant(live.last)}
  }
  function paintTimerToggle(){
   if(!hud)return;
@@ -359,34 +385,9 @@
  }
 
  // ── The garden ─────────────────────────────────────────────────────────────
- function openGarden(){
-  const sessions=(state.focusSessions||[]).slice().sort((a,b)=>b.endedAt-a.endedAt),stats=M.gardenStats(sessions);
-  const box=dialog('garden-dialog','Garden');
-  const head=el('div','garden-head');head.append(el('h2','','Your garden'),button('Close',()=>box.close(),'garden-close'));box.append(head);
-  if(!sessions.length){
-   const empty=el('div','garden-empty');empty.innerHTML=TreeArt.svg({seed:3,growth:.04,density:1},{size:96,label:'A sprout'});
-   empty.append(el('p','','Nothing planted yet. Finish a class and its tree appears here.'));box.append(empty);
-  }else{
-   box.append(el('p','garden-week','This week: '+M.minutesLabel(stats.weekFocusedMs)+' focused across '+stats.weekCount+(stats.weekCount===1?' class':' classes')+'.'));
-   if(stats.subjects.length>1||stats.subjects[0]?.subjectId){
-    const bars=el('div','garden-subjects');
-    for(const s of stats.subjects){
-     const name=subjectOf(s.subjectId)?.name||'No subject',row=el('div','garden-subject');
-     const bar=el('span','garden-bar'),fill=el('i');fill.style.width=Math.round(s.ratio*100)+'%';fill.style.background=colourOf(s.subjectId);bar.append(fill);
-     row.append(el('span','garden-name',name),bar,el('span','garden-pct',Math.round(s.ratio*100)+'% here · '+s.count+(s.count===1?' class':' classes')));bars.append(row);
-    }
-    box.append(bars);
-   }
-   const grid=el('div','garden-grid');
-   for(const record of sessions.slice(0,80)){
-    const tile=el('figure','garden-tile');tile.innerHTML=treeFor(record,104,M.stage(record.focusedMs));
-    const when=new Date(record.endedAt).toLocaleDateString(undefined,{month:'short',day:'numeric'});
-    tile.append(el('figcaption','',(subjectOf(record.subjectId)?.name||'Class')+' · '+when+' · '+M.minutesLabel(record.focusedMs)+' · '+Math.round(record.ratio*100)+'%'));grid.append(tile);
-   }
-   box.append(grid);
-  }
-  box.showModal();
- }
+ // The garden is its own page (garden-page.js); this is what it needs to know about subjects and how to draw a plant.
+ const openGarden=()=>window.marginGarden?.open();
+ window.marginGardenKit={plantFor,subjectOf,colourOf};
 
  window.marginClass={begin,end,openStart,tick,openGarden,session:()=>live,setProbe:fn=>{probeOverride=fn},isLive:()=>!!live,fullscreenLog,showTimeUp};
  new MutationObserver(syncButtons).observe(document.body,{attributes:true,attributeFilter:['data-view','class']});   // opening or leaving a note, or the quiet page turning on

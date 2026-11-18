@@ -194,6 +194,19 @@ body.class-mode #update-card{display:none}
 @keyframes plant-drop{0%{opacity:0;transform:translateY(0)}15%{opacity:.85}85%{opacity:.6}100%{opacity:0;transform:translateY(120px)}}
 @media (prefers-reduced-motion:reduce){#class-hud .hud-plant,#class-hud .hud-plant svg,#class-hud .hud-plant-note,#class-hud .hud-garden.is-reviving .hud-plant{animation:none!important;transition:none}#class-hud .hud-garden.is-reviving .hud-plant::before,#class-hud .hud-garden.is-reviving .hud-plant::after{display:none}}
 
+#class-hud .hud-plant-toggle{border:0;background:transparent;color:var(--muted,#888);padding:2px 6px;font-size:11px;border-radius:6px;opacity:.75;transition:opacity .2s ease,color .2s ease}
+#class-hud .hud-plant-toggle:hover{background:transparent;color:var(--ink,#333);opacity:1;text-decoration:underline}
+#class-hud.plant-hidden .hud-garden>:not(.hud-plant-toggle){display:none}
+/* The plant you chose, when starting a class. */
+.plant-q{margin-top:18px}
+.plant-picks{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px}
+.class-dialog .plant-pick{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 4px 8px;border-radius:12px;transition:border-color .2s ease,background-color .2s ease}
+.class-dialog .plant-pick:hover{background:var(--soft,#eee)}
+.class-dialog .plant-pick.on{border-color:var(--accent,var(--green,#4a6452));background:color-mix(in srgb,var(--accent,var(--green,#4a6452)) 9%,transparent);box-shadow:0 0 0 1px var(--accent,var(--green,#4a6452))}
+.plant-pick-art{display:grid;place-items:center;width:54px;height:54px;font-size:24px;color:var(--muted,#888)}
+.plant-pick-art svg{display:block}
+.plant-pick small{font-size:11.5px;color:var(--ink,#333)}
+
 /* The timer can be hidden; everything else stays. */
 #class-hud .hud-toggle{align-self:flex-start;border:0;background:transparent;color:var(--muted,#888);padding:2px 0;font-size:11px;border-radius:6px}
 #class-hud .hud-toggle:hover{background:transparent;color:var(--ink,#333);text-decoration:underline}
