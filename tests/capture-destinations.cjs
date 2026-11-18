@@ -1,6 +1,6 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const source=fs.readFileSync('web/app.js','utf8');let id=0;const old={id:'old',projectId:'history',unitId:'medieval',title:'Existing PDF',pdfPath:'/old.pdf',blocks:[]};const state={projects:[],notes:[old]};
-const context={window:{marginCaptureDestination:()=>({projectId:'biology',unitId:'cells'})},state,active:'old',mode:'write',uid:()=>String(++id),persist(){},render(){},toast(){},syncPDFHighlights(){},setSidebarCollapsed(){},pendingPDFSelection:null,openPDFPath:null};vm.createContext(context);
+const context={PDFSet:require('../web/pdf-set.js'),window:{marginCaptureDestination:()=>({projectId:'biology',unitId:'cells'})},state,active:'old',mode:'write',uid:()=>String(++id),persist(){},render(){},toast(){},syncPDFHighlights(){},setSidebarCollapsed(){},pendingPDFSelection:null,openPDFPath:null};vm.createContext(context);
 function load(start,end){const a=source.indexOf(start),b=source.indexOf(end,a);assert(a>=0&&b>a);vm.runInContext(source.slice(a,b),context)}
 load('function captureFiles','window.marginImportFoliose=');
 context.window.marginCapture({title:'Captured code',text:'const n=2',language:'javascript',source:{uri:'file:///source.js',start:2,end:3}});const captured=state.notes[0];assert.equal(captured.projectId,'biology');assert.equal(captured.unitId,'cells');assert.equal(captured.blocks[0].text,'const n=2');assert.equal(captured.blocks[0].source.start,2);assert.equal(old.projectId,'history');
