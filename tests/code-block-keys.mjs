@@ -28,6 +28,12 @@ try{
   assert.equal(await evaluate(`document.querySelector('.rich-text pre').textContent`),'x');
   await evaluate(`(()=>{const ed=document.querySelector('.rich-text'),d=new DataTransfer();d.setData('text/plain','a\\nb\\nc');d.setData('text/html','<div>a</div><div>b</div><div>c</div>');ed.dispatchEvent(new ClipboardEvent('paste',{clipboardData:d,bubbles:true,cancelable:true}))})()`);await wait(150);
   assert.equal(await evaluate(`document.querySelectorAll('.rich-text pre').length+':'+document.querySelector('.rich-text pre').textContent`),'1:xa\nb\nc');
+  await key('Enter',{modifiers:8});await wait(100);
+  await call('Input.insertText',{text:'d'},sessionId);await wait(80);
+  await key('Enter',{modifiers:8});await wait(100);
+  await key('Enter',{modifiers:8});await wait(100);
+  await call('Input.insertText',{text:'e'},sessionId);await wait(80);
+  assert.equal(await evaluate(`document.querySelectorAll('.rich-text pre').length+':'+JSON.stringify(document.querySelector('.rich-text pre').textContent)`),'1:"xa\\nb\\nc\\nd\\n\\ne"');
   await key('Enter');await wait(150);
   assert.equal(await evaluate(`document.querySelector('.rich-text').lastElementChild.tagName`),'P');
   console.log('PASS: /code puts the caret in the code block, multi-line paste stays in one block, Enter leaves it.');
