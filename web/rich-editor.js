@@ -1323,6 +1323,18 @@ const RichEditor = (() => {
         }
         if(item&&selection.isCollapsed&&item.parentElement.parentElement?.tagName!=='LI'&&blankItem(item)){event.preventDefault();hideSlash();leaveList(item);editor.dispatchEvent(new Event('input',{bubbles:true}));return;}
       }
+      if(event.key==='Enter'&&!event.shiftKey&&!event.metaKey&&!event.ctrlKey&&!slash){
+        const sel=window.getSelection(),node=sel?.anchorNode,pre=(node?.nodeType===Node.ELEMENT_NODE?node:node?.parentElement)?.closest?.('pre');
+        if(pre&&editor.contains(pre)){
+          event.preventDefault();
+          const range=document.createRange();range.selectNodeContents(pre);if(sel.rangeCount){const r=sel.getRangeAt(0);range.setStart(r.endContainer,r.endOffset)}
+          const tail=range.extractContents();
+          let p=document.createElement('p');p.append(tail);if(!p.textContent)p.innerHTML='<br>';
+          if(!pre.textContent.replace(/\n$/,'')){pre.replaceWith(p)}else pre.after(p);
+          const caret=document.createRange();caret.setStart(p,0);caret.collapse(true);sel.removeAllRanges();sel.addRange(caret);
+          editor.dispatchEvent(new Event('input',{bubbles:true}));return;
+        }
+      }
       if(event.key==='Enter'&&!event.shiftKey&&!event.metaKey&&!event.ctrlKey&&!event.altKey&&!slash&&!pickedDisplayEquation(editor)&&!listItemAt(editor)&&!tableCellAt(editor)&&splitLineWithEquation(editor)){event.preventDefault();return;}
       if(event.key==='Enter'&&!event.shiftKey&&!event.metaKey&&!event.ctrlKey){
         const item=listItemAt(editor);
@@ -1448,7 +1460,7 @@ const RichEditor = (() => {
     else if(name==='image'){document.querySelector('#image-picker')?.click();return;}
     else if(name==='highlight'){if(!highlight(editor,value))return;}
     else if(name==='rule')document.execCommand('insertHorizontalRule');
-    else if(name==='code')document.execCommand('formatBlock',false,'pre');
+    else if(name==='code'){document.execCommand('formatBlock',false,'pre');const sel=window.getSelection(),n=sel?.anchorNode,pre=(n?.nodeType===Node.ELEMENT_NODE?n:n?.parentElement)?.closest?.('pre');if(pre&&editor.contains(pre)){if(!pre.firstChild)pre.append(document.createElement('br'));editor.focus({preventScroll:true});const r=document.createRange();if(pre.textContent){r.selectNodeContents(pre);r.collapse(false)}else{r.setStart(pre,0);r.collapse(true)}sel.removeAllRanges();sel.addRange(r);if(focused)focused.range=r.cloneRange()}}
     else if(name==='heading'){if(!['p','h1','h2','h3'].includes(value))return;if(!setBlockTag(editor,value))document.execCommand('formatBlock',false,value);hoistTables(editor);}
     else if(name==='quote')document.execCommand('formatBlock',false,'blockquote');
     else document.execCommand(name,false,value||null);
