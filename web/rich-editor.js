@@ -1243,6 +1243,14 @@ const RichEditor = (() => {
     editor.onpaste=event=>{
       const data=event.clipboardData;if(!data)return;event.preventDefault();
       const image=[...(data.items||[])].find(item=>item.type.startsWith('image/'))?.getAsFile();if(image){insertImage(image);return;}
+      const sel=window.getSelection(),anchor=sel?.anchorNode,inPre=sel?.rangeCount&&(anchor?.nodeType===Node.ELEMENT_NODE?anchor:anchor?.parentElement)?.closest?.('pre');
+      if(inPre&&editor.contains(inPre)){
+        const text=data.getData('text/plain').replace(/\r\n?/g,'\n');if(!text)return;
+        const r=sel.getRangeAt(0);r.deleteContents();const node=document.createTextNode(text);r.insertNode(node);
+        inPre.querySelectorAll('br').forEach(br=>br.remove());
+        const after=document.createRange();after.setStart(node,text.length);after.collapse(true);sel.removeAllRanges();sel.addRange(after);
+        editor.dispatchEvent(new Event('input',{bubbles:true}));return;
+      }
       const html=data.getData('text/html');
       if(html){document.execCommand('insertHTML',false,cleanHTML(html));renderMath(editor);editor.dispatchEvent(new Event('input',{bubbles:true}));}
       else document.execCommand('insertText',false,data.getData('text/plain'));
@@ -1322,6 +1330,34 @@ const RichEditor = (() => {
           if(!probe.toString().replace(/[\u200b]/g,'').length&&!probe.cloneContents().querySelector('img,.equation')&&outdentItem(item)){event.preventDefault();editor.dispatchEvent(new Event('input',{bubbles:true}));return;}
         }
         if(item&&selection.isCollapsed&&item.parentElement.parentElement?.tagName!=='LI'&&blankItem(item)){event.preventDefault();hideSlash();leaveList(item);editor.dispatchEvent(new Event('input',{bubbles:true}));return;}
+      }
+      if(event.key==='Enter'&&event.shiftKey&&!event.metaKey&&!event.ctrlKey&&!event.altKey&&!slash){
+        const sel=window.getSelection(),node=sel?.anchorNode,pre=(node?.nodeType===Node.ELEMENT_NODE?node:node?.parentElement)?.closest?.('pre');
+        if(pre&&editor.contains(pre)&&sel.rangeCount){
+          event.preventDefault();
+          const r=sel.getRangeAt(0);r.deleteContents();
+          pre.querySelectorAll('br').forEach(br=>br.remove());
+          const tail=document.createRange();tail.selectNodeContents(pre);tail.setStart(r.endContainer,r.endOffset);
+          const atEnd=!tail.toString();
+          const head=document.createRange();head.selectNodeContents(pre);head.setEnd(r.startContainer,r.startOffset);
+          const before=head.toString(),line=before.slice(before.lastIndexOf('\n')+1),indent=line.match(/^[ \t]*/)[0],opens=/[{(\[:]\s*$/.test(line),after=tail.toString();
+          const extra=opens?'  ':'',closes=opens&&/^\s*[}\])]/.test(after);
+          const lead='\n'+indent+extra,text=document.createTextNode(lead+(closes?'\n'+indent:atEnd?'\n':''));r.insertNode(text);
+          const caret=document.createRange();caret.setStart(text,lead.length);caret.collapse(true);sel.removeAllRanges();sel.addRange(caret);
+          editor.dispatchEvent(new Event('input',{bubbles:true}));return;
+        }
+      }
+      if(event.key==='Enter'&&!event.shiftKey&&!event.metaKey&&!event.ctrlKey&&!slash){
+        const sel=window.getSelection(),node=sel?.anchorNode,pre=(node?.nodeType===Node.ELEMENT_NODE?node:node?.parentElement)?.closest?.('pre');
+        if(pre&&editor.contains(pre)){
+          event.preventDefault();
+          const range=document.createRange();range.selectNodeContents(pre);if(sel.rangeCount){const r=sel.getRangeAt(0);range.setStart(r.endContainer,r.endOffset)}
+          const tail=range.extractContents();if(tail.textContent==='\n')tail.replaceChildren();
+          let p=document.createElement('p');p.append(tail);if(!p.textContent)p.innerHTML='<br>';
+          if(!pre.textContent.replace(/\n$/,'')){pre.replaceWith(p)}else pre.after(p);
+          const caret=document.createRange();caret.setStart(p,0);caret.collapse(true);sel.removeAllRanges();sel.addRange(caret);
+          editor.dispatchEvent(new Event('input',{bubbles:true}));return;
+        }
       }
       if(event.key==='Enter'&&!event.shiftKey&&!event.metaKey&&!event.ctrlKey&&!event.altKey&&!slash&&!pickedDisplayEquation(editor)&&!listItemAt(editor)&&!tableCellAt(editor)&&splitLineWithEquation(editor)){event.preventDefault();return;}
       if(event.key==='Enter'&&!event.shiftKey&&!event.metaKey&&!event.ctrlKey){
@@ -1448,7 +1484,20 @@ const RichEditor = (() => {
     else if(name==='image'){document.querySelector('#image-picker')?.click();return;}
     else if(name==='highlight'){if(!highlight(editor,value))return;}
     else if(name==='rule')document.execCommand('insertHorizontalRule');
-    else if(name==='code')document.execCommand('formatBlock',false,'pre');
+    else if(name==='code'){
+      const sel=window.getSelection(),n=sel?.anchorNode;let line=n&&editor.contains(n)&&n!==editor?(n.nodeType===Node.ELEMENT_NODE?n:n.parentElement):null;
+      while(line&&line.parentElement!==editor)line=line.parentElement;
+      let pre;
+      if(line&&sel.isCollapsed&&/^(P|DIV|H[1-6])$/.test(line.tagName)&&!line.querySelector('img,table,.equation,ul,ol')){
+        line=isolateLine(editor,line);pre=document.createElement('pre');
+        pre.textContent=line.textContent.replace(/\u200b/g,'');line.replaceWith(pre);
+      }else{
+        const before=new Set(editor.querySelectorAll('pre'));document.execCommand('formatBlock',false,'pre');
+        const m=window.getSelection().anchorNode,at=(m?.nodeType===Node.ELEMENT_NODE?m:m?.parentElement)?.closest?.('pre');
+        pre=at&&editor.contains(at)?at:[...editor.querySelectorAll('pre')].find(x=>!before.has(x));
+      }
+      if(pre){if(!pre.firstChild)pre.append(document.createElement('br'));editor.focus({preventScroll:true});const r=document.createRange();if(pre.textContent){r.selectNodeContents(pre);r.collapse(false)}else{r.setStart(pre,0);r.collapse(true)}const live=window.getSelection();live.removeAllRanges();live.addRange(r);if(focused)focused.range=r.cloneRange()}
+    }
     else if(name==='heading'){if(!['p','h1','h2','h3'].includes(value))return;if(!setBlockTag(editor,value))document.execCommand('formatBlock',false,value);hoistTables(editor);}
     else if(name==='quote')document.execCommand('formatBlock',false,'blockquote');
     else document.execCommand(name,false,value||null);
