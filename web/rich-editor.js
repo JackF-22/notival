@@ -1243,6 +1243,14 @@ const RichEditor = (() => {
     editor.onpaste=event=>{
       const data=event.clipboardData;if(!data)return;event.preventDefault();
       const image=[...(data.items||[])].find(item=>item.type.startsWith('image/'))?.getAsFile();if(image){insertImage(image);return;}
+      const sel=window.getSelection(),anchor=sel?.anchorNode,inPre=sel?.rangeCount&&(anchor?.nodeType===Node.ELEMENT_NODE?anchor:anchor?.parentElement)?.closest?.('pre');
+      if(inPre&&editor.contains(inPre)){
+        const text=data.getData('text/plain').replace(/\r\n?/g,'\n');if(!text)return;
+        const r=sel.getRangeAt(0);r.deleteContents();const node=document.createTextNode(text);r.insertNode(node);
+        inPre.querySelectorAll('br').forEach(br=>br.remove());
+        const after=document.createRange();after.setStart(node,text.length);after.collapse(true);sel.removeAllRanges();sel.addRange(after);
+        editor.dispatchEvent(new Event('input',{bubbles:true}));return;
+      }
       const html=data.getData('text/html');
       if(html){document.execCommand('insertHTML',false,cleanHTML(html));renderMath(editor);editor.dispatchEvent(new Event('input',{bubbles:true}));}
       else document.execCommand('insertText',false,data.getData('text/plain'));
@@ -1460,7 +1468,20 @@ const RichEditor = (() => {
     else if(name==='image'){document.querySelector('#image-picker')?.click();return;}
     else if(name==='highlight'){if(!highlight(editor,value))return;}
     else if(name==='rule')document.execCommand('insertHorizontalRule');
-    else if(name==='code'){document.execCommand('formatBlock',false,'pre');const sel=window.getSelection(),n=sel?.anchorNode,pre=(n?.nodeType===Node.ELEMENT_NODE?n:n?.parentElement)?.closest?.('pre');if(pre&&editor.contains(pre)){if(!pre.firstChild)pre.append(document.createElement('br'));editor.focus({preventScroll:true});const r=document.createRange();if(pre.textContent){r.selectNodeContents(pre);r.collapse(false)}else{r.setStart(pre,0);r.collapse(true)}sel.removeAllRanges();sel.addRange(r);if(focused)focused.range=r.cloneRange()}}
+    else if(name==='code'){
+      const sel=window.getSelection(),n=sel?.anchorNode;let line=n&&editor.contains(n)&&n!==editor?(n.nodeType===Node.ELEMENT_NODE?n:n.parentElement):null;
+      while(line&&line.parentElement!==editor)line=line.parentElement;
+      let pre;
+      if(line&&sel.isCollapsed&&/^(P|DIV|H[1-6])$/.test(line.tagName)&&!line.querySelector('img,table,.equation,ul,ol')){
+        line=isolateLine(editor,line);pre=document.createElement('pre');
+        pre.textContent=line.textContent.replace(/\u200b/g,'');line.replaceWith(pre);
+      }else{
+        const before=new Set(editor.querySelectorAll('pre'));document.execCommand('formatBlock',false,'pre');
+        const m=window.getSelection().anchorNode,at=(m?.nodeType===Node.ELEMENT_NODE?m:m?.parentElement)?.closest?.('pre');
+        pre=at&&editor.contains(at)?at:[...editor.querySelectorAll('pre')].find(x=>!before.has(x));
+      }
+      if(pre){if(!pre.firstChild)pre.append(document.createElement('br'));editor.focus({preventScroll:true});const r=document.createRange();if(pre.textContent){r.selectNodeContents(pre);r.collapse(false)}else{r.setStart(pre,0);r.collapse(true)}const live=window.getSelection();live.removeAllRanges();live.addRange(r);if(focused)focused.range=r.cloneRange()}
+    }
     else if(name==='heading'){if(!['p','h1','h2','h3'].includes(value))return;if(!setBlockTag(editor,value))document.execCommand('formatBlock',false,value);hoistTables(editor);}
     else if(name==='quote')document.execCommand('formatBlock',false,'blockquote');
     else document.execCommand(name,false,value||null);
