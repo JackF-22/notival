@@ -16,16 +16,17 @@ body>aside .quick-search-trigger{margin:10px 0 16px;padding:10px 12px;flex-shrin
 #sidebar-library #project-actions .create-project{width:28px;height:28px;min-height:0;padding:0;border:0;background:transparent;box-shadow:none;font-size:20px;color:var(--muted);text-align:center}
 #sidebar-library #project-actions .create-project:hover{background:var(--soft);color:var(--ink)}
 #sidebar-library #projects{display:grid;gap:10px;max-height:none;overflow:visible;margin:0 0 22px;padding:0;flex:none}
-#sidebar-library #projects .project-row{display:grid;grid-template-columns:20px minmax(0,1fr) 24px;gap:2px;align-items:center;min-height:54px;margin:0;padding:5px 4px;border:1px solid transparent;background:transparent;border-radius:10px}
+#sidebar-library #projects .project-row{display:grid;grid-template-columns:20px minmax(0,1fr) auto auto;gap:2px;align-items:center;min-height:54px;margin:0;padding:5px 4px;border:1px solid transparent;background:transparent;border-radius:10px}
 #sidebar-library #projects .project-row:has(.project-card.active){background:var(--soft);border-color:var(--line)}
 #sidebar-library #projects .project-row:hover{background:color-mix(in srgb,var(--soft) 65%,transparent)}
-#sidebar-library #projects .project-card{display:flex;gap:9px;width:100%;min-height:44px;padding:6px 2px!important;white-space:normal;overflow:visible;background:transparent}
+#sidebar-library #projects .project-card{grid-column:2;display:flex;gap:9px;width:100%;min-height:44px;padding:6px 2px!important;white-space:normal;overflow:visible;background:transparent}
 #sidebar-library #projects .project-icon{width:25px;height:28px;flex:0 0 25px;background:transparent;font-size:20px;box-shadow:none}
 #sidebar-library #projects .project-copy{flex:1;min-width:0}
 #sidebar-library #projects .project-copy strong{font-size:12px;line-height:1.45;white-space:normal;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 #sidebar-library #projects .project-count{font-size:10px;align-self:center;padding-left:2px}
+#sidebar-library #projects .project-row>.subject-expand{grid-column:1}
 #sidebar-library #projects .project-row>button:not(.project-card){width:22px;min-height:28px;margin:0;padding:2px;font-size:12px;color:var(--muted)}
-#sidebar-library #projects .project-row>button.project-edit{opacity:.7;width:auto;padding:2px 7px;font-size:11px;border:1px solid var(--line);border-radius:6px;margin-right:2px}
+#sidebar-library #projects .project-row>button.project-edit{opacity:.7;width:auto;padding:4px 9px;min-height:0;line-height:1.2;white-space:nowrap;font-size:11px;border:1px solid var(--line);border-radius:6px;margin-right:2px}
 #sidebar-library #projects .project-row:hover>button.project-edit,#sidebar-library #projects .project-row:focus-within>button.project-edit{opacity:1;color:var(--ink)}
 #sidebar-library #projects .subject-children{grid-column:2/-1;width:auto;padding:8px 0 4px 12px;margin:2px 0 2px 11px;border-left:1px solid var(--line);display:grid;gap:7px}
 #sidebar-library #projects .subject-children button{border:0;padding:8px 7px;line-height:1.45;min-height:34px;font-size:12px;white-space:normal;overflow-wrap:anywhere;color:var(--muted);border-radius:6px}
