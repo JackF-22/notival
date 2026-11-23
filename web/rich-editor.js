@@ -1339,8 +1339,11 @@ const RichEditor = (() => {
           pre.querySelectorAll('br').forEach(br=>br.remove());
           const tail=document.createRange();tail.selectNodeContents(pre);tail.setStart(r.endContainer,r.endOffset);
           const atEnd=!tail.toString();
-          const text=document.createTextNode(atEnd?'\n\n':'\n');r.insertNode(text);
-          const caret=document.createRange();caret.setStart(text,1);caret.collapse(true);sel.removeAllRanges();sel.addRange(caret);
+          const head=document.createRange();head.selectNodeContents(pre);head.setEnd(r.startContainer,r.startOffset);
+          const before=head.toString(),line=before.slice(before.lastIndexOf('\n')+1),indent=line.match(/^[ \t]*/)[0],opens=/[{(\[:]\s*$/.test(line),after=tail.toString();
+          const extra=opens?'  ':'',closes=opens&&/^\s*[}\])]/.test(after);
+          const lead='\n'+indent+extra,text=document.createTextNode(lead+(closes?'\n'+indent:atEnd?'\n':''));r.insertNode(text);
+          const caret=document.createRange();caret.setStart(text,lead.length);caret.collapse(true);sel.removeAllRanges();sel.addRange(caret);
           editor.dispatchEvent(new Event('input',{bubbles:true}));return;
         }
       }
@@ -1349,7 +1352,7 @@ const RichEditor = (() => {
         if(pre&&editor.contains(pre)){
           event.preventDefault();
           const range=document.createRange();range.selectNodeContents(pre);if(sel.rangeCount){const r=sel.getRangeAt(0);range.setStart(r.endContainer,r.endOffset)}
-          const tail=range.extractContents();if(pre.lastChild?.nodeType===Node.TEXT_NODE&&/\n\n$/.test(pre.textContent)&&!tail.textContent)pre.lastChild.data=pre.lastChild.data.slice(0,-1);
+          const tail=range.extractContents();if(tail.textContent==='\n')tail.replaceChildren();
           let p=document.createElement('p');p.append(tail);if(!p.textContent)p.innerHTML='<br>';
           if(!pre.textContent.replace(/\n$/,'')){pre.replaceWith(p)}else pre.after(p);
           const caret=document.createRange();caret.setStart(p,0);caret.collapse(true);sel.removeAllRanges();sel.addRange(caret);

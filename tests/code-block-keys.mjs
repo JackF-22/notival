@@ -34,6 +34,17 @@ try{
   await key('Enter',{modifiers:8});await wait(100);
   await call('Input.insertText',{text:'e'},sessionId);await wait(80);
   assert.equal(await evaluate(`document.querySelectorAll('.rich-text pre').length+':'+JSON.stringify(document.querySelector('.rich-text pre').textContent)`),'1:"xa\\nb\\nc\\nd\\n\\ne"');
+  const caretTop=`(()=>{const r=getSelection().getRangeAt(0).cloneRange();const rects=r.getClientRects();if(rects.length)return rects[0].top;const s=document.createElement('span');s.textContent='\\u200b';r.insertNode(s);const t=s.getBoundingClientRect().top;s.remove();return t})()`;
+  const top1=await evaluate(caretTop);
+  await key('Enter',{modifiers:8});await wait(100);
+  const top2=await evaluate(caretTop);
+  assert.ok(top2>top1+10,'caret moves down a line: '+top1+' -> '+top2);
+  await call('Input.insertText',{text:'if (a) {'},sessionId);
+  await key('Enter',{modifiers:8});await wait(100);
+  await call('Input.insertText',{text:'y'},sessionId);
+  await key('Enter',{modifiers:8});await wait(100);
+  await call('Input.insertText',{text:'z'},sessionId);
+  assert.ok((await evaluate(`document.querySelector('.rich-text pre').textContent`)).replace(/\n$/,'').endsWith('if (a) {\n  y\n  z'),'keeps and deepens indentation');
   await key('Enter');await wait(150);
   assert.equal(await evaluate(`document.querySelector('.rich-text').lastElementChild.tagName`),'P');
   console.log('PASS: /code puts the caret in the code block, multi-line paste stays in one block, Enter leaves it.');
